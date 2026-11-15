@@ -87,6 +87,7 @@ func New(st *store.Store, log *slog.Logger, baseURL string, now func() time.Time
 	mux.HandleFunc("POST /g/{secret}/concerts/{id}", s.inGroup(requireMe(s.updateConcert)))
 	mux.HandleFunc("POST /g/{secret}/concerts/{id}/delete", s.inGroup(requireMe(s.deleteConcert)))
 	mux.HandleFunc("POST /g/{secret}/concerts/{id}/restore", s.inGroup(requireMe(s.restoreConcert)))
+	mux.HandleFunc("POST /g/{secret}/concerts/{id}/status", s.inGroup(requireMe(s.setStatus)))
 	return s.logRequests(securityHeaders(http.NewCrossOriginProtection().Handler(mux))), nil
 }
 
@@ -129,14 +130,14 @@ func (s *server) serveStatic(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	body, ok := s.static.bodies[name]
 	if !ok {
-		notFound(w)
+		notFound(w, r)
 		return
 	}
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(body))
 }
 
-// parsePages builds one template per page, each combined with the layout.
+// parsePages builds one template per page, each combined with the layout and the shared partials.
 func parsePages(funcs template.FuncMap) (map[string]*template.Template, error) {
 	names, err := fs.Glob(templatesFS, "templates/*.html")
 	if err != nil {
@@ -144,10 +145,10 @@ func parsePages(funcs template.FuncMap) (map[string]*template.Template, error) {
 	}
 	pages := map[string]*template.Template{}
 	for _, n := range names {
-		if n == "templates/layout.html" {
+		if n == "templates/layout.html" || n == "templates/partials.html" {
 			continue
 		}
-		t, err := template.New("").Funcs(funcs).ParseFS(templatesFS, "templates/layout.html", n)
+		t, err := template.New("").Funcs(funcs).ParseFS(templatesFS, "templates/layout.html", "templates/partials.html", n)
 		if err != nil {
 			return nil, err
 		}
@@ -174,7 +175,12 @@ func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	http.Error(w, "Erreur interne, réessaie plus tard.", http.StatusInternalServerError)
 }
 
-func notFound(w http.ResponseWriter) {
+// notFound answers 404; htmx, which swaps no 4xx, is told to reload the page
+// instead (e.g. a concert deleted meanwhile).
+func notFound(w http.ResponseWriter, r *http.Request) {
+	if isHTMX(r) {
+		w.Header().Set("HX-Refresh", "true")
+	}
 	http.Error(w, "Page introuvable.", http.StatusNotFound)
 }
 

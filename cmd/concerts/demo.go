@@ -23,6 +23,7 @@ func demo(ctx context.Context, st *store.Store, baseURL string) error {
 		ids = append(ids, m.ID)
 	}
 	day := func(offset int) string { return time.Now().AddDate(0, 0, offset).Format(time.DateOnly) }
+	var concerts []int64
 	for i, c := range []store.Concert{
 		{Artist: "Fontaines D.C.", Date: day(10), Time: "20:00", Venue: "Zénith Paris", TicketURL: "https://example.com/billets/fontaines"},
 		{Artist: "Yuksek", Date: day(25), Venue: "La Cigale"},
@@ -30,7 +31,21 @@ func demo(ctx context.Context, st *store.Store, baseURL string) error {
 		{Artist: "Air", Date: day(-20), Time: "20:00", Venue: "Salle Pleyel"},
 		{Artist: "Justice", Date: day(-60), Venue: "Accor Arena"},
 	} {
-		if _, err := st.CreateConcert(ctx, g.ID, ids[i%len(ids)], c); err != nil {
+		id, err := st.CreateConcert(ctx, g.ID, ids[i%len(ids)], c)
+		if err != nil {
+			return err
+		}
+		concerts = append(concerts, id)
+	}
+	lea, marc, sam := ids[0], ids[1], ids[2]
+	for _, s := range []struct {
+		concert, member int64
+		status          string
+	}{
+		{concerts[0], marc, store.Ticket}, {concerts[0], sam, store.Going}, {concerts[0], lea, store.Interested},
+		{concerts[1], marc, store.Interested}, {concerts[3], lea, store.Ticket}, {concerts[3], sam, store.Ticket},
+	} {
+		if err := st.SetStatus(ctx, g.ID, s.concert, s.member, s.status); err != nil {
 			return err
 		}
 	}

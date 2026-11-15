@@ -27,10 +27,11 @@ Design, threat model and roadmap: [docs/design.md](docs/design.md). Decisions: [
 - One vertical slice per branch (roadmap in `docs/design.md`), with its migration, handlers, tests and an update of `docs/design.md`; merged with `--no-ff`.
 - New schema change = new migration file; never edit a committed one.
 - Templates link static files with `{{static "name"}}`, which returns a content-hashed URL served with `Cache-Control: immutable`.
+- htmx attributes are written `data-hx-*` (valid HTML for vnu); every htmx form also works as a plain POST with a 303. Shared fragments live in `templates/partials.html`.
 
 ## Commands
 
-- `make run`, `make test` (`go test -race ./...`), `make lint`, `make vuln` (needs network), `make check` (lint + vuln + test, run by the pre-commit hook), `make build`.
+- `make fmt` after editing Go files. `make run`, `make test` (`go test -race ./...`), `make lint`, `make vuln` (needs network), `make check` (lint + vuln + test, run by the pre-commit hook), `make build`.
 - Single test: `go test -race -run TestName ./internal/web`.
 - `make demo`: fresh `demo.db` with sample data, then serves it. `make verify-ui`: axe-core, vnu and page weight on every demo screen; run before merging a UI change ([ADR 0006](docs/decisions/0006-scripted-ui-verification.md)).
 

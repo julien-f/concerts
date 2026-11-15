@@ -203,6 +203,7 @@ All under `/g/{secret}` (written `…`); unknown secret → 404. Every POST: `Cr
 | GET | `…/concerts/{id}/agenda.ics` | one-event calendar | `text/calendar` |
 
 - Routes needing an identity (all but the picker, `/me`, the concert page and `agenda.ics`) redirect to `…` (303) without a valid member cookie.
+- htmx requests get `HX-Redirect` instead of a 303 (htmx would swap the target page into the fragment) and `HX-Refresh` with a 404 (htmx swaps no 4xx).
 - Errors: 404 for unknown concert or a concert of another group; 500 is a generic page, details only in logs. Pages render into a buffer first, so a template error never sends a truncated 200.
 
 ## Edge cases
@@ -234,7 +235,9 @@ One slice per branch, merged with `--no-ff`. ✅ = shipped.
    - Soft delete (`deleted_at`) with an « Annuler » banner.
    - « ajouté par X » on each concert.
    - « Prévenir le groupe » button (`https://wa.me/?text=`), shown right after adding.
-3. **Statuses**: interested / going / ticket bought. Tapping the active status again clears it.
+3. ✅ **Statuses**: interested / going / ticket bought. Tapping the active status again clears it.
+   - One status block (names per status, my three buttons) shared by the card and the concert page; htmx swaps that block only (`hx-target="closest .statuses"`), and buttons keep stable ids so focus survives the swap.
+   - The active button submits an empty status (clear), so every POST states the target state: a double tap is harmless.
 4. **Single main screen.**
    - Chronological list grouped by month.
    - Each card shows first names per status and my three status buttons.

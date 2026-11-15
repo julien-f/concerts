@@ -28,6 +28,7 @@ Re-read at the start of each slice and after each context compaction.
 | 0 design-v1 | done | — | baseline `make check` 3.2 s; verify-ui 1.8 s warm (11.7 s first run, tools download); page weight 17.7 kB |
 | 1 members | done | — | 923 Go lines, binary 12.9 MB, page 18.4 kB, `make check` 3.1 s |
 | 2 concerts | done | — | 1500 Go lines, binary 13.4 MB (+0.5 MB, mostly `time/tzdata`), page 20.0 kB, `make check` 3.4 s |
+| 3 statuses | done | — | 1740 Go lines, binary 13.4 MB, page 21.0 kB, `make check` 3.7 s |
 
 ### Discarded review findings
 
@@ -40,6 +41,8 @@ Re-read at the start of each slice and after each context compaction.
 - Slice 1, security #4: unique-constraint mapping independent of `_txlock=immediate`; not a live bug.
 
 - Slice 2, a11y #7: full weekday names for screen readers. The owner's spec fixes the format « sam. 14 mars · 20 h ».
+
+- Slice 3, #5: SetStatus as one statement. Clearing a missing answer would then affect 0 rows and 404, breaking idempotent clears.
 
 ## Research notes kept for later slices
 

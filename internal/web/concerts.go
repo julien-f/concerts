@@ -107,7 +107,7 @@ func validTicketURL(s string) bool {
 func pathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		notFound(w)
+		notFound(w, r)
 	}
 	return id, err == nil
 }
@@ -120,7 +120,7 @@ func (s *server) concert(w http.ResponseWriter, r *http.Request, gr *groupReques
 	}
 	c, err := s.store.Concert(r.Context(), gr.Group.ID, id)
 	if errors.Is(err, store.ErrNotFound) || c.Deleted {
-		notFound(w)
+		notFound(w, r)
 		return c, false
 	}
 	if err != nil {
@@ -134,7 +134,7 @@ func (s *server) concert(w http.ResponseWriter, r *http.Request, gr *groupReques
 func (s *server) done(w http.ResponseWriter, r *http.Request, err error, target string) {
 	switch {
 	case errors.Is(err, store.ErrNotFound):
-		notFound(w)
+		notFound(w, r)
 	case errors.Is(err, store.ErrLimit):
 		http.Error(w, fmt.Sprintf("Le groupe a atteint %d concerts : supprime les anciens d'abord.", store.MaxConcerts), http.StatusUnprocessableEntity)
 	case err != nil:
@@ -164,8 +164,9 @@ func (s *server) createConcert(w http.ResponseWriter, r *http.Request, gr *group
 type concertPage struct {
 	*groupRequest
 	store.Concert
-	Share string // « Prévenir le groupe » link
-	Saved bool   // banner after an edit
+	Statuses statusBlock
+	Share    string // « Prévenir le groupe » link
+	Saved    bool   // banner after an edit
 }
 
 func (s *server) showConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
@@ -173,7 +174,13 @@ func (s *server) showConcert(w http.ResponseWriter, r *http.Request, gr *groupRe
 	if !ok {
 		return
 	}
-	p := &concertPage{groupRequest: gr, Concert: c, Share: s.shareURL(gr, c), Saved: r.URL.Query().Has("saved")}
+	ss, err := s.store.Statuses(r.Context(), gr.Group.ID, c.ID)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	p := &concertPage{groupRequest: gr, Concert: c, Statuses: newStatusBlock(gr, c, ss, "concert"),
+		Share: s.shareURL(gr, c), Saved: r.URL.Query().Has("saved")}
 	if p.Saved {
 		p.Notice = "Concert modifié"
 	}

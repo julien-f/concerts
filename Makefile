@@ -5,7 +5,7 @@ GOVULNCHECK_VERSION := v1.9.0
 ADDR ?= :8080
 DEMO_DB ?= demo.db
 
-.PHONY: run test lint vuln check build demo verify-ui measure
+.PHONY: run test lint fmt vuln check build demo verify-ui measure
 
 run:
 	CONCERTS_BASE_URL=http://localhost:8080 go run ./cmd/concerts serve
@@ -16,6 +16,9 @@ test:
 
 lint: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) run
+
+fmt:
+	gofmt -w cmd internal
 
 # Needs network: fetches the Go vulnerability database.
 vuln:

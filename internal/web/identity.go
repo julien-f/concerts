@@ -30,7 +30,7 @@ func (s *server) inGroup(h groupHandler) http.HandlerFunc {
 		secret := r.PathValue("secret")
 		g, err := s.store.GroupBySecret(r.Context(), secret)
 		if errors.Is(err, store.ErrNotFound) {
-			notFound(w)
+			notFound(w, r)
 			return
 		}
 		if err != nil {
@@ -165,6 +165,14 @@ func (s *server) logout(w http.ResponseWriter, r *http.Request, gr *groupRequest
 
 // seeOther answers 303 (Post/Redirect/Get, or to the picker). Every target is built from
 // groupRequest.Base, the path of a secret that matched a group, never from raw input.
+// An htmx request gets HX-Redirect instead: it would follow a 303 silently and
+// swap the whole target page into the fragment.
 func seeOther(w http.ResponseWriter, r *http.Request, target string) {
+	if isHTMX(r) {
+		w.Header().Set("HX-Redirect", target)
+		return
+	}
 	http.Redirect(w, r, target, http.StatusSeeOther) //nolint:gosec // G710: see above
 }
+
+func isHTMX(r *http.Request) bool { return r.Header.Get("HX-Request") == "true" }
