@@ -11,8 +11,17 @@ const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
 
 // Each screen gets the page and returns the navigation response to check.
 // Screens run in order and share cookies, so later ones can rely on earlier steps.
+const submit = (p, selector) => Promise.all([p.waitForNavigation(), p.click(selector)]).then(([r]) => r);
 const screens = [
-  { name: "group", go: (p) => p.goto(groupURL) },
+  { name: "picker", go: (p) => p.goto(groupURL) },
+  {
+    name: "picker-duplicate",
+    go: async (p) => {
+      await p.fill("#name", "marc");
+      return submit(p, "text=Rejoindre");
+    },
+  },
+  { name: "group", go: (p) => submit(p, "text=C'est moi : Léa") },
 ];
 
 mkdirSync(htmlDir, { recursive: true });
@@ -23,7 +32,7 @@ let failures = 0;
 
 for (const s of screens) {
   const resp = await s.go(page);
-  if (!resp || !resp.ok()) throw new Error(`${s.name}: HTTP ${resp && resp.status()}`);
+  if (!resp || resp.status() >= 500) throw new Error(`${s.name}: HTTP ${resp && resp.status()}`);
   writeFileSync(`${htmlDir}/${s.name}.html`, await resp.text());
   for (const colorScheme of ["light", "dark"]) {
     await page.emulateMedia({ colorScheme });

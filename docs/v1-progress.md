@@ -25,7 +25,8 @@ Re-read at the start of each slice and after each context compaction.
 
 | Slice | State | Next step | Measures |
 |---|---|---|---|
-| 0 design-v1 | done | slice 1 | baseline `make check` 3.2 s; verify-ui 1.8 s warm (11.7 s first run, tools download); page weight 17.7 kB |
+| 0 design-v1 | done | — | baseline `make check` 3.2 s; verify-ui 1.8 s warm (11.7 s first run, tools download); page weight 17.7 kB |
+| 1 members | review | 3 reviews, then merge | 915 Go lines, binary 12.9 MB, page 18.4 kB, `make check` 4.9 s |
 
 ### Discarded review findings
 

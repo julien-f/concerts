@@ -1,0 +1,22 @@
+{{define "title"}}Qui es-tu ? · {{.Group.Name}}{{end}}
+{{define "content"}}
+<h1>Qui es-tu ?</h1>
+{{if .Members}}
+<form method="post" action="{{.Base}}/me">
+<ul class="names">
+{{range .Members}}<li><button class="big" name="member_id" value="{{.ID}}">C'est moi : {{.Name}}</button></li>
+{{end}}</ul>
+</form>
+<h2>Pas dans la liste ?</h2>
+{{end}}
+<form method="post" action="{{.Base}}/me" class="stack">
+<label for="name">Nouveau prénom</label>
+<input id="name" name="name" value="{{.Name}}" maxlength="30" autocomplete="given-name" required
+{{- if or .Error .Taken}} aria-invalid="true" aria-describedby="name-error" autofocus{{end}}>
+{{with .Error}}<p id="name-error" class="error">{{.}}</p>{{end}}
+{{with .Taken}}<p id="name-error" class="error">{{.Name}} est déjà dans la liste : si c'est toi,
+<button class="inline" name="member_id" value="{{.ID}}">C'est moi : {{.Name}}</button> ;
+sinon ajoute une initiale (ex. « {{.Name}} D. »).</p>{{end}}
+<button class="big">Rejoindre</button>
+</form>
+{{end}}

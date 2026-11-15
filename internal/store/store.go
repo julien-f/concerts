@@ -91,6 +91,11 @@ func migrate(ctx context.Context, db *sql.DB) error {
 	if err != nil {
 		return err
 	}
+	return migrateTo(ctx, db, ms)
+}
+
+// migrateTo applies the pending migrations among ms; tests pass a prefix to build older schemas.
+func migrateTo(ctx context.Context, db *sql.DB, ms []migration) error {
 	var current int
 	if err := db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&current); err != nil {
 		return err
@@ -141,7 +146,7 @@ func hashSecret(secret string) []byte {
 func (s *Store) CreateGroup(ctx context.Context, name, secret string) (Group, error) {
 	res, err := s.db.ExecContext(ctx,
 		"INSERT INTO groups (name, secret_hash, created_at) VALUES (?, ?, ?)",
-		name, hashSecret(secret), s.now().UTC().Format(time.RFC3339))
+		name, hashSecret(secret), s.timestamp())
 	if err != nil {
 		return Group{}, err
 	}
@@ -150,6 +155,55 @@ func (s *Store) CreateGroup(ctx context.Context, name, secret string) (Group, er
 		return Group{}, err
 	}
 	return Group{ID: id, Name: name}, nil
+}
+
+// timestamp is the clock's current time as stored in *_at columns.
+func (s *Store) timestamp() string { return s.now().UTC().Format(time.RFC3339) }
+
+// mustAffect turns "no row changed" into ErrNotFound.
+func mustAffect(res sql.Result) error {
+	n, err := res.RowsAffected()
+	if err == nil && n == 0 {
+		return ErrNotFound
+	}
+	return err
+}
+
+// GroupSummary is a group as listed to the operator.
+type GroupSummary struct {
+	Group
+	Members   int
+	CreatedAt string
+}
+
+// Groups lists every group with its member count, oldest first.
+func (s *Store) Groups(ctx context.Context) ([]GroupSummary, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT g.id, g.name, g.created_at, count(m.id)
+		FROM groups g LEFT JOIN members m ON m.group_id = g.id
+		GROUP BY g.id ORDER BY g.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var gs []GroupSummary
+	for rows.Next() {
+		var g GroupSummary
+		if err := rows.Scan(&g.ID, &g.Name, &g.CreatedAt, &g.Members); err != nil {
+			return nil, err
+		}
+		gs = append(gs, g)
+	}
+	return gs, rows.Err()
+}
+
+// RotateSecret replaces the group's secret, which breaks the old link; ErrNotFound if no such group.
+func (s *Store) RotateSecret(ctx context.Context, groupID int64, secret string) error {
+	res, err := s.db.ExecContext(ctx, "UPDATE groups SET secret_hash = ? WHERE id = ?", hashSecret(secret), groupID)
+	if err != nil {
+		return err
+	}
+	return mustAffect(res)
 }
 
 // GroupBySecret returns the group whose secret is secret, or ErrNotFound.

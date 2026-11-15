@@ -173,8 +173,9 @@ statuses (concert_id → concerts ON DELETE CASCADE,
           PRIMARY KEY (concert_id, member_id)) WITHOUT ROWID
 ```
 
-- `name` is stored with spaces trimmed and collapsed; `name_key` = `strings.ToLower(name)`, the one rule for "same name" and for sorting. No accent folding or Unicode normalisation (would need `x/text`): « Elodie » and « Élodie » are two names.
+- `name` is stored with spaces trimmed and collapsed; `name_key` = `strings.ToLower(name)`, the one rule for "same name" and for sorting (byte order: « Élodie » sorts after « Zoé », accepted). No accent folding or Unicode normalisation (would need `x/text`): « Elodie » and « Élodie » are two names.
 - Main page = 2 queries per group (live concerts with creator name; their statuses with member names), assembled in Go: no N+1.
+- The identity cookie holds the member id; `inGroup` (web) resolves the secret, sets `Cache-Control` and drops a cookie naming a member of another group or a deleted one.
 - One accessor `Concert(groupID, id)` filters `group_id` and `deleted_at IS NULL` for every route but restore, which updates only a deleted row of the group; anything else is 404. Status writes also check the member belongs to the group.
 - Validation (`parseForm`, also applied to prefilled values): text trimmed, 1–100 runes (name 1–30), valid UTF-8, no control (`Cc`) or format (`Cf`, zero-width, bidi) characters; dates `YYYY-MM-DD`, time `HH:MM`; ticket URL absolute `http`/`https`, ≤ 2000 bytes.
 - Writes use `_txlock=immediate` and `busy_timeout`; status writes are upserts (idempotent). `synchronous(NORMAL)` may lose the last commits on power loss: accepted.
@@ -221,7 +222,7 @@ All under `/g/{secret}` (written `…`); unknown secret → 404. Every POST: `Cr
 One slice per branch, merged with `--no-ff`. ✅ = shipped.
 
 0. ✅ Skeleton: groups, `new-group`, `/g/<secret>` empty page, `/healthz`.
-1. **Members and identity.**
+1. ✅ **Members and identity.**
    - First visit: existing first names as big « C'est moi » buttons, plus a « Nouveau prénom » field.
    - If the first name is taken, suggest adding an initial.
    - « Ce n'est pas moi » link on every page, for shared phones.

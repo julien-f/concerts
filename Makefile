@@ -5,10 +5,10 @@ GOVULNCHECK_VERSION := v1.9.0
 ADDR ?= :8080
 DEMO_DB ?= demo.db
 
-.PHONY: run test lint vuln check build demo verify-ui
+.PHONY: run test lint vuln check build demo verify-ui measure
 
 run:
-	go run ./cmd/concerts serve
+	CONCERTS_BASE_URL=http://localhost:8080 go run ./cmd/concerts serve
 
 test:
 	@command -v gcc >/dev/null || { echo "gcc is required by -race"; exit 1; }
@@ -27,11 +27,15 @@ check: lint vuln test
 demo: build
 	rm -f $(DEMO_DB) $(DEMO_DB)-wal $(DEMO_DB)-shm
 	CONCERTS_DB=$(DEMO_DB) CONCERTS_BASE_URL=http://localhost:8080 bin/concerts demo
-	CONCERTS_DB=$(DEMO_DB) CONCERTS_ADDR=$(ADDR) bin/concerts serve
+	CONCERTS_DB=$(DEMO_DB) CONCERTS_BASE_URL=http://localhost:8080 CONCERTS_ADDR=$(ADDR) bin/concerts serve
 
 # axe-core, vnu and page weight on every screen of `make demo`; downloads its tools once.
 verify-ui:
 	scripts/verify-ui.sh
+
+# Go lines, binary size and `make check` duration, logged per slice.
+measure:
+	scripts/measure.sh
 
 build:
 	CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o bin/concerts ./cmd/concerts

@@ -3,12 +3,12 @@ package web
 
 import (
 	"bytes"
+	"cmp"
 	"crypto/rand"
 	"crypto/sha256"
 	"embed"
 	"encoding/base64"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -44,10 +44,12 @@ type server struct {
 	log    *slog.Logger
 	pages  map[string]*template.Template
 	static staticAssets
+	secure bool // cookies get the Secure attribute
 }
 
 // New returns the app's HTTP handler; it fails if a template does not parse.
-func New(st *store.Store, log *slog.Logger) (http.Handler, error) {
+// baseURL is the public URL (e.g. https://concerts.example.com).
+func New(st *store.Store, log *slog.Logger, baseURL string) (http.Handler, error) {
 	static, err := loadStatic()
 	if err != nil {
 		return nil, err
@@ -56,13 +58,15 @@ func New(st *store.Store, log *slog.Logger) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &server{store: st, log: log, pages: pages, static: static}
+	s := &server{store: st, log: log, pages: pages, static: static, secure: strings.HasPrefix(baseURL, "https://")}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.healthz)
-	mux.HandleFunc("GET /g/{secret}", s.group)
 	mux.HandleFunc("GET /static/{name}", s.serveStatic)
-	return s.logRequests(securityHeaders(mux)), nil
+	mux.HandleFunc("GET /g/{secret}", s.inGroup(false, s.home))
+	mux.HandleFunc("POST /g/{secret}/me", s.inGroup(false, s.join))
+	mux.HandleFunc("POST /g/{secret}/logout", s.inGroup(false, s.logout))
+	return s.logRequests(securityHeaders(http.NewCrossOriginProtection().Handler(mux))), nil
 }
 
 // staticAssets maps each static file to a content-hashed name, so it can be cached forever.
@@ -131,11 +135,26 @@ func parsePages(funcs template.FuncMap) (map[string]*template.Template, error) {
 	return pages, nil
 }
 
-func (s *server) render(w http.ResponseWriter, r *http.Request, page string, data any) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.pages[page].ExecuteTemplate(w, "layout", data); err != nil {
-		s.log.ErrorContext(r.Context(), "render", "page", page, "err", err)
+// render writes a full page; it renders into a buffer first so a template error becomes a clean 500.
+func (s *server) render(w http.ResponseWriter, r *http.Request, status int, page string, data any) {
+	var buf bytes.Buffer
+	if err := s.pages[page].ExecuteTemplate(&buf, "layout", data); err != nil {
+		s.fail(w, r, fmt.Errorf("render %s: %w", page, err))
+		return
 	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	_, _ = buf.WriteTo(w)
+}
+
+// fail logs err and answers a 500 that reveals nothing.
+func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
+	s.log.ErrorContext(r.Context(), "internal error", "err", err)
+	http.Error(w, "Erreur interne, réessaie plus tard.", http.StatusInternalServerError)
+}
+
+func notFound(w http.ResponseWriter) {
+	http.Error(w, "Page introuvable.", http.StatusNotFound)
 }
 
 // contentSecurityPolicy allows only same-origin resources and no inline code;
@@ -162,25 +181,15 @@ func (r *statusRecorder) WriteHeader(status int) {
 	r.ResponseWriter.WriteHeader(status)
 }
 
+// logRequests logs the matched route pattern, never the raw path, so no spelling
+// of a URL (//g/…, /./g/…) can put a group secret in the logs; no IP either.
 func (s *server) logRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rec, r)
-		s.log.InfoContext(r.Context(), "request", "method", r.Method, "path", redactPath(r.URL.Path), "status", rec.status)
+		// ServeMux sets r.Pattern on this same request; it stays empty when nothing matched.
+		s.log.InfoContext(r.Context(), "request", "route", cmp.Or(r.Pattern, r.Method+" (unmatched)"), "status", rec.status)
 	})
-}
-
-// redactPath hides the group secret so it never reaches the logs.
-func redactPath(p string) string {
-	rest, ok := strings.CutPrefix(p, "/g/")
-	if !ok {
-		return p
-	}
-	_, tail, _ := strings.Cut(rest, "/")
-	if tail != "" {
-		tail = "/" + tail
-	}
-	return "/g/<secret>" + tail
 }
 
 func (s *server) healthz(w http.ResponseWriter, r *http.Request) {
@@ -190,18 +199,4 @@ func (s *server) healthz(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, _ = w.Write([]byte("ok"))
-}
-
-func (s *server) group(w http.ResponseWriter, r *http.Request) {
-	g, err := s.store.GroupBySecret(r.Context(), r.PathValue("secret"))
-	if errors.Is(err, store.ErrNotFound) {
-		http.NotFound(w, r)
-		return
-	}
-	if err != nil {
-		s.log.ErrorContext(r.Context(), "group lookup", "err", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	s.render(w, r, "group", g)
 }

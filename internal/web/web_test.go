@@ -2,6 +2,7 @@ package web
 
 import (
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"testing"
@@ -19,7 +20,7 @@ func TestRoutes(t *testing.T) {
 		contains []string
 	}{
 		{"healthz", "/healthz", http.StatusOK, []string{"ok"}},
-		{"known secret", "/g/" + secret, http.StatusOK, []string{"Gig buddies", "No concerts yet", "/static/htmx-2.0.11.min.", "/static/style.", `"allowEval":false`}},
+		{"known secret", "/g/" + secret, http.StatusOK, []string{`lang="fr"`, "Gig buddies", "Qui es-tu ?", "/static/htmx-2.0.11.min.", "/static/style.", `"allowEval":false`}},
 		{"unknown secret", "/g/" + NewSecret(), http.StatusNotFound, nil},
 		{"unhashed static name", "/static/style.css", http.StatusNotFound, nil},
 	}
@@ -105,29 +106,19 @@ func TestLogsNeverContainSecret(t *testing.T) {
 	t.Parallel()
 	ts := newTestServer(t)
 	secret := ts.newGroup(t, "g")
-	ts.get(t, "/g/"+secret)
-	ts.get(t, "/g/"+secret+"/sub")
+	// Unclean spellings get a ServeMux redirect, logged without a route.
+	for _, p := range []string{"/g/" + secret, "/g/" + secret + "/sub", "//g/" + secret, "/./g/" + secret, "/g/" + secret + "/../x"} {
+		ts.get(t, p)
+	}
+	ts.browser(t).post(t, "/g/"+secret+"/me", url.Values{"name": {"Léa"}})
 
 	logs := ts.logs.String()
 	if strings.Contains(logs, secret) {
 		t.Fatalf("logs leak the secret:\n%s", logs)
 	}
-	if !strings.Contains(logs, "/g/<secret>") {
-		t.Fatalf("logs lack the redacted path:\n%s", logs)
-	}
-}
-
-func TestRedactPath(t *testing.T) {
-	t.Parallel()
-	tests := map[string]string{
-		"/healthz":        "/healthz",
-		"/g/abc":          "/g/<secret>",
-		"/g/abc/concerts": "/g/<secret>/concerts",
-		"/g/":             "/g/<secret>",
-	}
-	for in, want := range tests {
-		if got := redactPath(in); got != want {
-			t.Errorf("redactPath(%q) = %q, want %q", in, got, want)
+	for _, want := range []string{`route="GET /g/{secret}"`, `route="POST /g/{secret}/me"`, `route="GET (unmatched)"`} {
+		if !strings.Contains(logs, want) {
+			t.Errorf("logs lack %s:\n%s", want, logs)
 		}
 	}
 }

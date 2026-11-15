@@ -3,10 +3,14 @@ package web
 import (
 	"bytes"
 	"context"
+	"io"
 	"log/slog"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -65,7 +69,7 @@ func newTestServer(t *testing.T) *testServer {
 		t.Fatal(err)
 	}
 	logs := &syncBuffer{}
-	h, err := New(st, slog.New(slog.NewTextHandler(logs, nil)))
+	h, err := New(st, slog.New(slog.NewTextHandler(logs, nil)), "http://example.test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,14 +93,78 @@ func (ts *testServer) newGroup(t *testing.T, name string) string {
 
 func (ts *testServer) get(t *testing.T, path string) (*http.Response, string) {
 	t.Helper()
-	resp, err := ts.Client().Get(ts.URL + path)
+	return ts.browser(t).get(t, path)
+}
+
+// browser is a client with its own cookie jar that does not follow redirects,
+// like a browser without JS whose every step the test checks.
+type browser struct {
+	ts     *testServer
+	client *http.Client
+}
+
+func (ts *testServer) browser(t *testing.T) *browser {
+	t.Helper()
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &browser{ts: ts, client: &http.Client{
+		Jar:           jar,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}}
+}
+
+func (b *browser) do(t *testing.T, req *http.Request) (*http.Response, string) {
+	t.Helper()
+	resp, err := b.client.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = resp.Body.Close() }()
-	var body bytes.Buffer
-	if _, err := body.ReadFrom(resp.Body); err != nil {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
 		t.Fatal(err)
 	}
-	return resp, body.String()
+	return resp, string(body)
+}
+
+func (b *browser) get(t *testing.T, path string) (*http.Response, string) {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, b.ts.URL+path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b.do(t, req)
+}
+
+// post submits a form; header pairs (e.g. "HX-Request", "true") are added to the request.
+func (b *browser) post(t *testing.T, path string, form url.Values, header ...string) (*http.Response, string) {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPost, b.ts.URL+path, strings.NewReader(form.Encode()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for i := 0; i+1 < len(header); i += 2 {
+		req.Header.Set(header[i], header[i+1])
+	}
+	return b.do(t, req)
+}
+
+// postRedirect submits a form without HX-Request, expects a 303 and returns the page it leads to.
+func (b *browser) postRedirect(t *testing.T, path string, form url.Values) (*http.Response, string) {
+	t.Helper()
+	resp, body := b.post(t, path, form)
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("POST %s: status = %d, want 303; body:\n%s", path, resp.StatusCode, body)
+	}
+	return b.get(t, resp.Header.Get("Location"))
+}
+
+// join picks or creates a first name in the group and returns the resulting page.
+func (b *browser) join(t *testing.T, secret, name string) string {
+	t.Helper()
+	_, body := b.postRedirect(t, "/g/"+secret+"/me", url.Values{"name": {name}})
+	return body
 }
