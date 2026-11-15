@@ -48,11 +48,7 @@ func TestJoin(t *testing.T) {
 			if resp.StatusCode != tt.status {
 				t.Fatalf("status = %d, want %d; body:\n%s", resp.StatusCode, tt.status, body)
 			}
-			for _, s := range tt.contains {
-				if !strings.Contains(body, s) {
-					t.Errorf("body lacks %q:\n%s", s, body)
-				}
-			}
+			assertContains(t, body, tt.contains...)
 		})
 	}
 }
@@ -141,7 +137,7 @@ func TestBaseURL(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = st.Close() })
 	for _, bad := range []string{"", "concerts.example", "ftp://concerts.example", "https://"} {
-		if _, err := New(st, slog.New(slog.DiscardHandler), bad); err == nil {
+		if _, err := New(st, slog.New(slog.DiscardHandler), bad, time.Now); err == nil {
 			t.Errorf("New(%q): want an error", bad)
 		}
 	}

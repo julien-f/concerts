@@ -41,29 +41,38 @@ func GroupURL(baseURL, secret string) string {
 }
 
 type server struct {
-	store  *store.Store
-	log    *slog.Logger
-	pages  map[string]*template.Template
-	static staticAssets
-	secure bool // cookies get the Secure attribute
+	store   *store.Store
+	log     *slog.Logger
+	pages   map[string]*template.Template
+	static  staticAssets
+	secure  bool   // cookies get the Secure attribute
+	baseURL string // public URL without trailing slash, for absolute links
+	now     func() time.Time
 }
 
 // New returns the app's HTTP handler; it fails if a template does not parse.
-// baseURL is the public URL (e.g. https://concerts.example.com).
-func New(st *store.Store, log *slog.Logger, baseURL string) (http.Handler, error) {
-	static, err := loadStatic()
-	if err != nil {
-		return nil, err
-	}
-	pages, err := parsePages(template.FuncMap{"static": static.url})
-	if err != nil {
-		return nil, err
-	}
+// baseURL is the public URL (e.g. https://concerts.example.com); now is the clock.
+func New(st *store.Store, log *slog.Logger, baseURL string, now func() time.Time) (http.Handler, error) {
 	u, err := url.Parse(baseURL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return nil, fmt.Errorf("base URL %q: want http(s)://host", baseURL)
 	}
-	s := &server{store: st, log: log, pages: pages, static: static, secure: u.Scheme == "https"}
+	static, err := loadStatic()
+	if err != nil {
+		return nil, err
+	}
+	s := &server{store: st, log: log, static: static,
+		secure: u.Scheme == "https", baseURL: strings.TrimSuffix(baseURL, "/"), now: now}
+	s.pages, err = parsePages(template.FuncMap{
+		"static":   static.url,
+		"stub":     stubOfDate,
+		"when":     s.when,
+		"frdate":   s.frDate,
+		"datetime": datetime,
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.healthz)
@@ -71,6 +80,13 @@ func New(st *store.Store, log *slog.Logger, baseURL string) (http.Handler, error
 	mux.HandleFunc("GET /g/{secret}", s.inGroup(s.home))
 	mux.HandleFunc("POST /g/{secret}/me", s.inGroup(s.join))
 	mux.HandleFunc("POST /g/{secret}/logout", s.inGroup(s.logout))
+	mux.HandleFunc("GET /g/{secret}/concerts/new", s.inGroup(requireMe(s.newConcert)))
+	mux.HandleFunc("POST /g/{secret}/concerts", s.inGroup(requireMe(s.createConcert)))
+	mux.HandleFunc("GET /g/{secret}/concerts/{id}", s.inGroup(s.showConcert))
+	mux.HandleFunc("GET /g/{secret}/concerts/{id}/edit", s.inGroup(requireMe(s.editConcert)))
+	mux.HandleFunc("POST /g/{secret}/concerts/{id}", s.inGroup(requireMe(s.updateConcert)))
+	mux.HandleFunc("POST /g/{secret}/concerts/{id}/delete", s.inGroup(requireMe(s.deleteConcert)))
+	mux.HandleFunc("POST /g/{secret}/concerts/{id}/restore", s.inGroup(requireMe(s.restoreConcert)))
 	return s.logRequests(securityHeaders(http.NewCrossOriginProtection().Handler(mux))), nil
 }
 

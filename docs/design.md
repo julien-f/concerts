@@ -99,7 +99,7 @@ Mobile first (390 px), one column, max 40 rem wide on larger screens. Landmarks 
 - « Mes concerts » = concerts where I have a status, computed in Go from the statuses already loaded; « Passés » is filtered too; clearing a status under the filter keeps the card until reload.
 - Past cards show names only, no buttons, newest first; `<details>` is rendered `open` when the target of `#c<id>` is past.
 - Empty list: « Aucun concert pour l'instant. Ajoute le premier ! »; empty filter: « Tu n'as encore réagi à aucun concert. »
-- Banners come from the list already loaded: `?added=<id>` only if that concert is listed, `?deleted=<id>` only if it is still deleted.
+- Banners come from the URL but show only while true: `?added=<id>` and `?restored=<id>` if that concert is in the list, `?deleted=<id>` (« Annuler la suppression ») if it is still deleted; an edit returns to the concert page with `?saved`.
 
 ### Concert (`/g/<secret>/concerts/<id>`)
 
@@ -118,7 +118,7 @@ Mobile first (390 px), one column, max 40 rem wide on larger screens. Landmarks 
 └──────────────────────────────┘
 ```
 
-Without identity: statuses shown, buttons and edit/delete replaced by « Choisis ton prénom pour répondre » (picker with `next`). The year is shown when it differs from the current one.
+Without identity: statuses shown, buttons and edit/delete replaced by « Choisis ton prénom pour répondre » (picker with `next`, accepted only as `/concerts/<id>`). The year is shown when it differs from the current one.
 
 ### Concert form (`/concerts/new`, `/concerts/<id>/edit`)
 
@@ -144,7 +144,7 @@ Without identity: statuses shown, buttons and edit/delete replaced by « Choisis
 
 ## Visual direction
 
-- **Motif: the ticket stub** ([mockup](mockup.html), chosen over a gig-poster direction: denser, warmer, the stub naturally carries the date).
+- **Motif: the ticket stub**, chosen over a gig-poster direction (phase 0 mockup, removed once applied in slice 2): denser, warmer, the stub naturally carries the date. Implemented in `internal/web/static/style.css`.
 - Card = stub (weekday, day, month in `ui-monospace`) + dashed perforation + body; half-circle notches cut into the card.
 - Palette: paper `#f4efe6` / card `#fffdf8` / ink `#1f1a17` / brick accent `#b4361d`; dark: `#17140f` / `#24201a` / `#f1ebe1` / `#ff8a65`. AA contrast checked by axe.
 - Month headings: small monospace caps in the accent color.
@@ -177,6 +177,7 @@ statuses (concert_id → concerts ON DELETE CASCADE,
 - Main page = 2 queries per group (live concerts with creator name; their statuses with member names), assembled in Go: no N+1.
 - The identity cookie holds the member id; `inGroup` (web) resolves the secret, sets `Cache-Control` and drops a cookie naming a member of another group or a deleted one.
 - One accessor `Concert(groupID, id)` filters `group_id` and `deleted_at IS NULL` for every route but restore, which updates only a deleted row of the group; anything else is 404. Status writes also check the member belongs to the group.
+- Required: artist, date, venue. Optional: time, ticket link, on-sale date (a link is often not known yet). At most 500 live concerts per group (restores included) and 1000 rows with deleted ones, so create-then-delete cannot fill the disk.
 - Validation (`parseForm`, also applied to prefilled values): text trimmed, 1–100 runes (name 1–30), valid UTF-8, no invisible characters (control, format, variation selectors, default-ignorable, braille blank), first names starting with a letter or digit; dates `YYYY-MM-DD`, time `HH:MM`; ticket URL absolute `http`/`https`, ≤ 2000 bytes.
 - Writes use `_txlock=immediate` and `busy_timeout`; status writes are upserts (idempotent). `synchronous(NORMAL)` may lose the last commits on power loss: accepted.
 
@@ -195,9 +196,9 @@ All under `/g/{secret}` (written `…`); unknown secret → 404. Every POST: `Cr
 | POST | `…/concerts` | create | 303 `…?added=<id>`; 422 form |
 | GET | `…/concerts/{id}` | concert page, Open Graph tags | page |
 | GET | `…/concerts/{id}/edit` | edit form | page |
-| POST | `…/concerts/{id}` | update | 303 `…/concerts/{id}`; 422 form |
+| POST | `…/concerts/{id}` | update | 303 `…/concerts/{id}?saved`; 422 form |
 | POST | `…/concerts/{id}/delete` | soft delete | 303 `…?deleted=<id>` |
-| POST | `…/concerts/{id}/restore` | undo delete | 303 `…#c<id>` |
+| POST | `…/concerts/{id}/restore` | undo delete | 303 `…?restored=<id>#c<id>`; 422 if the group is full |
 | POST | `…/concerts/{id}/status` | set `status` (empty clears); `back` = `list`, `mine` or `concert` | htmx: status block fragment; else 303 to `…#c<id>`, `…?mine=1#c<id>` or the concert page |
 | GET | `…/concerts/{id}/agenda.ics` | one-event calendar | `text/calendar` |
 
@@ -227,7 +228,7 @@ One slice per branch, merged with `--no-ff`. ✅ = shipped.
    - If the first name is taken, suggest adding an initial.
    - « Ce n'est pas moi » link on every page, for shared phones.
    - Subcommands: `concerts list-groups`; `concerts rotate-secret <group-id>`, printing the new link (after a rotation everyone picks their name again from the list); `concerts delete-member <group-id> <first-name>`.
-2. **Concerts** (with a plain chronological list, restyled and grouped in slice 4).
+2. ✅ **Concerts** (ticket cards in one chronological list, with the French date format; slice 4 adds month groups, « Passés » and the filter).
    - Fields: artist, date, optional time, venue, ticket link (http/https only), optional on-sale date.
    - Editable.
    - Soft delete (`deleted_at`) with an « Annuler » banner.

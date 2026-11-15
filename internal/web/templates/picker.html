@@ -2,14 +2,16 @@
 {{define "content"}}
 <h1>Qui es-tu ?</h1>
 <form method="post" action="{{.Base}}/me" id="pick">
+{{with .Next}}<input type="hidden" name="next" value="{{.}}">{{end}}
 {{if .Members}}
-<ul class="names">
+<ul class="names" role="list">
 {{range .Members}}<li><button class="big" name="member_id" value="{{.ID}}">C'est moi : {{.Name}}</button></li>
 {{end}}</ul>
 {{end}}
 </form>
 {{if .Members}}<h2>Pas dans la liste ?</h2>{{end}}
 <form method="post" action="{{.Base}}/me" class="stack">
+{{with .Next}}<input type="hidden" name="next" value="{{.}}">{{end}}
 <label for="name">Ton prénom</label>
 <input id="name" name="name" value="{{.Name}}" maxlength="{{.MaxRunes}}" autocomplete="given-name" required
 {{- if or .Error .Taken}} aria-invalid="true" aria-describedby="name-error" autofocus{{end}}>

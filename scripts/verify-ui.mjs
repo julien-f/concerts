@@ -22,6 +22,35 @@ const screens = [
     },
   },
   { name: "group", go: (p) => submit(p, 'button:has-text("Léa")') },
+  { name: "concert", go: (p) => p.goto(`${groupURL}/concerts/1`) },
+  { name: "edit", go: (p) => p.goto(`${groupURL}/concerts/1/edit`) },
+  { name: "add", go: (p) => p.goto(`${groupURL}/concerts/new`) },
+  {
+    name: "add-errors",
+    go: async (p) => {
+      await p.fill("#ticket_url", "ftp://nope");
+      // Skip the browser's own checks to reach the server's error page.
+      await p.$eval("form.stack", (f) => (f.noValidate = true));
+      return submit(p, "text=Enregistrer");
+    },
+  },
+  {
+    name: "added",
+    go: async (p) => {
+      await p.fill("#artist", "Nouveau groupe");
+      await p.fill("#date", "2031-05-17");
+      await p.fill("#venue", "Le Trabendo");
+      await p.fill("#ticket_url", "");
+      return submit(p, "text=Enregistrer");
+    },
+  },
+  {
+    name: "deleted",
+    go: async (p) => {
+      await p.goto(`${groupURL}/concerts/1`);
+      return submit(p, "text=Supprimer");
+    },
+  },
 ];
 
 mkdirSync(htmlDir, { recursive: true });
@@ -61,6 +90,10 @@ weightPage.on("response", (r) => {
 });
 await weightPage.goto(groupURL, { waitUntil: "networkidle" });
 await Promise.all(pending);
+// Headless Chromium skips favicons; fetch the declared icons explicitly.
+for (const href of await weightPage.$$eval("link[rel=icon]", (ls) => ls.map((l) => l.href))) {
+  sizes[href] = gzipSync(await (await weightPage.request.get(href)).body(), { level: 9 }).length;
+}
 await browser.close();
 const weight = Object.values(sizes).reduce((a, b) => a + b, 0);
 console.log(`page weight: ${weight} bytes gzip -9 (${Object.keys(sizes).length} files, limit ${maxWeight})`);
