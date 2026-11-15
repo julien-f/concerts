@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -20,6 +21,7 @@ const usage = `usage:
   concerts serve
   concerts new-group "<name>"
   concerts backup <file>      write a consistent snapshot of the database; <file> must not exist
+  concerts demo               fill an empty database with a demo group (development)
 
 environment:
   CONCERTS_ADDR      listen address (default :8080)
@@ -54,6 +56,8 @@ func run(args []string, log *slog.Logger) error {
 		return newGroup(ctx, dbPath, os.Getenv("CONCERTS_BASE_URL"), args[1])
 	case len(args) == 2 && args[0] == "backup":
 		return backup(ctx, dbPath, args[1])
+	case len(args) == 1 && args[0] == "demo":
+		return demo(ctx, dbPath, os.Getenv("CONCERTS_BASE_URL"))
 	default:
 		fmt.Fprint(os.Stderr, usage)
 		return errors.New("invalid arguments")
@@ -97,11 +101,16 @@ func serve(ctx context.Context, log *slog.Logger, addr, dbPath string) (err erro
 	if err != nil {
 		return err
 	}
-	srv := &http.Server{Addr: addr, Handler: h, ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second}
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
 
 	errc := make(chan error, 1)
-	go func() { errc <- srv.ListenAndServe() }()
-	log.Info("listening", "addr", addr)
+	go func() { errc <- srv.Serve(ln) }()
+	// The actual address, so a ":0" listener (scripts/verify-ui.sh) can be found.
+	log.Info("listening", "addr", ln.Addr().String())
 
 	select {
 	case err = <-errc:

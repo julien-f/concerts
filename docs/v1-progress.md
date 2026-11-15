@@ -25,7 +25,7 @@ Re-read at the start of each slice and after each context compaction.
 
 | Slice | State | Next step | Measures |
 |---|---|---|---|
-| 0 design-v1 | in progress | design doc, mockups, verify-ui | baseline `make check` 3.2 s |
+| 0 design-v1 | in progress | integrate the 3 design reviews, merge | baseline `make check` 3.2 s; verify-ui 1.8 s warm (11.7 s first run, tools download); page weight 17.7 kB |
 
 ### Discarded review findings
 
