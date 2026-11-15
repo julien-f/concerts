@@ -141,7 +141,7 @@ func TestBaseURL(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = st.Close() })
 	for _, bad := range []string{"", "concerts.example", "ftp://concerts.example", "https://"} {
-		if _, err := New(st, slog.New(slog.DiscardHandler), bad); err == nil {
+		if _, err := New(st, slog.New(slog.DiscardHandler), bad, time.Now); err == nil {
 			t.Errorf("New(%q): want an error", bad)
 		}
 	}

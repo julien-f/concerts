@@ -147,7 +147,7 @@ func deleteMember(ctx context.Context, st *store.Store, groupID, name string) er
 }
 
 func serve(ctx context.Context, log *slog.Logger, st *store.Store, addr, baseURL string) error {
-	h, err := web.New(st, log, baseURL)
+	h, err := web.New(st, log, baseURL, time.Now)
 	if err != nil {
 		return err
 	}

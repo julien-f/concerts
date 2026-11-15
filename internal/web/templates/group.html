@@ -1,5 +1,26 @@
 {{define "title"}}{{.Group.Name}} · Concerts{{end}}
 {{define "brand"}}<h1 class="brand">{{.Group.Name}}</h1>{{end}}
 {{define "content"}}
-<p class="empty">Aucun concert pour l'instant.</p>
+{{with .Added}}<div class="banner" role="status">
+<p>Concert ajouté : {{.Artist}}.</p>
+<a class="button" href="{{$.Share}}" rel="noreferrer">Prévenir le groupe</a>
+</div>{{end}}
+{{with .Deleted}}<div class="banner" role="status">
+<p>Concert supprimé : {{.Artist}}.</p>
+<form method="post" action="{{$.Base}}/concerts/{{.ID}}/restore"><button class="button">Annuler</button></form>
+</div>{{end}}
+{{if .Concerts}}
+<ol class="concerts">
+{{range .Concerts}}<li><article class="card" id="c{{.ID}}">
+{{with stub .Date}}<div class="stub" aria-hidden="true"><span>{{.Weekday}}</span><b>{{.Day}}</b><span>{{.Month}}</span></div>{{end}}
+<div class="body">
+<h2 class="artist"><a href="{{$.Base}}/concerts/{{.ID}}">{{.Artist}}</a></h2>
+<p class="meta"><time datetime="{{datetime .}}">{{when .}}</time> · {{.Venue}}{{with .AddedBy}}<br>ajouté par {{.}}{{end}}</p>
+</div>
+</article></li>
+{{end}}</ol>
+{{else}}
+<p class="empty">Aucun concert pour l'instant. Ajoute le premier !</p>
 {{end}}
+{{end}}
+{{define "after"}}<nav class="add-bar" aria-label="Ajouter"><a class="add" href="{{.Base}}/concerts/new">+ Ajouter un concert</a></nav>{{end}}

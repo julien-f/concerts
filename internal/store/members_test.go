@@ -26,8 +26,9 @@ func TestMigrateFromPreviousSlice(t *testing.T) {
 	if err := migrateTo(ctx, db, ms[:len(ms)-1]); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.ExecContext(ctx,
-		"INSERT INTO groups (name, secret_hash, created_at) VALUES ('Old', ?, '2026-01-01T00:00:00Z')",
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO groups (id, name, secret_hash, created_at) VALUES (1, 'Old', ?, '2026-01-01T00:00:00Z');
+		INSERT INTO members (group_id, name, name_key, created_at) VALUES (1, 'Léa', 'léa', '2026-01-01T00:00:00Z');`,
 		hashSecret("old")); err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +45,11 @@ func TestMigrateFromPreviousSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.CreateMember(ctx, g.ID, "Léa"); err != nil {
+	members, err := s.Members(ctx, g.ID)
+	if err != nil || len(members) != 1 {
+		t.Fatalf("Members = %v, %v", members, err)
+	}
+	if _, err := s.CreateConcert(ctx, g.ID, members[0].ID, Concert{Artist: "A", Date: "2026-03-14", Venue: "V"}); err != nil {
 		t.Fatal(err)
 	}
 }

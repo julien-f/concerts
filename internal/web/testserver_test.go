@@ -75,7 +75,7 @@ func newTestServerWith(t *testing.T, baseURL string) *testServer {
 		t.Fatal(err)
 	}
 	logs := &syncBuffer{}
-	h, err := New(st, slog.New(slog.NewTextHandler(logs, nil)), baseURL)
+	h, err := New(st, slog.New(slog.NewTextHandler(logs, nil)), baseURL, clock.Now)
 	if err != nil {
 		t.Fatal(err)
 	}

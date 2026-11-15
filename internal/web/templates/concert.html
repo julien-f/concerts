@@ -1,0 +1,23 @@
+{{define "title"}}{{.Artist}} · {{.Group.Name}}{{end}}
+{{define "content"}}
+<p><a class="back" href="{{.Base}}#c{{.ID}}">← Tous les concerts</a></p>
+<article class="ticket">
+<h1>{{.Artist}}</h1>
+<p class="when"><time datetime="{{datetime .Concert}}">{{when .Concert}}</time></p>
+<p>{{.Venue}}</p>
+{{with .OnSaleDate}}<p>Mise en vente : <time datetime="{{.}}">{{frdate .}}</time></p>{{end}}
+{{with .AddedBy}}<p class="meta">ajouté par {{.}}</p>{{end}}
+<p class="actions">
+{{with .TicketURL}}<a class="button" href="{{.}}" rel="noopener noreferrer">Billetterie</a>{{end}}
+<a class="button" href="{{.Share}}" rel="noreferrer">Prévenir le groupe</a>
+</p>
+</article>
+{{if .Me}}
+<div class="actions">
+<a class="button secondary" href="{{.Base}}/concerts/{{.ID}}/edit">Modifier</a>
+<form method="post" action="{{.Base}}/concerts/{{.ID}}/delete"><button class="button secondary">Supprimer</button></form>
+</div>
+{{else}}
+<p><a href="{{.Base}}?next=/concerts/{{.ID}}">Choisis ton prénom pour répondre</a></p>
+{{end}}
+{{end}}

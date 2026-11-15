@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 
 	"concerts/internal/store"
@@ -24,7 +25,7 @@ type groupRequest struct {
 }
 
 // inGroup resolves the secret (404 if unknown) and the identity cookie.
-func (s *server) inGroup(h func(http.ResponseWriter, *http.Request, *groupRequest)) http.HandlerFunc {
+func (s *server) inGroup(h groupHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		secret := r.PathValue("secret")
 		g, err := s.store.GroupBySecret(r.Context(), secret)
@@ -55,6 +56,19 @@ func (s *server) inGroup(h func(http.ResponseWriter, *http.Request, *groupReques
 	}
 }
 
+type groupHandler = func(http.ResponseWriter, *http.Request, *groupRequest)
+
+// requireMe sends a request without identity to the picker.
+func requireMe(h groupHandler) groupHandler {
+	return func(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
+		if gr.Me == nil {
+			seeOther(w, r, gr.Base)
+			return
+		}
+		h(w, r, gr)
+	}
+}
+
 // setMember sets the identity cookie; logout passes "" and -1 to clear it.
 func (s *server) setMember(w http.ResponseWriter, gr *groupRequest, value string, maxAge int) {
 	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure follows the base URL scheme (plain http in development)
@@ -69,6 +83,7 @@ func (s *server) remember(w http.ResponseWriter, gr *groupRequest, id int64) {
 
 type pickerPage struct {
 	*groupRequest
+	Next     string // group-relative page to return to after picking
 	Members  []store.Member
 	MaxRunes int
 	Name     string        // refilled first-name field
@@ -76,12 +91,14 @@ type pickerPage struct {
 	Taken    *store.Member // existing member whose name was typed again
 }
 
-func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
-	if gr.Me == nil {
-		s.picker(w, r, http.StatusOK, &pickerPage{groupRequest: gr})
-		return
+// nextPage keeps only a concert page as the picker's return target, so it cannot redirect elsewhere.
+var nextPage = regexp.MustCompile(`^/concerts/[0-9]+$`)
+
+func validNext(v string) string {
+	if nextPage.MatchString(v) {
+		return v
 	}
-	s.render(w, r, http.StatusOK, "group", gr)
+	return ""
 }
 
 func (s *server) picker(w http.ResponseWriter, r *http.Request, status int, p *pickerPage) {
@@ -112,11 +129,12 @@ func (s *server) join(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 		if err == nil {
 			s.remember(w, gr, m.ID)
 		}
-		http.Redirect(w, r, gr.Base, http.StatusSeeOther)
+		seeOther(w, r, gr.Base+validNext(r.PostForm.Get("next")))
 		return
 	}
 
-	p := &pickerPage{groupRequest: gr, Name: r.PostForm.Get("name")}
+	next := validNext(r.PostForm.Get("next"))
+	p := &pickerPage{groupRequest: gr, Next: next, Name: r.PostForm.Get("name")}
 	name, ok := cleanName(p.Name, maxNameRunes)
 	if !ok {
 		p.Error = fmt.Sprintf("Indique un prénom de 1 à %d caractères, commençant par une lettre.", maxNameRunes)
@@ -135,12 +153,18 @@ func (s *server) join(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 		s.fail(w, r, err)
 	default:
 		s.remember(w, gr, m.ID)
-		http.Redirect(w, r, gr.Base, http.StatusSeeOther)
+		seeOther(w, r, gr.Base+next)
 	}
 }
 
 // logout is « Ce n'est pas moi »: it forgets the identity, for shared phones.
 func (s *server) logout(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
 	s.setMember(w, gr, "", -1)
-	http.Redirect(w, r, gr.Base, http.StatusSeeOther)
+	seeOther(w, r, gr.Base)
+}
+
+// seeOther answers 303 (Post/Redirect/Get, or to the picker). Every target is built from
+// groupRequest.Base, the path of a secret that matched a group, never from raw input.
+func seeOther(w http.ResponseWriter, r *http.Request, target string) {
+	http.Redirect(w, r, target, http.StatusSeeOther) //nolint:gosec // G710: see above
 }
