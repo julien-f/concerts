@@ -27,7 +27,7 @@ Re-read at the start of each slice and after each context compaction.
 |---|---|---|---|
 | 0 design-v1 | done | — | baseline `make check` 3.2 s; verify-ui 1.8 s warm (11.7 s first run, tools download); page weight 17.7 kB |
 | 1 members | done | — | 923 Go lines, binary 12.9 MB, page 18.4 kB, `make check` 3.1 s |
-| 2 concerts | review | 3 reviews, then merge | 1448 Go lines, binary 13.4 MB (+tzdata), page 19.9 kB, `make check` 2.9 s |
+| 2 concerts | done | — | 1500 Go lines, binary 13.4 MB (+0.5 MB, mostly `time/tzdata`), page 20.0 kB, `make check` 3.4 s |
 
 ### Discarded review findings
 
@@ -38,6 +38,8 @@ Re-read at the start of each slice and after each context compaction.
 - Slice 1, a11y #6: cursor may land before the refilled name on Firefox Android. Unverified; the field now holds exactly what was typed.
 - Slice 1, security #1 (partial): no cap on stacked combining marks (cosmetic) and no NFC normalisation (needs `x/text`, outside ADR 0004; risk recorded in the design).
 - Slice 1, security #4: unique-constraint mapping independent of `_txlock=immediate`; not a live bug.
+
+- Slice 2, a11y #7: full weekday names for screen readers. The owner's spec fixes the format « sam. 14 mars · 20 h ».
 
 ## Research notes kept for later slices
 

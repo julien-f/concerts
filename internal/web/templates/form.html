@@ -1,27 +1,16 @@
-{{define "title"}}{{.Title}} · {{.Group.Name}}{{end}}
+{{define "title"}}{{if .ID}}Modifier le concert{{else}}Ajouter un concert{{end}} · {{.Group.Name}}{{end}}
 {{define "content"}}
-<p><a class="back" href="{{.Cancel}}">← Annuler</a></p>
-<h1>{{.Title}}</h1>
-{{with index .Errors ""}}<p class="error">{{.}}</p>{{else}}{{if .Errors}}<p class="error">Corrige les champs signalés.</p>{{end}}{{end}}
-<form method="post" action="{{.Action}}" class="stack">
-<label for="artist">Artiste</label>
-<input id="artist" name="artist" type="text" value="{{.Artist}}" required maxlength="100" autocomplete="off"{{with index .Errors "artist"}} aria-invalid="true" aria-describedby="artist-error"{{end}}{{if eq .Focus "artist"}} autofocus{{end}}>
-{{with index .Errors "artist"}}<p id="artist-error" class="error">{{.}}</p>{{end}}
-<label for="date">Date</label>
-<input id="date" name="date" type="date" value="{{.Date}}" required{{with index .Errors "date"}} aria-invalid="true" aria-describedby="date-error"{{end}}{{if eq .Focus "date"}} autofocus{{end}}>
-{{with index .Errors "date"}}<p id="date-error" class="error">{{.}}</p>{{end}}
-<label for="time">Heure <span class="hint">(facultatif)</span></label>
-<input id="time" name="time" type="time" value="{{.Time}}"{{with index .Errors "time"}} aria-invalid="true" aria-describedby="time-error"{{end}}{{if eq .Focus "time"}} autofocus{{end}}>
-{{with index .Errors "time"}}<p id="time-error" class="error">{{.}}</p>{{end}}
-<label for="venue">Salle</label>
-<input id="venue" name="venue" type="text" value="{{.Venue}}" required maxlength="100"{{with index .Errors "venue"}} aria-invalid="true" aria-describedby="venue-error"{{end}}{{if eq .Focus "venue"}} autofocus{{end}}>
-{{with index .Errors "venue"}}<p id="venue-error" class="error">{{.}}</p>{{end}}
-<label for="ticket_url">Lien de billetterie <span class="hint">(facultatif)</span></label>
-<input id="ticket_url" name="ticket_url" type="url" value="{{.TicketURL}}" maxlength="2000" inputmode="url" placeholder="https://…"{{with index .Errors "ticket_url"}} aria-invalid="true" aria-describedby="ticket_url-error"{{end}}{{if eq .Focus "ticket_url"}} autofocus{{end}}>
-{{with index .Errors "ticket_url"}}<p id="ticket_url-error" class="error">{{.}}</p>{{end}}
-<label for="on_sale_date">Mise en vente <span class="hint">(facultatif)</span></label>
-<input id="on_sale_date" name="on_sale_date" type="date" value="{{.OnSaleDate}}"{{with index .Errors "on_sale_date"}} aria-invalid="true" aria-describedby="on_sale_date-error"{{end}}{{if eq .Focus "on_sale_date"}} autofocus{{end}}>
-{{with index .Errors "on_sale_date"}}<p id="on_sale_date-error" class="error">{{.}}</p>{{end}}
+<p><a class="back" href="{{.Base}}{{with .ID}}/concerts/{{.}}{{end}}">← Annuler</a></p>
+<h1>{{if .ID}}Modifier le concert{{else}}Ajouter un concert{{end}}</h1>
+{{with .FormError}}<p class="error">{{.}}</p>{{else}}{{if .Notice}}<p class="error">Corrige les champs signalés.</p>{{end}}{{end}}
+<form method="post" action="{{.Base}}/concerts{{with .ID}}/{{.}}{{end}}" class="stack">
+{{range .Fields}}{{$f := .}}
+<label for="{{.Name}}">{{.Label}}{{if .Optional}} <span class="hint">(facultatif)</span>{{end}}</label>
+<input id="{{.Name}}" name="{{.Name}}" type="{{.Type}}" value="{{.Value}}"
+{{- if not .Optional}} required{{end}}{{with .Max}} maxlength="{{.}}"{{end}}
+{{- with .Error}} aria-invalid="true" aria-describedby="{{$f.Name}}-error"{{end}}{{if .Autofocus}} autofocus{{end}}>
+{{with .Error}}<p id="{{$f.Name}}-error" class="error">{{.}}</p>{{end}}
+{{end}}
 <button class="big">Enregistrer</button>
 </form>
 {{end}}

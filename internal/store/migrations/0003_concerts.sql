@@ -1,5 +1,6 @@
 -- Dates and times are Europe/Paris wall clock (ADR 0005); empty optional fields are NULL.
 CREATE TABLE concerts (
+    -- AUTOINCREMENT: ids in ?deleted= banners and restore links never point at a newer concert.
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     group_id INTEGER NOT NULL REFERENCES groups (id) ON DELETE CASCADE,
     artist TEXT NOT NULL,

@@ -4,7 +4,7 @@
 <form method="post" action="{{.Base}}/me" id="pick">
 {{with .Next}}<input type="hidden" name="next" value="{{.}}">{{end}}
 {{if .Members}}
-<ul class="names">
+<ul class="names" role="list">
 {{range .Members}}<li><button class="big" name="member_id" value="{{.ID}}">C'est moi : {{.Name}}</button></li>
 {{end}}</ul>
 {{end}}

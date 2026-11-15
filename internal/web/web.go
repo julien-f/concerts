@@ -61,18 +61,18 @@ func New(st *store.Store, log *slog.Logger, baseURL string, now func() time.Time
 	if err != nil {
 		return nil, err
 	}
-	pages, err := parsePages(template.FuncMap{
+	s := &server{store: st, log: log, static: static,
+		secure: u.Scheme == "https", baseURL: strings.TrimSuffix(baseURL, "/"), now: now}
+	s.pages, err = parsePages(template.FuncMap{
 		"static":   static.url,
-		"stub":     stubOf,
-		"when":     func(c store.Concert) string { return when(c, now()) },
-		"frdate":   func(date string) string { return frDate(date, now()) },
+		"stub":     stubOfDate,
+		"when":     s.when,
+		"frdate":   s.frDate,
 		"datetime": datetime,
 	})
 	if err != nil {
 		return nil, err
 	}
-	s := &server{store: st, log: log, pages: pages, static: static,
-		secure: u.Scheme == "https", baseURL: strings.TrimSuffix(baseURL, "/"), now: now}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.healthz)

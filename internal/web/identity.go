@@ -119,6 +119,7 @@ func (s *server) join(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 	if !parseForm(w, r) {
 		return
 	}
+	next := validNext(r.PostForm.Get("next"))
 	if v := r.PostForm.Get("member_id"); v != "" {
 		id, _ := strconv.ParseInt(v, 10, 64)
 		m, err := s.store.Member(r.Context(), gr.Group.ID, id)
@@ -129,11 +130,10 @@ func (s *server) join(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 		if err == nil {
 			s.remember(w, gr, m.ID)
 		}
-		seeOther(w, r, gr.Base+validNext(r.PostForm.Get("next")))
+		seeOther(w, r, gr.Base+next)
 		return
 	}
 
-	next := validNext(r.PostForm.Get("next"))
 	p := &pickerPage{groupRequest: gr, Next: next, Name: r.PostForm.Get("name")}
 	name, ok := cleanName(p.Name, maxNameRunes)
 	if !ok {

@@ -27,7 +27,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font: 16px/1.5 system-ui, sans-serif;
+  font: 100%/1.5 system-ui, sans-serif;
 }
 .top, main { max-width: 40rem; margin: 0 auto; padding: 0 1rem; }
 .top {
@@ -46,7 +46,7 @@ button, input { font: inherit; font-size: 1rem; color: inherit; }
 button { cursor: pointer; }
 .big {
   display: block; width: 100%; min-height: 3rem; padding: 0.5rem 1rem;
-  border: 0; border-radius: 0.75rem; background: var(--accent); color: var(--on-accent); font-weight: 700;
+  border: 1px solid transparent; border-radius: 0.75rem; background: var(--accent); color: var(--on-accent); font-weight: 700;
 }
 .names { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
 .names .big { background: var(--paper); color: var(--ink); border: 1px solid var(--muted); }
@@ -63,6 +63,10 @@ input {
 input[aria-invalid="true"] { border: 2px solid var(--error); }
 .error { color: var(--error); margin: 0; }
 .empty { color: var(--muted); }
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap;
+}
 .hint { color: var(--muted); font-size: 0.875rem; }
 .back { display: inline-flex; align-items: center; min-height: 2.75rem; }
 
@@ -88,7 +92,7 @@ input[aria-invalid="true"] { border: 2px solid var(--error); }
 .concerts { list-style: none; margin: 0; padding: 0; }
 .card {
   position: relative; display: grid; grid-template-columns: 4rem 1fr;
-  margin-bottom: 0.75rem; background: var(--paper); border-radius: 0.625rem;
+  margin-bottom: 0.75rem; background: var(--paper); border: 1px solid transparent; border-radius: 0.625rem;
   box-shadow: 0 1px 0 var(--line);
 }
 .card::before, .card::after {
@@ -105,7 +109,9 @@ input[aria-invalid="true"] { border: 2px solid var(--error); }
 .stub b { font-size: 1.6rem; line-height: 1.1; color: var(--ink); }
 .card .body { padding: 0.75rem; min-width: 0; }
 .artist { font-size: 1.1rem; margin: 0; overflow-wrap: anywhere; }
-.artist a { color: var(--ink); text-decoration: none; display: inline-block; min-height: 2.75rem; padding-top: 0.6rem; margin-top: -0.6rem; }
+.artist a { color: var(--ink); text-decoration: none; }
+/* The artist link covers the whole ticket, a large touch target. */
+.artist a::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
 .artist a:hover { text-decoration: underline; }
 .meta { color: var(--muted); font-size: 0.9rem; margin: 0; overflow-wrap: anywhere; }
 

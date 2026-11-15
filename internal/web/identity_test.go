@@ -48,11 +48,7 @@ func TestJoin(t *testing.T) {
 			if resp.StatusCode != tt.status {
 				t.Fatalf("status = %d, want %d; body:\n%s", resp.StatusCode, tt.status, body)
 			}
-			for _, s := range tt.contains {
-				if !strings.Contains(body, s) {
-					t.Errorf("body lacks %q:\n%s", s, body)
-				}
-			}
+			assertContains(t, body, tt.contains...)
 		})
 	}
 }

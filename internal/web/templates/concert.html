@@ -1,6 +1,7 @@
 {{define "title"}}{{.Artist}} · {{.Group.Name}}{{end}}
 {{define "content"}}
 <p><a class="back" href="{{.Base}}#c{{.ID}}">← Tous les concerts</a></p>
+{{if .Saved}}<div class="banner" role="status"><p>Modifications enregistrées.</p></div>{{end}}
 <article class="ticket">
 <h1>{{.Artist}}</h1>
 <p class="when"><time datetime="{{datetime .Concert}}">{{when .Concert}}</time></p>
@@ -9,7 +10,7 @@
 {{with .AddedBy}}<p class="meta">ajouté par {{.}}</p>{{end}}
 <p class="actions">
 {{with .TicketURL}}<a class="button" href="{{.}}" rel="noopener noreferrer">Billetterie</a>{{end}}
-<a class="button" href="{{.Share}}" rel="noreferrer">Prévenir le groupe</a>
+<a class="button" href="{{.Share}}" rel="noreferrer">Prévenir le groupe<span class="visually-hidden"> sur WhatsApp</span></a>
 </p>
 </article>
 {{if .Me}}
@@ -18,6 +19,6 @@
 <form method="post" action="{{.Base}}/concerts/{{.ID}}/delete"><button class="button secondary">Supprimer</button></form>
 </div>
 {{else}}
-<p><a href="{{.Base}}?next=/concerts/{{.ID}}">Choisis ton prénom pour répondre</a></p>
+<p><a class="button" href="{{.Base}}?next=/concerts/{{.ID}}">Choisis ton prénom pour répondre</a></p>
 {{end}}
 {{end}}

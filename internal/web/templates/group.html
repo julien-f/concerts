@@ -3,14 +3,16 @@
 {{define "content"}}
 {{with .Added}}<div class="banner" role="status">
 <p>Concert ajouté : {{.Artist}}.</p>
-<a class="button" href="{{$.Share}}" rel="noreferrer">Prévenir le groupe</a>
+<a class="button" href="{{$.Share}}" rel="noreferrer">Prévenir le groupe<span class="visually-hidden"> sur WhatsApp</span></a>
 </div>{{end}}
+{{with .Restored}}<div class="banner" role="status"><p>Concert rétabli : {{.Artist}}.</p></div>{{end}}
 {{with .Deleted}}<div class="banner" role="status">
 <p>Concert supprimé : {{.Artist}}.</p>
-<form method="post" action="{{$.Base}}/concerts/{{.ID}}/restore"><button class="button">Annuler</button></form>
+<form method="post" action="{{$.Base}}/concerts/{{.ID}}/restore"><button class="button">Annuler la suppression</button></form>
 </div>{{end}}
 {{if .Concerts}}
-<ol class="concerts">
+{{- /* role=list: WebKit drops list semantics from unstyled lists. */}}
+<ol class="concerts" role="list">
 {{range .Concerts}}<li><article class="card" id="c{{.ID}}">
 {{with stub .Date}}<div class="stub" aria-hidden="true"><span>{{.Weekday}}</span><b>{{.Day}}</b><span>{{.Month}}</span></div>{{end}}
 <div class="body">

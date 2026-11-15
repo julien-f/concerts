@@ -64,18 +64,18 @@ func TestConcerts(t *testing.T) {
 		}
 	}
 
-	// Soft delete hides the concert everywhere but DeletedConcert, until restored.
+	// Soft delete hides the concert from the list and from writes, until restored.
 	if err := s.DeleteConcert(ctx, g.ID, late); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Concert(ctx, g.ID, late); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("deleted concert still found: %v", err)
+	if c, err := s.Concert(ctx, g.ID, late); err != nil || !c.Deleted || c.Artist != "Later" {
+		t.Fatalf("deleted Concert = %+v, %v; want it flagged Deleted", c, err)
 	}
 	if err := s.UpdateConcert(ctx, g.ID, late, upd); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("update of a deleted concert: %v", err)
 	}
-	if c, err := s.DeletedConcert(ctx, g.ID, late); err != nil || c.Artist != "Later" {
-		t.Fatalf("DeletedConcert = %+v, %v", c, err)
+	if err := s.DeleteConcert(ctx, g.ID, late); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("second delete: %v", err)
 	}
 	if cs, _ := s.Concerts(ctx, g.ID); len(cs) != 2 {
 		t.Fatalf("list still has %d concerts", len(cs))
@@ -103,22 +103,46 @@ func TestConcertLimit(t *testing.T) {
 	g, _ := s.CreateGroup(ctx, "g", "s")
 	m, _ := s.CreateMember(ctx, g.ID, "Léa")
 	c := Concert{Artist: "A", Date: "2027-01-01", Venue: "V"}
-	var last int64
+	create := func() (int64, error) { return s.CreateConcert(ctx, g.ID, m.ID, c) }
+
+	// Deleted concerts kept for undo do not count against the live limit...
+	early, _ := create()
+	if err := s.DeleteConcert(ctx, g.ID, early); err != nil {
+		t.Fatal(err)
+	}
 	for range MaxConcerts {
-		id, err := s.CreateConcert(ctx, g.ID, m.ID, c)
-		if err != nil {
+		if _, err := create(); err != nil {
 			t.Fatal(err)
 		}
-		last = id
 	}
-	if _, err := s.CreateConcert(ctx, g.ID, m.ID, c); !errors.Is(err, ErrLimit) {
-		t.Fatalf("err = %v, want ErrLimit", err)
+	if _, err := create(); !errors.Is(err, ErrLimit) {
+		t.Fatalf("create past the limit: err = %v, want ErrLimit", err)
 	}
-	// Deleted concerts do not count.
-	if err := s.DeleteConcert(ctx, g.ID, last); err != nil {
-		t.Fatal(err)
+	// ...but restoring one cannot exceed it.
+	if err := s.RestoreConcert(ctx, g.ID, early); !errors.Is(err, ErrLimit) {
+		t.Fatalf("restore past the limit: err = %v, want ErrLimit", err)
 	}
-	if _, err := s.CreateConcert(ctx, g.ID, m.ID, c); err != nil {
-		t.Fatal(err)
+	if c, _ := s.Concert(ctx, g.ID, early); !c.Deleted {
+		t.Fatal("a refused restore still restored the concert")
+	}
+
+	// Create-then-delete cannot grow the table without bound either.
+	cs, _ := s.Concerts(ctx, g.ID)
+	for _, c := range cs {
+		if err := s.DeleteConcert(ctx, g.ID, c.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i := range 2*MaxConcerts - MaxConcerts - 1 {
+		id, err := create()
+		if err != nil {
+			t.Fatalf("create %d: %v", i, err)
+		}
+		if err := s.DeleteConcert(ctx, g.ID, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := create(); !errors.Is(err, ErrLimit) {
+		t.Fatalf("create with %d rows: err = %v, want ErrLimit", 2*MaxConcerts, err)
 	}
 }

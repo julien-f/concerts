@@ -12,6 +12,9 @@ func concertValues(artist, date, tm, venue, ticket, onSale string) url.Values {
 		"ticket_url": {ticket}, "on_sale_date": {onSale}}
 }
 
+// validConcert is a minimal valid concert form.
+func validConcert() url.Values { return concertValues("A", "2026-07-01", "", "V", "", "") }
+
 // member returns a browser identified as name in a fresh group, and the group secret.
 func (ts *testServer) member(t *testing.T, name string) (*browser, string) {
 	t.Helper()
@@ -46,8 +49,9 @@ func TestConcertLifecycle(t *testing.T) {
 	_, body = b.get(t, g+"/concerts/1")
 	assertContains(t, body, "<h1>Fontaines D.C.</h1>", `href="https://tickets.example/f?a=1&amp;b=2"`, "Mise en vente\u202f: ", "ven. 5 juin", "Modifier")
 
-	_, body = b.postRedirect(t, g+"/concerts/1", concertValues("Fontaines D.C.", "2027-01-09", "", "Olympia", "", ""))
-	assertContains(t, body, "<h1>Fontaines D.C.</h1>", "sam. 9 janv. 2027", "Olympia")
+	_, body = b.postRedirect(t, g+"/concerts/1", concertValues("Fontaines D.C.", "2027-01-09", "9:05", "Olympia", "", ""))
+	assertContains(t, body, "<title>Concert modifié – ", "Modifications enregistrées", "<h1>Fontaines D.C.</h1>",
+		"sam. 9 janv. 2027 · 9\u00a0h\u00a005", `datetime="2027-01-09T09:05"`, "Olympia")
 	if strings.Contains(body, "Billetterie") || strings.Contains(body, "Mise en vente") {
 		t.Errorf("cleared optional fields still shown:\n%s", body)
 	}
@@ -62,7 +66,7 @@ func TestConcertLifecycle(t *testing.T) {
 	}
 
 	_, body = b.postRedirect(t, g+"/concerts/1/restore", nil)
-	assertContains(t, body, `id="c1"`, "Fontaines D.C.")
+	assertContains(t, body, "<title>Concert rétabli – ", "Concert rétabli\u202f: Fontaines D.C.", `id="c1"`)
 	// The banner follows the state: once restored, « Annuler » is gone.
 	if _, body = b.get(t, g+"?deleted=1"); strings.Contains(body, "restore") {
 		t.Errorf("restored concert still offers « Annuler »")
@@ -76,31 +80,30 @@ func TestConcertValidation(t *testing.T) {
 	t.Parallel()
 	ts := newTestServer(t)
 	b, secret := ts.member(t, "Léa")
-	tests := []struct {
-		name  string
-		form  url.Values
-		field string
-	}{
-		{"missing artist", concertValues(" ", "2026-07-01", "", "V", "", ""), "artist"},
-		{"artist too long", concertValues(strings.Repeat("a", 101), "2026-07-01", "", "V", "", ""), "artist"},
-		{"missing date", concertValues("A", "", "", "V", "", ""), "date"},
-		{"impossible date", concertValues("A", "2026-02-30", "", "V", "", ""), "date"},
-		{"bad time", concertValues("A", "2026-07-01", "25:00", "V", "", ""), "time"},
-		{"missing venue", concertValues("A", "2026-07-01", "", "", "", ""), "venue"},
-		{"javascript link", concertValues("A", "2026-07-01", "", "V", "javascript:alert(1)", ""), "ticket_url"},
-		{"ftp link", concertValues("A", "2026-07-01", "", "V", "ftp://x.example/f", ""), "ticket_url"},
-		{"relative link", concertValues("A", "2026-07-01", "", "V", "/billets", ""), "ticket_url"},
-		{"bad on-sale date", concertValues("A", "2026-07-01", "", "V", "", "demain"), "on_sale_date"},
+	tests := []struct{ name, field, value string }{
+		{"missing artist", "artist", " "},
+		{"artist too long", "artist", strings.Repeat("a", 101)},
+		{"missing date", "date", ""},
+		{"impossible date", "date", "2026-02-30"},
+		{"bad time", "time", "25:00"},
+		{"missing venue", "venue", ""},
+		{"javascript link", "ticket_url", "javascript:alert(1)"},
+		{"ftp link", "ticket_url", "ftp://x.example/f"},
+		{"relative link", "ticket_url", "/billets"},
+		{"non-ASCII host", "ticket_url", "https://x.example\u202e/a"},
+		{"bad on-sale date", "on_sale_date", "demain"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			resp, body := b.post(t, "/g/"+secret+"/concerts", tt.form)
+			form := validConcert()
+			form.Set(tt.field, tt.value)
+			resp, body := b.post(t, "/g/"+secret+"/concerts", form)
 			if resp.StatusCode != http.StatusUnprocessableEntity {
 				t.Fatalf("status = %d, want 422", resp.StatusCode)
 			}
 			assertContains(t, body, "<title>Erreur – ", `id="`+tt.field+`-error"`,
-				`aria-describedby="`+tt.field+`-error"`, "autofocus")
+				`aria-describedby="`+tt.field+`-error" autofocus`)
 		})
 	}
 	if _, body := b.get(t, "/g/"+secret); !strings.Contains(body, "Aucun concert") {
@@ -113,7 +116,7 @@ func TestConcertAccess(t *testing.T) {
 	ts := newTestServer(t)
 	b, secret := ts.member(t, "Léa")
 	g := "/g/" + secret
-	b.postRedirect(t, g+"/concerts", concertValues("A", "2026-07-01", "", "V", "", ""))
+	b.postRedirect(t, g+"/concerts", validConcert())
 	intruder, other := ts.member(t, "Intrus")
 	anon := ts.browser(t)
 
@@ -165,7 +168,7 @@ func TestPickerReturnsToConcert(t *testing.T) {
 	ts := newTestServer(t)
 	b, secret := ts.member(t, "Léa")
 	g := "/g/" + secret
-	b.postRedirect(t, g+"/concerts", concertValues("A", "2026-07-01", "", "V", "", ""))
+	b.postRedirect(t, g+"/concerts", validConcert())
 
 	newcomer := ts.browser(t)
 	_, body := newcomer.get(t, g+"/concerts/1")
