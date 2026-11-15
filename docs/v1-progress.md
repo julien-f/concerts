@@ -1,0 +1,32 @@
+# v1 progress (working memory, deleted in the last v1 commit)
+
+Re-read at the start of each slice and after each context compaction.
+
+## Autonomy rules (summary)
+
+- Never stop before the End: no questions, no waiting for approval, no `/clear` between slices. Pick the simplest option that fits the principles; non-obvious decisions get a short ADR.
+- Each slice: own worktree (`.worktrees/<branch>`) and branch from `main`; once done, `git merge --no-ff` from the main checkout (stays on `main`), then `git worktree remove` + `git branch -d`. No push.
+- Approved: ADR 0004 dependencies at their slice, repo tooling (Makefile, scripts, hook, `.claude/skills/`), web for research and verification tools.
+- Forbidden: runtime dependency outside ADR 0004 (write an ADR, flag it), touching anything outside the repo and scratchpad (`~/.claude` included), editing `.claude/settings.json`, `reset --hard`, `--force`, `--no-verify`, rewriting `main`.
+- Blocked twice on the same problem: log it here, continue with the next independent slice, else go to the End.
+- Reviews before each merge, one pass: slices 1, 2, 5 → 3 agents (security; accessibility and UI; simplicity and size); others → 1 agent (security and simplicity). Give them the diff and `verify-ui` output, not my conclusion; they never drive Playwright. At most 3 agents at once.
+- Design: update the slice's section of `docs/design.md` before coding, fix it after if the code taught better; each section ≤ 40 lines.
+
+## Definition of done (each slice)
+
+- `make check` passes.
+- Moderate tests through `newTestServer(t)`: nominal case plus errors and security cases per handler (unknown secret, CSRF, invalid input); per form, a no-JS POST (no `HX-Request`) expecting 303 then the full page; one test applies all migrations to a database from the previous slice; no trivial tests.
+- `scripts/verify-ui.sh` on `make demo`: each screen at 390 px, light and dark, 0 axe-core violations, 0 vnu errors; `/g/<secret>` page weight (gzip -9 of HTML + CSS + JS + icons) < 40 kB.
+- No third-party resources; no JS beyond htmx except a few justified lines.
+- Measures logged below: Go lines (non-test), binary size, page weight, `make check` duration.
+- `docs/design.md` describes what shipped; `CLAUDE.md` updated if a convention changes.
+
+## Log
+
+| Slice | State | Next step | Measures |
+|---|---|---|---|
+| 0 design-v1 | in progress | design doc, mockups, verify-ui | baseline `make check` 3.2 s |
+
+### Discarded review findings
+
+(none yet)
