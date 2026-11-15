@@ -88,6 +88,22 @@ input[aria-invalid="true"] { border: 2px solid var(--error); }
 .banner p { margin: 0; }
 .banner form { margin: 0; }
 
+.filters { display: flex; gap: 0.5rem; margin: 0.5rem 0 0.25rem; }
+.filters a {
+  display: inline-flex; align-items: center; min-height: 2.75rem; padding: 0 1rem;
+  border: 1px solid var(--muted); border-radius: 999px; color: var(--ink); text-decoration: none;
+}
+.filters a[aria-current="page"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.month {
+  font: 700 0.8rem/1.2 ui-monospace, monospace; letter-spacing: 0.15em; text-transform: uppercase;
+  color: var(--accent); margin: 1.25rem 0 0.6rem;
+}
+.past summary { display: flex; align-items: center; min-height: 2.75rem; cursor: pointer; }
+.past summary::before { content: "▸"; color: var(--accent); margin-right: 0.5rem; }
+.past[open] summary::before { content: "▾"; }
+.past summary::-webkit-details-marker { display: none; }
+.past summary { list-style: none; }
+
 /* Ticket card: stub with the date, dashed perforation, notches. */
 .concerts { list-style: none; margin: 0; padding: 0; }
 .card {

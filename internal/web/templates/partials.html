@@ -19,3 +19,14 @@
 </form>
 {{- end}}
 </div>{{end}}
+
+{{- /* card is a homePage card: the ticket of one concert in the list. */}}
+{{define "card"}}<li><article class="card" id="c{{.ID}}">
+{{with stub .Date}}<div class="stub" aria-hidden="true"><span>{{.Weekday}}</span><b>{{.Day}}</b><span>{{.Month}}</span></div>{{end}}
+<div class="body">
+<h3 class="artist"><a href="{{.Base}}/concerts/{{.ID}}">{{.Artist}}</a></h3>
+<p class="meta"><time datetime="{{datetime .Concert}}">{{when .Concert}}</time> · {{.Venue}}{{with .AddedBy}}<br>ajouté par {{.}}{{end}}</p>
+{{template "statuses" .Statuses}}
+</div>
+</article></li>
+{{end}}

@@ -97,7 +97,8 @@ Mobile first (390 px), one column, max 40 rem wide on larger screens. Landmarks 
 
 - Status lines: « Billet : », « Y va : » / « Y vont : », « Intérêt : » (no gender, count-aware).
 - « Mes concerts » = concerts where I have a status, computed in Go from the statuses already loaded; « Passés » is filtered too; clearing a status under the filter keeps the card until reload.
-- Past cards show names only, no buttons, newest first; `<details>` is rendered `open` when the target of `#c<id>` is past.
+- Past cards show names only, no buttons, newest first, under an `h2` « Passés (N) » followed by a `<details>` (« Afficher les concerts passés »), rendered `open` when an added or restored concert is past. A late answer posted to a past concert is still accepted.
+- Empty filter with only past answers: « Aucun concert à venir parmi les tiens. »
 - Empty list: « Aucun concert pour l'instant. Ajoute le premier ! »; empty filter: « Tu n'as encore réagi à aucun concert. »
 - Banners come from the URL but show only while true: `?added=<id>` and `?restored=<id>` if that concert is in the list, `?deleted=<id>` (« Annuler la suppression ») if it is still deleted; an edit returns to the concert page with `?saved`.
 
@@ -238,12 +239,13 @@ One slice per branch, merged with `--no-ff`. ✅ = shipped.
 3. ✅ **Statuses**: interested / going / ticket bought. Tapping the active status again clears it.
    - One status block (names per status, my three buttons) shared by the card and the concert page; htmx swaps that block only (`hx-target="closest .statuses"`), and buttons keep stable ids so focus survives the swap.
    - The active button submits an empty status (clear), so every POST states the target state: a double tap is harmless.
-4. **Single main screen.**
+4. ✅ **Single main screen.**
    - Chronological list grouped by month.
    - Each card shows first names per status and my three status buttons.
    - « Mes concerts » is a filter of this list, not another screen.
    - A concert moves to « Passés » (collapsible section) the day after its date.
    - Date format « sam. 14 mars · 20 h », Europe/Paris time zone.
+   - « Today » is the Europe/Paris date of the injected clock; a concert dated today is still upcoming. The card is one partial for both sections; past cards get no status buttons (on the concert page either).
 5. **Prefill from a ticketing URL** (Open Graph and JSON-LD `MusicEvent`).
    - Manual entry if fetching fails.
    - SSRF protection per ADR 0004.

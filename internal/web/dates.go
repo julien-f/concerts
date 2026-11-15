@@ -21,7 +21,23 @@ var paris = func() *time.Location {
 var (
 	weekdays = [...]string{"dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."}
 	months   = [...]string{"janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."}
+	// fullMonths name the month headings of the list.
+	fullMonths = [...]string{"janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"}
 )
+
+// monthOf is the heading of a YYYY-MM-DD date's month: « mars 2027 ».
+func monthOf(date string) string {
+	d, err := time.Parse(time.DateOnly, date)
+	if err != nil {
+		return date
+	}
+	return fullMonths[d.Month()-1] + " " + strconv.Itoa(d.Year())
+}
+
+// today is the clock's date in Paris, comparable with concert dates: a concert is past from the next day.
+func (s *server) today() string { return s.now().In(paris).Format(time.DateOnly) }
+
+func (s *server) upcoming(c store.Concert) bool { return c.Date >= s.today() }
 
 // stub is a date split for the ticket stub: « sam. », « 14 », « mars ».
 type stub struct{ Weekday, Day, Month string }

@@ -31,6 +31,14 @@ const screens = [
       return null;
     },
   },
+  {
+    name: "past-open",
+    go: async (p) => {
+      await p.click(".past summary");
+      return null;
+    },
+  },
+  { name: "mine", go: (p) => p.goto(`${groupURL}?mine=1`) },
   { name: "concert", go: (p) => p.goto(`${groupURL}/concerts/1`) },
   { name: "edit", go: (p) => p.goto(`${groupURL}/concerts/1/edit`) },
   { name: "add", go: (p) => p.goto(`${groupURL}/concerts/new`) },

@@ -3,6 +3,7 @@ package web
 import (
 	"errors"
 	"net/http"
+	"slices"
 	"strconv"
 
 	"concerts/internal/store"
@@ -11,12 +12,21 @@ import (
 // card is a concert in the list with its status block.
 type card struct {
 	store.Concert
+	Base     string
 	Statuses statusBlock
+}
+
+type month struct {
+	Label string // « mars 2027 »
+	Cards []card
 }
 
 type homePage struct {
 	*groupRequest
-	Concerts []card
+	Mine     bool           // « Mes concerts »: only concerts I answered
+	Months   []month        // upcoming, chronological
+	Past     []card         // newest first, in a collapsed section
+	PastOpen bool           // a banner targets a past concert
 	Added    *store.Concert // banner « Concert ajouté » with « Prévenir le groupe »
 	Share    string
 	Restored *store.Concert // banner « Concert rétabli »
@@ -41,16 +51,40 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 		return
 	}
 	statuses := byConcert(ss)
-	p := &homePage{groupRequest: gr}
-	for _, c := range cs {
-		p.Concerts = append(p.Concerts, card{c, newStatusBlock(gr, c, statuses[c.ID], "list")})
+	p := &homePage{groupRequest: gr, Mine: q.Get("mine") == "1"}
+	back := "list"
+	if p.Mine {
+		back = "mine"
 	}
+	today := s.today() // once, so every card of the page agrees
+	lastMonth := ""
+	for _, c := range cs {
+		if p.Mine && !answered(statuses[c.ID], gr.Me.ID) {
+			continue
+		}
+		upcoming := c.Date >= today
+		cd := card{c, gr.Base, newStatusBlock(gr, c, statuses[c.ID], back, upcoming)}
+		switch n := len(p.Months); {
+		case !upcoming:
+			p.Past = append(p.Past, cd)
+		case c.Date[:7] == lastMonth:
+			p.Months[n-1].Cards = append(p.Months[n-1].Cards, cd)
+		default:
+			lastMonth = c.Date[:7]
+			p.Months = append(p.Months, month{monthOf(c.Date), []card{cd}})
+		}
+	}
+	slices.Reverse(p.Past) // newest first
+
 	// Banners come from the URL, so each is shown only while still true: added and
 	// restored concerts must be in the live list just loaded, a deleted one still deleted.
 	find := func(param string) *store.Concert {
 		id, err := strconv.ParseInt(q.Get(param), 10, 64)
+		if err != nil {
+			return nil
+		}
 		for i := range cs {
-			if err == nil && cs[i].ID == id {
+			if cs[i].ID == id {
 				return &cs[i]
 			}
 		}
@@ -61,6 +95,11 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 	}
 	if p.Restored = find("restored"); p.Restored != nil {
 		p.Notice = "Concert rétabli"
+	}
+	for _, c := range []*store.Concert{p.Added, p.Restored} {
+		if c != nil && c.Date < today {
+			p.PastOpen = true
+		}
 	}
 	if id, err := strconv.ParseInt(q.Get("deleted"), 10, 64); err == nil {
 		c, err := s.store.Concert(r.Context(), gr.Group.ID, id)
@@ -73,4 +112,13 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 		}
 	}
 	s.render(w, r, http.StatusOK, "group", p)
+}
+
+func answered(statuses []store.Status, memberID int64) bool {
+	for _, st := range statuses {
+		if st.Member.ID == memberID {
+			return true
+		}
+	}
+	return false
 }

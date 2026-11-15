@@ -179,7 +179,7 @@ func (s *server) showConcert(w http.ResponseWriter, r *http.Request, gr *groupRe
 		s.fail(w, r, err)
 		return
 	}
-	p := &concertPage{groupRequest: gr, Concert: c, Statuses: newStatusBlock(gr, c, ss, "concert"),
+	p := &concertPage{groupRequest: gr, Concert: c, Statuses: newStatusBlock(gr, c, ss, "concert", s.upcoming(c)),
 		Share: s.shareURL(gr, c), Saved: r.URL.Query().Has("saved")}
 	if p.Saved {
 		p.Notice = "Concert modifié"
