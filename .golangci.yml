@@ -1,0 +1,9 @@
+version: "2"
+linters:
+  enable:
+    - gosec
+    - sqlclosecheck
+    - rowserrcheck
+formatters:
+  enable:
+    - gofmt

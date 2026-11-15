@@ -1,0 +1,40 @@
+[Unit]
+Description=concerts web app
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/concerts serve
+User=concerts
+Group=concerts
+StateDirectory=concerts
+WorkingDirectory=/var/lib/concerts
+Environment=CONCERTS_ADDR=127.0.0.1:8080
+Environment=CONCERTS_DB=/var/lib/concerts/concerts.db
+Environment=CONCERTS_BASE_URL=https://concerts.example.com
+Restart=on-failure
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
