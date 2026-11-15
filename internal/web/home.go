@@ -14,9 +14,17 @@ type card struct {
 	Statuses statusBlock
 }
 
+type month struct {
+	Label string // « mars 2027 »
+	Cards []card
+}
+
 type homePage struct {
 	*groupRequest
-	Concerts []card
+	Mine     bool           // « Mes concerts »: only concerts I answered
+	Months   []month        // upcoming, chronological
+	Past     []card         // newest first, in a collapsed section
+	PastOpen bool           // a banner targets a past concert
 	Added    *store.Concert // banner « Concert ajouté » with « Prévenir le groupe »
 	Share    string
 	Restored *store.Concert // banner « Concert rétabli »
@@ -41,10 +49,28 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 		return
 	}
 	statuses := byConcert(ss)
-	p := &homePage{groupRequest: gr}
-	for _, c := range cs {
-		p.Concerts = append(p.Concerts, card{c, newStatusBlock(gr, c, statuses[c.ID], "list")})
+	p := &homePage{groupRequest: gr, Mine: q.Get("mine") == "1"}
+	back := "list"
+	if p.Mine {
+		back = "mine"
 	}
+	today := s.today()
+	for _, c := range cs {
+		if p.Mine && !answered(statuses[c.ID], gr.Me.ID) {
+			continue
+		}
+		upcoming := c.Date >= today
+		cd := card{c, newStatusBlock(gr, c, statuses[c.ID], back, upcoming)}
+		switch label := monthOf(c.Date); {
+		case !upcoming:
+			p.Past = append([]card{cd}, p.Past...)
+		case len(p.Months) > 0 && p.Months[len(p.Months)-1].Label == label:
+			p.Months[len(p.Months)-1].Cards = append(p.Months[len(p.Months)-1].Cards, cd)
+		default:
+			p.Months = append(p.Months, month{label, []card{cd}})
+		}
+	}
+
 	// Banners come from the URL, so each is shown only while still true: added and
 	// restored concerts must be in the live list just loaded, a deleted one still deleted.
 	find := func(param string) *store.Concert {
@@ -62,6 +88,11 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 	if p.Restored = find("restored"); p.Restored != nil {
 		p.Notice = "Concert rétabli"
 	}
+	for _, c := range []*store.Concert{p.Added, p.Restored} {
+		if c != nil && c.Date < today {
+			p.PastOpen = true
+		}
+	}
 	if id, err := strconv.ParseInt(q.Get("deleted"), 10, 64); err == nil {
 		c, err := s.store.Concert(r.Context(), gr.Group.ID, id)
 		switch {
@@ -73,4 +104,13 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 		}
 	}
 	s.render(w, r, http.StatusOK, "group", p)
+}
+
+func answered(statuses []store.Status, memberID int64) bool {
+	for _, st := range statuses {
+		if st.Member.ID == memberID {
+			return true
+		}
+	}
+	return false
 }

@@ -29,12 +29,13 @@ type statusBlock struct {
 	Base      string
 	ConcertID int64
 	Artist    string
-	Back      string // where a no-JS answer returns: "list" or "concert"
+	Back      string // where a no-JS answer returns: "list", "mine" or "concert"
 	Lines     []statusLine
 	Buttons   []statusButton
 }
 
-func newStatusBlock(gr *groupRequest, c store.Concert, statuses []store.Status, back string) statusBlock {
+// newStatusBlock builds the block; buttons only for an identified member and an upcoming concert.
+func newStatusBlock(gr *groupRequest, c store.Concert, statuses []store.Status, back string, upcoming bool) statusBlock {
 	b := statusBlock{Base: gr.Base, ConcertID: c.ID, Artist: c.Artist, Back: back}
 	names := map[string][]string{}
 	mine := ""
@@ -54,7 +55,7 @@ func newStatusBlock(gr *groupRequest, c store.Concert, statuses []store.Status, 
 			b.Lines = append(b.Lines, statusLine{l.Status, l.Many, strings.Join(n, ", ")})
 		}
 	}
-	if gr.Me != nil {
+	if gr.Me != nil && upcoming {
 		for _, l := range statusLabels {
 			b.Buttons = append(b.Buttons, statusButton{l.Status, l.Button, l.Status == mine})
 		}
@@ -95,8 +96,11 @@ func (s *server) setStatus(w http.ResponseWriter, r *http.Request, gr *groupRequ
 		return
 	}
 	back, target := "list", fmt.Sprintf("%s#c%d", gr.Base, c.ID)
-	if r.PostForm.Get("back") == "concert" {
+	switch r.PostForm.Get("back") {
+	case "concert":
 		back, target = "concert", fmt.Sprintf("%s/concerts/%d", gr.Base, c.ID)
+	case "mine":
+		back, target = "mine", fmt.Sprintf("%s?mine=1#c%d", gr.Base, c.ID)
 	}
 	err := s.store.SetStatus(r.Context(), gr.Group.ID, c.ID, gr.Me.ID, status)
 	if err != nil || !isHTMX(r) {
@@ -108,7 +112,7 @@ func (s *server) setStatus(w http.ResponseWriter, r *http.Request, gr *groupRequ
 		s.fail(w, r, err)
 		return
 	}
-	s.fragment(w, r, "statuses", newStatusBlock(gr, c, ss, back))
+	s.fragment(w, r, "statuses", newStatusBlock(gr, c, ss, back, c.Date >= s.today()))
 }
 
 // fragment renders one shared template (from partials.html) for htmx to swap in.
