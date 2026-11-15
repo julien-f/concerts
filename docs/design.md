@@ -203,6 +203,7 @@ All under `/g/{secret}` (written `…`); unknown secret → 404. Every POST: `Cr
 | GET | `…/concerts/{id}/agenda.ics` | one-event calendar | `text/calendar` |
 
 - Routes needing an identity (all but the picker, `/me`, the concert page and `agenda.ics`) redirect to `…` (303) without a valid member cookie.
+- htmx requests get `HX-Redirect` instead of a 303 (htmx would swap the target page into the fragment) and `HX-Refresh` with a 404 (htmx swaps no 4xx).
 - Errors: 404 for unknown concert or a concert of another group; 500 is a generic page, details only in logs. Pages render into a buffer first, so a template error never sends a truncated 200.
 
 ## Edge cases

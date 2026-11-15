@@ -16,15 +16,16 @@ type Status struct {
 	Status    string
 }
 
-// Statuses returns the answers to the group's live concerts, members in name order.
-func (s *Store) Statuses(ctx context.Context, groupID int64) ([]Status, error) {
+// Statuses returns the answers to the group's live concerts (to one concert if
+// concertID is not 0), members in name order.
+func (s *Store) Statuses(ctx context.Context, groupID, concertID int64) ([]Status, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT s.concert_id, m.id, m.name, s.status
 		FROM statuses s
 		JOIN concerts c ON c.id = s.concert_id
 		JOIN members m ON m.id = s.member_id
-		WHERE c.group_id = ? AND c.deleted_at IS NULL
-		ORDER BY m.name_key`, groupID)
+		WHERE c.group_id = ?1 AND c.deleted_at IS NULL AND (?2 = 0 OR c.id = ?2)
+		ORDER BY m.name_key`, groupID, concertID)
 	if err != nil {
 		return nil, err
 	}

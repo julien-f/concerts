@@ -35,7 +35,7 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 		s.fail(w, r, err)
 		return
 	}
-	ss, err := s.store.Statuses(r.Context(), gr.Group.ID)
+	ss, err := s.store.Statuses(r.Context(), gr.Group.ID, 0)
 	if err != nil {
 		s.fail(w, r, err)
 		return

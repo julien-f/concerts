@@ -36,24 +36,22 @@ type statusBlock struct {
 
 func newStatusBlock(gr *groupRequest, c store.Concert, statuses []store.Status, back string) statusBlock {
 	b := statusBlock{Base: gr.Base, ConcertID: c.ID, Artist: c.Artist, Back: back}
+	names := map[string][]string{}
 	mine := ""
+	for _, st := range statuses {
+		names[st.Status] = append(names[st.Status], st.Member.Name)
+		if gr.Me != nil && st.Member.ID == gr.Me.ID {
+			mine = st.Status
+		}
+	}
 	for i := len(statusLabels) - 1; i >= 0; i-- {
 		l := statusLabels[i]
-		var names []string
-		for _, st := range statuses {
-			if st.Status == l.Status {
-				names = append(names, st.Member.Name)
-			}
-			if gr.Me != nil && st.Member.ID == gr.Me.ID {
-				mine = st.Status
-			}
-		}
-		label := l.One
-		if len(names) > 1 {
-			label = l.Many
-		}
-		if names != nil {
-			b.Lines = append(b.Lines, statusLine{l.Status, label, strings.Join(names, ", ")})
+		switch n := names[l.Status]; len(n) {
+		case 0:
+		case 1:
+			b.Lines = append(b.Lines, statusLine{l.Status, l.One, n[0]})
+		default:
+			b.Lines = append(b.Lines, statusLine{l.Status, l.Many, strings.Join(n, ", ")})
 		}
 	}
 	if gr.Me != nil {
@@ -87,37 +85,30 @@ func validStatus(v string) bool {
 
 // setStatus records my answer; htmx gets the new status block, a browser without JS a 303 back.
 func (s *server) setStatus(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
-	id, ok := pathID(w, r)
+	c, ok := s.concert(w, r, gr)
 	if !ok || !parseForm(w, r) {
 		return
 	}
-	status, back := r.PostForm.Get("status"), r.PostForm.Get("back")
+	status := r.PostForm.Get("status")
 	if !validStatus(status) {
 		http.Error(w, "Statut inconnu.", http.StatusBadRequest)
 		return
 	}
-	target := fmt.Sprintf("%s#c%d", gr.Base, id)
-	if back == "concert" {
-		target = fmt.Sprintf("%s/concerts/%d", gr.Base, id)
+	back, target := "list", fmt.Sprintf("%s#c%d", gr.Base, c.ID)
+	if r.PostForm.Get("back") == "concert" {
+		back, target = "concert", fmt.Sprintf("%s/concerts/%d", gr.Base, c.ID)
 	}
-	err := s.store.SetStatus(r.Context(), gr.Group.ID, id, gr.Me.ID, status)
-	if err != nil || r.Header.Get("HX-Request") != "true" {
+	err := s.store.SetStatus(r.Context(), gr.Group.ID, c.ID, gr.Me.ID, status)
+	if err != nil || !isHTMX(r) {
 		s.done(w, r, err, target)
 		return
 	}
-	c, ok := s.concert(w, r, gr)
-	if !ok {
-		return
-	}
-	ss, err := s.store.Statuses(r.Context(), gr.Group.ID)
+	ss, err := s.store.Statuses(r.Context(), gr.Group.ID, c.ID)
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	if back != "concert" {
-		back = "list"
-	}
-	s.fragment(w, r, "statuses", newStatusBlock(gr, c, byConcert(ss)[c.ID], back))
+	s.fragment(w, r, "statuses", newStatusBlock(gr, c, ss, back))
 }
 
 // fragment renders one shared template (from partials.html) for htmx to swap in.

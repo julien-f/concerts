@@ -98,6 +98,21 @@ func TestStatusRejected(t *testing.T) {
 			}
 		})
 	}
+	// htmx follows a 303 silently and would swap the picker page into the card,
+	// and swaps no 404: both become full navigations.
+	for _, tt := range []struct {
+		who          *browser
+		path, header string
+	}{{ts.browser(t), g + "/concerts/1/status", "HX-Redirect"}, {b, g + "/concerts/2/status", "HX-Refresh"}} {
+		path, header := tt.path, tt.header
+		req := tt.who.postRequest(t, path, url.Values{"status": {"going"}})
+		req.Header.Set("HX-Request", "true")
+		resp, body := tt.who.do(t, req)
+		if resp.Header.Get(header) == "" || strings.Contains(body, "<html") {
+			t.Errorf("htmx POST %s: want %s and no page, got %d %v", path, header, resp.StatusCode, resp.Header)
+		}
+	}
+
 	req := b.postRequest(t, g+"/concerts/1/status", url.Values{"status": {"going"}})
 	req.Header.Set("Sec-Fetch-Site", "cross-site")
 	if resp, _ := b.do(t, req); resp.StatusCode != http.StatusForbidden {

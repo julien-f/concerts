@@ -130,7 +130,7 @@ func (s *server) serveStatic(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	body, ok := s.static.bodies[name]
 	if !ok {
-		notFound(w)
+		notFound(w, r)
 		return
 	}
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
@@ -175,7 +175,12 @@ func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	http.Error(w, "Erreur interne, réessaie plus tard.", http.StatusInternalServerError)
 }
 
-func notFound(w http.ResponseWriter) {
+// notFound answers 404; htmx, which swaps no 4xx, is told to reload the page
+// instead (e.g. a concert deleted meanwhile).
+func notFound(w http.ResponseWriter, r *http.Request) {
+	if isHTMX(r) {
+		w.Header().Set("HX-Refresh", "true")
+	}
 	http.Error(w, "Page introuvable.", http.StatusNotFound)
 }
 
