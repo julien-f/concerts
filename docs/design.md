@@ -177,7 +177,7 @@ statuses (concert_id → concerts ON DELETE CASCADE,
 - Main page = 2 queries per group (live concerts with creator name; their statuses with member names), assembled in Go: no N+1.
 - The identity cookie holds the member id; `inGroup` (web) resolves the secret, sets `Cache-Control` and drops a cookie naming a member of another group or a deleted one.
 - One accessor `Concert(groupID, id)` filters `group_id` and `deleted_at IS NULL` for every route but restore, which updates only a deleted row of the group; anything else is 404. Status writes also check the member belongs to the group.
-- Validation (`parseForm`, also applied to prefilled values): text trimmed, 1–100 runes (name 1–30), valid UTF-8, no control (`Cc`) or format (`Cf`, zero-width, bidi) characters; dates `YYYY-MM-DD`, time `HH:MM`; ticket URL absolute `http`/`https`, ≤ 2000 bytes.
+- Validation (`parseForm`, also applied to prefilled values): text trimmed, 1–100 runes (name 1–30), valid UTF-8, no invisible characters (control, format, variation selectors, default-ignorable, braille blank), first names starting with a letter or digit; dates `YYYY-MM-DD`, time `HH:MM`; ticket URL absolute `http`/`https`, ≤ 2000 bytes.
 - Writes use `_txlock=immediate` and `busy_timeout`; status writes are upserts (idempotent). `synchronous(NORMAL)` may lose the last commits on power loss: accepted.
 
 ## Routes

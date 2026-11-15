@@ -2,16 +2,13 @@ package main
 
 import (
 	"context"
-	"fmt"
 
 	"concerts/internal/store"
-	"concerts/internal/web"
 )
 
 // demo fills a fresh database with a group for `make demo` and scripts/verify-ui.sh.
 func demo(ctx context.Context, st *store.Store, baseURL string) error {
-	secret := web.NewSecret()
-	g, err := st.CreateGroup(ctx, "Les copains du concert", secret)
+	g, err := newGroup(ctx, st, baseURL, "Les copains du concert")
 	if err != nil {
 		return err
 	}
@@ -20,6 +17,5 @@ func demo(ctx context.Context, st *store.Store, baseURL string) error {
 			return err
 		}
 	}
-	fmt.Println(web.GroupURL(baseURL, secret))
 	return nil
 }

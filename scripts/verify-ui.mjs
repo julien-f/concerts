@@ -21,7 +21,7 @@ const screens = [
       return submit(p, "text=Rejoindre");
     },
   },
-  { name: "group", go: (p) => submit(p, "text=C'est moi : Léa") },
+  { name: "group", go: (p) => submit(p, 'button:has-text("Léa")') },
 ];
 
 mkdirSync(htmlDir, { recursive: true });

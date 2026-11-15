@@ -2,13 +2,17 @@ package web
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"concerts/internal/store"
 )
 
-const memberCookie = "member"
+const (
+	memberCookie = "member"
+	maxNameRunes = 30
+)
 
 // groupRequest is what every /g/{secret} handler gets: the group, its base path
 // and the member the identity cookie names (nil if none or stale).
@@ -19,9 +23,8 @@ type groupRequest struct {
 	Notice string // <title> prefix (banner or « Erreur »), heard after a no-JS redirect
 }
 
-// inGroup resolves the secret (404 if unknown) and the identity cookie; with
-// needMe, a request without identity is sent to the picker.
-func (s *server) inGroup(needMe bool, h func(http.ResponseWriter, *http.Request, *groupRequest)) http.HandlerFunc {
+// inGroup resolves the secret (404 if unknown) and the identity cookie.
+func (s *server) inGroup(h func(http.ResponseWriter, *http.Request, *groupRequest)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		secret := r.PathValue("secret")
 		g, err := s.store.GroupBySecret(r.Context(), secret)
@@ -48,27 +51,29 @@ func (s *server) inGroup(needMe bool, h func(http.ResponseWriter, *http.Request,
 				}
 			}
 		}
-		if needMe && gr.Me == nil {
-			http.Redirect(w, r, gr.Base, http.StatusSeeOther) //nolint:gosec // G710: Base is a known secret's path, see above
-			return
-		}
 		h(w, r, gr)
 	}
 }
 
-func (s *server) setMember(w http.ResponseWriter, gr *groupRequest, id int64) {
+// setMember sets the identity cookie; logout passes "" and -1 to clear it.
+func (s *server) setMember(w http.ResponseWriter, gr *groupRequest, value string, maxAge int) {
 	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure follows the base URL scheme (plain http in development)
-		Name: memberCookie, Value: strconv.FormatInt(id, 10), Path: gr.Base,
-		MaxAge: 400 * 24 * 3600, HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteLaxMode,
+		Name: memberCookie, Value: value, Path: gr.Base,
+		MaxAge: maxAge, HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteLaxMode,
 	})
+}
+
+func (s *server) remember(w http.ResponseWriter, gr *groupRequest, id int64) {
+	s.setMember(w, gr, strconv.FormatInt(id, 10), 400*24*3600)
 }
 
 type pickerPage struct {
 	*groupRequest
-	Members []store.Member
-	Name    string        // refilled "new first name" field
-	Error   string        // validation error on Name
-	Taken   *store.Member // existing member whose name was typed again
+	Members  []store.Member
+	MaxRunes int
+	Name     string        // refilled first-name field
+	Error    string        // validation error on Name
+	Taken    *store.Member // existing member whose name was typed again
 }
 
 func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
@@ -85,15 +90,14 @@ func (s *server) picker(w http.ResponseWriter, r *http.Request, status int, p *p
 		s.fail(w, r, err)
 		return
 	}
-	p.Members = ms
+	p.Members, p.MaxRunes = ms, maxNameRunes
 	if p.Error != "" || p.Taken != nil {
 		p.Notice = "Erreur"
 	}
 	s.render(w, r, status, "picker", p)
 }
 
-// join handles the picker: "C'est moi" sends member_id, the new-name form sends name.
-// member_id wins, since the duplicate message offers a "C'est moi" button inside the name form.
+// join handles the picker: « C'est moi » buttons send member_id, the name form sends name.
 func (s *server) join(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
 	if !parseForm(w, r) {
 		return
@@ -106,40 +110,37 @@ func (s *server) join(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 			return
 		}
 		if err == nil {
-			s.setMember(w, gr, m.ID)
+			s.remember(w, gr, m.ID)
 		}
 		http.Redirect(w, r, gr.Base, http.StatusSeeOther)
 		return
 	}
 
 	p := &pickerPage{groupRequest: gr, Name: r.PostForm.Get("name")}
-	name, ok := cleanText(p.Name, 30)
+	name, ok := cleanName(p.Name, maxNameRunes)
 	if !ok {
-		p.Error = "Indique un prénom de 1 à 30 caractères, sans symboles invisibles."
+		p.Error = fmt.Sprintf("Indique un prénom de 1 à %d caractères, commençant par une lettre.", maxNameRunes)
 		s.picker(w, r, http.StatusUnprocessableEntity, p)
 		return
 	}
 	m, err := s.store.CreateMember(r.Context(), gr.Group.ID, name)
 	switch {
 	case errors.Is(err, store.ErrDuplicate):
-		p.Taken, p.Name = &m, name+" "
+		p.Taken = &m
 		s.picker(w, r, http.StatusUnprocessableEntity, p)
 	case errors.Is(err, store.ErrLimit):
-		p.Error = "Le groupe est complet (100 prénoms au plus)."
+		p.Error = fmt.Sprintf("Le groupe est complet (%d prénoms au plus).", store.MaxMembers)
 		s.picker(w, r, http.StatusUnprocessableEntity, p)
 	case err != nil:
 		s.fail(w, r, err)
 	default:
-		s.setMember(w, gr, m.ID)
+		s.remember(w, gr, m.ID)
 		http.Redirect(w, r, gr.Base, http.StatusSeeOther)
 	}
 }
 
 // logout is « Ce n'est pas moi »: it forgets the identity, for shared phones.
 func (s *server) logout(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
-	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure follows the base URL scheme (plain http in development)
-		Name: memberCookie, Path: gr.Base, MaxAge: -1,
-		HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteLaxMode,
-	})
+	s.setMember(w, gr, "", -1)
 	http.Redirect(w, r, gr.Base, http.StatusSeeOther)
 }

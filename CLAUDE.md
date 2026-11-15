@@ -35,3 +35,5 @@ Design, threat model and roadmap: [docs/design.md](docs/design.md). Decisions: [
 - `make demo`: fresh `demo.db` with sample data, then serves it. `make verify-ui`: axe-core, vnu and page weight on every demo screen; run before merging a UI change ([ADR 0006](docs/decisions/0006-scripted-ui-verification.md)).
 
 ## Pitfalls
+
+- Test expects « Qui es-tu ? » but the body has it: French templates put U+202F (narrow no-break space) before `? : ;` and inside « »; write `\u202f` in test strings and Playwright selectors, or match the words only.

@@ -14,6 +14,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"path"
 	"strings"
 	"time"
@@ -58,14 +59,18 @@ func New(st *store.Store, log *slog.Logger, baseURL string) (http.Handler, error
 	if err != nil {
 		return nil, err
 	}
-	s := &server{store: st, log: log, pages: pages, static: static, secure: strings.HasPrefix(baseURL, "https://")}
+	u, err := url.Parse(baseURL)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return nil, fmt.Errorf("base URL %q: want http(s)://host", baseURL)
+	}
+	s := &server{store: st, log: log, pages: pages, static: static, secure: u.Scheme == "https"}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.healthz)
 	mux.HandleFunc("GET /static/{name}", s.serveStatic)
-	mux.HandleFunc("GET /g/{secret}", s.inGroup(false, s.home))
-	mux.HandleFunc("POST /g/{secret}/me", s.inGroup(false, s.join))
-	mux.HandleFunc("POST /g/{secret}/logout", s.inGroup(false, s.logout))
+	mux.HandleFunc("GET /g/{secret}", s.inGroup(s.home))
+	mux.HandleFunc("POST /g/{secret}/me", s.inGroup(s.join))
+	mux.HandleFunc("POST /g/{secret}/logout", s.inGroup(s.logout))
 	return s.logRequests(securityHeaders(http.NewCrossOriginProtection().Handler(mux))), nil
 }
 
@@ -108,7 +113,7 @@ func (s *server) serveStatic(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	body, ok := s.static.bodies[name]
 	if !ok {
-		http.NotFound(w, r)
+		notFound(w)
 		return
 	}
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")

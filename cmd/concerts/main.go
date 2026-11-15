@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"strconv"
 	"syscall"
 	"text/tabwriter"
@@ -55,34 +56,29 @@ func run(args []string, log *slog.Logger) error {
 	defer stop()
 	dbPath := env("CONCERTS_DB", "concerts.db")
 	baseURL := os.Getenv("CONCERTS_BASE_URL")
-	needBaseURL := func(f func(*store.Store) error) func(*store.Store) error {
-		return func(st *store.Store) error {
-			if baseURL == "" {
-				return errors.New("CONCERTS_BASE_URL is required")
-			}
-			return f(st)
-		}
-	}
 
 	var cmd func(*store.Store) error
 	switch {
 	case len(args) == 1 && args[0] == "serve":
-		cmd = needBaseURL(func(st *store.Store) error { return serve(ctx, log, st, env("CONCERTS_ADDR", ":8080"), baseURL) })
+		cmd = func(st *store.Store) error { return serve(ctx, log, st, env("CONCERTS_ADDR", ":8080"), baseURL) }
 	case len(args) == 2 && args[0] == "new-group":
-		cmd = needBaseURL(func(st *store.Store) error { return newGroup(ctx, st, baseURL, args[1]) })
+		cmd = func(st *store.Store) error { _, err := newGroup(ctx, st, baseURL, args[1]); return err }
 	case len(args) == 1 && args[0] == "list-groups":
 		cmd = func(st *store.Store) error { return listGroups(ctx, st) }
 	case len(args) == 2 && args[0] == "rotate-secret":
-		cmd = needBaseURL(func(st *store.Store) error { return rotateSecret(ctx, st, baseURL, args[1]) })
+		cmd = func(st *store.Store) error { return rotateSecret(ctx, st, baseURL, args[1]) }
 	case len(args) == 3 && args[0] == "delete-member":
 		cmd = func(st *store.Store) error { return deleteMember(ctx, st, args[1], args[2]) }
 	case len(args) == 2 && args[0] == "backup":
 		cmd = func(st *store.Store) error { return st.Backup(ctx, args[1]) }
 	case len(args) == 1 && args[0] == "demo":
-		cmd = needBaseURL(func(st *store.Store) error { return demo(ctx, st, baseURL) })
+		cmd = func(st *store.Store) error { return demo(ctx, st, baseURL) }
 	default:
 		fmt.Fprint(os.Stderr, usage)
 		return errors.New("invalid arguments")
+	}
+	if baseURL == "" && slices.Contains([]string{"serve", "new-group", "rotate-secret", "demo"}, args[0]) {
+		return errors.New("CONCERTS_BASE_URL is required")
 	}
 
 	st, err := store.Open(ctx, dbPath, time.Now)
@@ -93,13 +89,14 @@ func run(args []string, log *slog.Logger) error {
 	return errors.Join(cmd(st), st.Close())
 }
 
-func newGroup(ctx context.Context, st *store.Store, baseURL, name string) error {
+// newGroup creates a group and prints its link.
+func newGroup(ctx context.Context, st *store.Store, baseURL, name string) (store.Group, error) {
 	secret := web.NewSecret()
-	if _, err := st.CreateGroup(ctx, name, secret); err != nil {
-		return err
+	g, err := st.CreateGroup(ctx, name, secret)
+	if err == nil {
+		fmt.Println(web.GroupURL(baseURL, secret))
 	}
-	fmt.Println(web.GroupURL(baseURL, secret))
-	return nil
+	return g, err
 }
 
 func listGroups(ctx context.Context, st *store.Store) error {
@@ -158,7 +155,7 @@ func serve(ctx context.Context, log *slog.Logger, st *store.Store, addr, baseURL
 		Handler:           h,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      60 * time.Second, // above the prefill fetch timeout
+		WriteTimeout:      60 * time.Second,
 		IdleTimeout:       2 * time.Minute,
 		MaxHeaderBytes:    64 << 10,
 	}

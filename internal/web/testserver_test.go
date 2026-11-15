@@ -63,13 +63,19 @@ func (b *syncBuffer) String() string {
 // newTestServer starts the real router on a fresh database with a fake clock.
 func newTestServer(t *testing.T) *testServer {
 	t.Helper()
+	return newTestServerWith(t, "http://example.test")
+}
+
+// newTestServerWith is newTestServer with a chosen public base URL.
+func newTestServerWith(t *testing.T, baseURL string) *testServer {
+	t.Helper()
 	clock := &fakeClock{t: time.Date(2026, 6, 1, 20, 0, 0, 0, time.UTC)}
 	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "test.db"), clock.Now)
 	if err != nil {
 		t.Fatal(err)
 	}
 	logs := &syncBuffer{}
-	h, err := New(st, slog.New(slog.NewTextHandler(logs, nil)), "http://example.test")
+	h, err := New(st, slog.New(slog.NewTextHandler(logs, nil)), baseURL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,21 +144,23 @@ func (b *browser) get(t *testing.T, path string) (*http.Response, string) {
 	return b.do(t, req)
 }
 
-// post submits a form; header pairs (e.g. "HX-Request", "true") are added to the request.
-func (b *browser) post(t *testing.T, path string, form url.Values, header ...string) (*http.Response, string) {
+// postRequest builds a form submission.
+func (b *browser) postRequest(t *testing.T, path string, form url.Values) *http.Request {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodPost, b.ts.URL+path, strings.NewReader(form.Encode()))
 	if err != nil {
 		t.Fatal(err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	for i := 0; i+1 < len(header); i += 2 {
-		req.Header.Set(header[i], header[i+1])
-	}
-	return b.do(t, req)
+	return req
 }
 
-// postRedirect submits a form without HX-Request, expects a 303 and returns the page it leads to.
+func (b *browser) post(t *testing.T, path string, form url.Values) (*http.Response, string) {
+	t.Helper()
+	return b.do(t, b.postRequest(t, path, form))
+}
+
+// postRedirect submits a form, expects a 303 and returns the page it leads to.
 func (b *browser) postRedirect(t *testing.T, path string, form url.Values) (*http.Response, string) {
 	t.Helper()
 	resp, body := b.post(t, path, form)

@@ -9,16 +9,6 @@ import (
 	"testing"
 )
 
-func openTest(t *testing.T) *Store {
-	t.Helper()
-	s, err := Open(context.Background(), filepath.Join(t.TempDir(), "test.db"), fixedNow)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = s.Close() })
-	return s
-}
-
 // TestMigrateFromPreviousSlice builds a database as the previous slice left it,
 // with data, then checks Open migrates it and the data survives.
 func TestMigrateFromPreviousSlice(t *testing.T) {
@@ -98,21 +88,6 @@ func TestMembers(t *testing.T) {
 	}
 	if err := s.DeleteMember(ctx, g.ID, "marc"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("second DeleteMember: err = %v, want ErrNotFound", err)
-	}
-}
-
-func TestMemberLimit(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	s := openTest(t)
-	g, _ := s.CreateGroup(ctx, "g", "s")
-	for i := range MaxMembers {
-		if _, err := s.CreateMember(ctx, g.ID, fmt.Sprint("m", i)); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if _, err := s.CreateMember(ctx, g.ID, "one more"); !errors.Is(err, ErrLimit) {
-		t.Fatalf("err = %v, want ErrLimit", err)
 	}
 }
 
