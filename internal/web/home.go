@@ -3,6 +3,7 @@ package web
 import (
 	"errors"
 	"net/http"
+	"slices"
 	"strconv"
 
 	"concerts/internal/store"
@@ -11,6 +12,7 @@ import (
 // card is a concert in the list with its status block.
 type card struct {
 	store.Concert
+	Base     string
 	Statuses statusBlock
 }
 
@@ -54,29 +56,35 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 	if p.Mine {
 		back = "mine"
 	}
-	today := s.today()
+	today := s.today() // once, so every card of the page agrees
+	lastMonth := ""
 	for _, c := range cs {
 		if p.Mine && !answered(statuses[c.ID], gr.Me.ID) {
 			continue
 		}
 		upcoming := c.Date >= today
-		cd := card{c, newStatusBlock(gr, c, statuses[c.ID], back, upcoming)}
-		switch label := monthOf(c.Date); {
+		cd := card{c, gr.Base, newStatusBlock(gr, c, statuses[c.ID], back, upcoming)}
+		switch n := len(p.Months); {
 		case !upcoming:
-			p.Past = append([]card{cd}, p.Past...)
-		case len(p.Months) > 0 && p.Months[len(p.Months)-1].Label == label:
-			p.Months[len(p.Months)-1].Cards = append(p.Months[len(p.Months)-1].Cards, cd)
+			p.Past = append(p.Past, cd)
+		case c.Date[:7] == lastMonth:
+			p.Months[n-1].Cards = append(p.Months[n-1].Cards, cd)
 		default:
-			p.Months = append(p.Months, month{label, []card{cd}})
+			lastMonth = c.Date[:7]
+			p.Months = append(p.Months, month{monthOf(c.Date), []card{cd}})
 		}
 	}
+	slices.Reverse(p.Past) // newest first
 
 	// Banners come from the URL, so each is shown only while still true: added and
 	// restored concerts must be in the live list just loaded, a deleted one still deleted.
 	find := func(param string) *store.Concert {
 		id, err := strconv.ParseInt(q.Get(param), 10, 64)
+		if err != nil {
+			return nil
+		}
 		for i := range cs {
-			if err == nil && cs[i].ID == id {
+			if cs[i].ID == id {
 				return &cs[i]
 			}
 		}

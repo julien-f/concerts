@@ -102,6 +102,8 @@ func (s *server) setStatus(w http.ResponseWriter, r *http.Request, gr *groupRequ
 	case "mine":
 		back, target = "mine", fmt.Sprintf("%s?mine=1#c%d", gr.Base, c.ID)
 	}
+	// Past concerts show no buttons, but a late answer (a tab left open past midnight,
+	// a ticket mentioned afterwards) is harmless, so the server still takes it.
 	err := s.store.SetStatus(r.Context(), gr.Group.ID, c.ID, gr.Me.ID, status)
 	if err != nil || !isHTMX(r) {
 		s.done(w, r, err, target)
@@ -112,7 +114,7 @@ func (s *server) setStatus(w http.ResponseWriter, r *http.Request, gr *groupRequ
 		s.fail(w, r, err)
 		return
 	}
-	s.fragment(w, r, "statuses", newStatusBlock(gr, c, ss, back, c.Date >= s.today()))
+	s.fragment(w, r, "statuses", newStatusBlock(gr, c, ss, back, s.upcoming(c)))
 }
 
 // fragment renders one shared template (from partials.html) for htmx to swap in.

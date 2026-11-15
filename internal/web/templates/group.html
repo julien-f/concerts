@@ -20,13 +20,16 @@
 <ol class="concerts" role="list">
 {{range .Cards}}{{template "card" .}}{{end}}</ol>
 {{else}}
-{{if .Mine}}<p class="empty">Tu n'as encore réagi à aucun concert.</p>
+{{if and .Mine .Past}}<p class="empty">Aucun concert à venir parmi les tiens.</p>
+{{else if .Mine}}<p class="empty">Tu n'as encore réagi à aucun concert.</p>
 {{else if .Past}}<p class="empty">Aucun concert à venir. Ajoute le prochain !</p>
 {{else}}<p class="empty">Aucun concert pour l'instant. Ajoute le premier !</p>{{end}}
 {{end}}
 {{with .Past}}
+{{- /* The heading stays outside <summary>, whose button role hides headings from screen readers. */}}
+<h2 class="month">Passés ({{len .}})</h2>
 <details class="past"{{if $.PastOpen}} open{{end}}>
-<summary><h2>Passés ({{len .}})</h2></summary>
+<summary>Afficher les concerts passés</summary>
 <ol class="concerts" role="list">
 {{range .}}{{template "card" .}}{{end}}</ol>
 </details>

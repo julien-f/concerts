@@ -37,6 +37,8 @@ func monthOf(date string) string {
 // today is the clock's date in Paris, comparable with concert dates: a concert is past from the next day.
 func (s *server) today() string { return s.now().In(paris).Format(time.DateOnly) }
 
+func (s *server) upcoming(c store.Concert) bool { return c.Date >= s.today() }
+
 // stub is a date split for the ticket stub: « sam. », « 14 », « mars ».
 type stub struct{ Weekday, Day, Month string }
 

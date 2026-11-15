@@ -8,10 +8,12 @@ import (
 	"time"
 )
 
+var h2 = regexp.MustCompile(`<h2[^>]*>([^<]*)</h2>`)
+
 // headings returns the h2 texts of a page, in order.
 func headings(body string) []string {
 	var hs []string
-	for _, m := range regexp.MustCompile(`<h2[^>]*>([^<]*)</h2>`).FindAllStringSubmatch(body, -1) {
+	for _, m := range h2.FindAllStringSubmatch(body, -1) {
 		hs = append(hs, m[1])
 	}
 	return hs
@@ -36,7 +38,7 @@ func TestHomeMonthsAndPast(t *testing.T) {
 	if got := strings.Join(headings(body), " | "); got != "juin 2026 | juillet 2026 | Passés (2)" {
 		t.Fatalf("headings = %q", got)
 	}
-	order := regexp.MustCompile(`id="c(\d)"`).FindAllStringSubmatch(body, -1)
+	order := regexp.MustCompile(`id="c(\d+)"`).FindAllStringSubmatch(body, -1)
 	var ids string
 	for _, m := range order {
 		ids += m[1]
@@ -44,7 +46,7 @@ func TestHomeMonthsAndPast(t *testing.T) {
 	if ids != "25134" { // today and June, July, then past newest first
 		t.Errorf("card order = %s, want 25134", ids)
 	}
-	past := body[strings.Index(body, `<details class="past">`):]
+	past := body[strings.Index(body, "Passés (2)"):]
 	if strings.Contains(past, `name="status"`) {
 		t.Errorf("past concerts offer status buttons")
 	}
@@ -79,10 +81,11 @@ func TestHomeMineFilter(t *testing.T) {
 	marc := ts.browser(t)
 	marc.join(t, secret, "Marc")
 	marc.postRedirect(t, g+"/concerts/2/status", url.Values{"status": {"going"}})
+	// Only a past concert answered: the filter says nothing upcoming is mine, and lists it.
+	b.postRedirect(t, g+"/concerts/3/status", url.Values{"status": {"ticket"}}) // past: no button, but accepted
+	_, body = b.get(t, g+"?mine=1")
+	assertContains(t, body, "Aucun concert à venir parmi les tiens.", "Passés (1)")
 	b.postRedirect(t, g+"/concerts/1/status", url.Values{"status": {"interested"}})
-	if err := ts.store.SetStatus(t.Context(), 1, 3, 1, "ticket"); err != nil { // past: no buttons left to answer
-		t.Fatal(err)
-	}
 
 	resp, _ := b.post(t, g+"/concerts/1/status", url.Values{"status": {"going"}, "back": {"mine"}})
 	if loc := resp.Header.Get("Location"); loc != g+"?mine=1#c1" {

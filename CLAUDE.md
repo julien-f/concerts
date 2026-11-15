@@ -37,4 +37,6 @@ Design, threat model and roadmap: [docs/design.md](docs/design.md). Decisions: [
 
 ## Pitfalls
 
+- A heading inside `<summary>` is not announced as a heading (the summary's button role hides it), and neither axe nor vnu flags it: keep headings outside `<summary>`.
+
 - Test expects « Qui es-tu ? » but the body has it: French templates put U+202F (narrow no-break space) before `? : ;` and inside « »; write `\u202f` in test strings and Playwright selectors, or match the words only.

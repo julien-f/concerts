@@ -94,14 +94,13 @@ input[aria-invalid="true"] { border: 2px solid var(--error); }
   border: 1px solid var(--muted); border-radius: 999px; color: var(--ink); text-decoration: none;
 }
 .filters a[aria-current="page"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-.month, .past h2 {
+.month {
   font: 700 0.8rem/1.2 ui-monospace, monospace; letter-spacing: 0.15em; text-transform: uppercase;
   color: var(--accent); margin: 1.25rem 0 0.6rem;
 }
 .past summary { display: flex; align-items: center; min-height: 2.75rem; cursor: pointer; }
 .past summary::before { content: "▸"; color: var(--accent); margin-right: 0.5rem; }
 .past[open] summary::before { content: "▾"; }
-.past summary h2 { margin: 0; }
 .past summary::-webkit-details-marker { display: none; }
 .past summary { list-style: none; }
 
