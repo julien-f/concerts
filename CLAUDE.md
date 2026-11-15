@@ -12,10 +12,10 @@ Design, threat model and roadmap: [docs/design.md](docs/design.md). Decisions: [
 
 ## Structure
 
-- `cmd/concerts/`: `serve` and `new-group` subcommands.
+- `cmd/concerts/`: subcommands (`serve`, `new-group`, `backup`, `demo`…).
 - `internal/store/`: SQLite, migrations (`migrations/NNNN_*.sql`, applied at startup), hand-written SQL.
 - `internal/web/`: handlers, templates (parsed at startup), static files.
-- `deploy/`: systemd unit. `docs/`: design and ADRs.
+- `deploy/`: systemd units. `docs/`: design and ADRs. `scripts/`: dev tooling (`verify-ui`).
 - No interface without a second implementation, no speculative layers.
 
 ## Conventions
@@ -31,5 +31,6 @@ Design, threat model and roadmap: [docs/design.md](docs/design.md). Decisions: [
 
 - `make run`, `make test` (`go test -race ./...`), `make lint`, `make vuln` (needs network), `make check` (lint + vuln + test, run by the pre-commit hook), `make build`.
 - Single test: `go test -race -run TestName ./internal/web`.
+- `make demo`: fresh `demo.db` with sample data, then serves it. `make verify-ui`: axe-core, vnu and page weight on every demo screen; run before merging a UI change ([ADR 0006](docs/decisions/0006-scripted-ui-verification.md)).
 
 ## Pitfalls

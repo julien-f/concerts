@@ -2,3 +2,5 @@
 /concerts
 *.db*
 .env
+/.worktrees/
+.playwright-mcp/
