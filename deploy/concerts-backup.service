@@ -1,0 +1,29 @@
+[Unit]
+Description=concerts database backup
+
+[Service]
+Type=oneshot
+User=concerts
+Group=concerts
+StateDirectory=concerts concerts/backups
+Environment=CONCERTS_DB=/var/lib/concerts/concerts.db
+ExecStart=/bin/sh -c 'exec /usr/local/bin/concerts backup "/var/lib/concerts/backups/concerts-$(date +%%Y-%%m-%%dT%%H%%M%%S).db"'
+# Keeps 14 days of snapshots; copying them off the server is up to the operator.
+ExecStartPost=/usr/bin/find /var/lib/concerts/backups -name 'concerts-*.db' -mtime +14 -delete
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateNetwork=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+UMask=0077

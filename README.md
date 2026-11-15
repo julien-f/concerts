@@ -40,8 +40,11 @@ Migrations run at startup; the binary refuses to start on a database newer than 
 
 ### Backup
 
-Safe while the app runs (WAL mode):
+`concerts backup <file>` writes a consistent snapshot while the app runs (`VACUUM INTO`). Nightly, keeping 14 days:
 
 ```sh
-sqlite3 /var/lib/concerts/concerts.db "VACUUM INTO '/backups/concerts-$(date +%F).db'"
+sudo cp deploy/concerts-backup.{service,timer} /etc/systemd/system/
+sudo systemctl enable --now concerts-backup.timer
 ```
+
+Snapshots land in `/var/lib/concerts/backups/`; copy them off the server (rsync, restic…).

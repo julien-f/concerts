@@ -19,6 +19,7 @@ import (
 const usage = `usage:
   concerts serve
   concerts new-group "<name>"
+  concerts backup <file>      write a consistent snapshot of the database; <file> must not exist
 
 environment:
   CONCERTS_ADDR      listen address (default :8080)
@@ -51,6 +52,8 @@ func run(args []string, log *slog.Logger) error {
 		return serve(ctx, log, env("CONCERTS_ADDR", ":8080"), dbPath)
 	case len(args) == 2 && args[0] == "new-group":
 		return newGroup(ctx, dbPath, os.Getenv("CONCERTS_BASE_URL"), args[1])
+	case len(args) == 2 && args[0] == "backup":
+		return backup(ctx, dbPath, args[1])
 	default:
 		fmt.Fprint(os.Stderr, usage)
 		return errors.New("invalid arguments")
@@ -72,6 +75,15 @@ func newGroup(ctx context.Context, dbPath, baseURL, name string) (err error) {
 	}
 	fmt.Println(web.GroupURL(baseURL, secret))
 	return nil
+}
+
+func backup(ctx context.Context, dbPath, dst string) (err error) {
+	st, err := store.Open(ctx, dbPath, time.Now)
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, st.Close()) }()
+	return st.Backup(ctx, dst)
 }
 
 func serve(ctx context.Context, log *slog.Logger, addr, dbPath string) (err error) {

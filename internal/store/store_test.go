@@ -66,3 +66,34 @@ func TestOpenRefusesNewerSchema(t *testing.T) {
 		t.Fatalf("Open = %v, want a 'newer' schema error", err)
 	}
 }
+
+func TestBackup(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	dir := t.TempDir()
+	s, err := Open(ctx, filepath.Join(dir, "live.db"), fixedNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	if _, err := s.CreateGroup(ctx, "Friends", "s3cret"); err != nil {
+		t.Fatal(err)
+	}
+
+	dst := filepath.Join(dir, "backup.db")
+	if err := s.Backup(ctx, dst); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Backup(ctx, dst); err == nil {
+		t.Fatal("second backup to the same file: want an error, got nil")
+	}
+
+	b, err := Open(ctx, dst, fixedNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = b.Close() })
+	if _, err := b.GroupBySecret(ctx, "s3cret"); err != nil {
+		t.Fatalf("backup lacks the group: %v", err)
+	}
+}
