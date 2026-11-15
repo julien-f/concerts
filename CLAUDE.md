@@ -1,0 +1,34 @@
+# CLAUDE.md
+
+Design, threat model and roadmap: [docs/design.md](docs/design.md). Decisions: [docs/decisions/](docs/decisions/).
+
+## Stack
+
+- Go standard library first: `net/http` (method + path-parameter routing), `html/template`, `embed`, `log/slog`.
+- SQLite via `modernc.org/sqlite`, `CGO_ENABLED=0`; pragmas in the DSN (`internal/store/store.go`).
+- htmx 2.0.4, vendored in `internal/web/static/`; hand-written, mobile-first CSS; no Node, no front-end build.
+- Approved dependencies: the above only; `golang.org/x/net/html` arrives with slice 5. Anything else needs approval.
+- golangci-lint v2, pinned in the `Makefile`, installed into `bin/` (`.golangci.yml`).
+
+## Structure
+
+- `cmd/concerts/`: `serve` and `new-group` subcommands.
+- `internal/store/`: SQLite, migrations (`migrations/NNNN_*.sql`, applied at startup), hand-written SQL.
+- `internal/web/`: handlers, templates (parsed at startup), static files.
+- `deploy/`: systemd unit. `docs/`: design and ADRs.
+- No interface without a second implementation, no speculative layers.
+
+## Conventions
+
+- Time comes from an injected clock (`now func() time.Time`), never `time.Now()` in `internal/`.
+- The group secret never reaches logs or the database (only its SHA-256); request logs redact `/g/<secret>`.
+- Every slice's HTTP tests reuse `newTestServer(t)` (`internal/web/testserver_test.go`): temp DB, fake clock, real router, `t.Parallel()`; table tests for several cases.
+- One vertical slice per branch (roadmap in `docs/design.md`), with its migration, handlers, tests and an update of `docs/design.md`; merged with `--no-ff`.
+- New schema change = new migration file; never edit a committed one.
+
+## Commands
+
+- `make run`, `make test` (`go test -race ./...`), `make lint`, `make check` (lint + test, run by the pre-commit hook), `make build`.
+- Single test: `go test -race -run TestName ./internal/web`.
+
+## Pitfalls
