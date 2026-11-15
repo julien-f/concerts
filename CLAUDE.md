@@ -7,8 +7,8 @@ Design, threat model and roadmap: [docs/design.md](docs/design.md). Decisions: [
 - Go standard library first: `net/http` (method + path-parameter routing), `html/template`, `embed`, `log/slog`.
 - SQLite via `modernc.org/sqlite`, `CGO_ENABLED=0`; pragmas in the DSN (`internal/store/store.go`).
 - htmx 2.0.4, vendored in `internal/web/static/`; hand-written, mobile-first CSS; no Node, no front-end build.
-- Approved dependencies: the above only; `golang.org/x/net/html` arrives with slice 5. Anything else needs approval.
-- golangci-lint v2, pinned in the `Makefile`, installed into `bin/` (`.golangci.yml`).
+- Approved, deferred and rejected libraries and tools, with the slice that brings each: [ADR 0004](docs/decisions/0004-libraries-and-tools.md). Anything else needs approval.
+- golangci-lint v2 and govulncheck, pinned in the `Makefile`; golangci-lint is installed into `bin/` (`.golangci.yml`).
 
 ## Structure
 
@@ -28,7 +28,7 @@ Design, threat model and roadmap: [docs/design.md](docs/design.md). Decisions: [
 
 ## Commands
 
-- `make run`, `make test` (`go test -race ./...`), `make lint`, `make check` (lint + test, run by the pre-commit hook), `make build`.
+- `make run`, `make test` (`go test -race ./...`), `make lint`, `make vuln` (needs network), `make check` (lint + vuln + test, run by the pre-commit hook), `make build`.
 - Single test: `go test -race -run TestName ./internal/web`.
 
 ## Pitfalls

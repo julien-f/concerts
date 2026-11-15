@@ -1,7 +1,8 @@
 GOLANGCI_LINT_VERSION := v2.15.0
 GOLANGCI_LINT := bin/golangci-lint-$(GOLANGCI_LINT_VERSION)
+GOVULNCHECK_VERSION := v1.9.0
 
-.PHONY: run test lint check build
+.PHONY: run test lint vuln check build
 
 run:
 	go run ./cmd/concerts serve
@@ -13,7 +14,11 @@ test:
 lint: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) run
 
-check: lint test
+# Needs network: fetches the Go vulnerability database.
+vuln:
+	go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
+
+check: lint vuln test
 
 build:
 	CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o bin/concerts ./cmd/concerts
