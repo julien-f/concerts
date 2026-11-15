@@ -18,9 +18,9 @@ func TestRoutes(t *testing.T) {
 		contains []string
 	}{
 		{"healthz", "/healthz", http.StatusOK, []string{"ok"}},
-		{"known secret", "/g/" + secret, http.StatusOK, []string{"Gig buddies", "No concerts yet", "/static/htmx-2.0.4.min.js", "/static/style.css"}},
+		{"known secret", "/g/" + secret, http.StatusOK, []string{"Gig buddies", "No concerts yet", "/static/htmx-2.0.11.min.js", "/static/style.css"}},
 		{"unknown secret", "/g/" + NewSecret(), http.StatusNotFound, nil},
-		{"htmx", "/static/htmx-2.0.4.min.js", http.StatusOK, []string{"htmx"}},
+		{"htmx", "/static/htmx-2.0.11.min.js", http.StatusOK, []string{"htmx"}},
 		{"css", "/static/style.css", http.StatusOK, []string{":root"}},
 	}
 	for _, tt := range tests {

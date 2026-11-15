@@ -6,7 +6,7 @@ Design, threat model and roadmap: [docs/design.md](docs/design.md). Decisions: [
 
 - Go standard library first: `net/http` (method + path-parameter routing), `html/template`, `embed`, `log/slog`.
 - SQLite via `modernc.org/sqlite`, `CGO_ENABLED=0`; pragmas in the DSN (`internal/store/store.go`).
-- htmx 2.0.4, vendored in `internal/web/static/`; hand-written, mobile-first CSS; no Node, no front-end build.
+- htmx 2.0.11, vendored in `internal/web/static/`; hand-written, mobile-first CSS; no Node, no front-end build.
 - Approved, deferred and rejected libraries and tools, with the slice that brings each: [ADR 0004](docs/decisions/0004-libraries-and-tools.md). Anything else needs approval.
 - golangci-lint v2 and govulncheck, pinned in the `Makefile`; golangci-lint is installed into `bin/` (`.golangci.yml`).
 
