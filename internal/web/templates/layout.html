@@ -11,6 +11,7 @@
 <script src="{{static "htmx-2.0.11.min.js"}}" defer></script>
 </head>
 <body>
+{{template "icons"}}
 <header class="top">
 {{block "brand" .}}<a class="brand" href="{{.Base}}">{{.Group.Name}}</a>{{end}}
 {{with .Me}}<form method="post" action="{{$.Base}}/logout" class="me">

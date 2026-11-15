@@ -234,7 +234,9 @@ One slice per branch, merged with `--no-ff`. ✅ = shipped.
    - Soft delete (`deleted_at`) with an « Annuler » banner.
    - « ajouté par X » on each concert.
    - « Prévenir le groupe » button (`https://wa.me/?text=`), shown right after adding.
-3. **Statuses**: interested / going / ticket bought. Tapping the active status again clears it.
+3. ✅ **Statuses**: interested / going / ticket bought. Tapping the active status again clears it.
+   - One status block (names per status, my three buttons) shared by the card and the concert page; htmx swaps that block only (`hx-target="closest .statuses"`), and buttons keep stable ids so focus survives the swap.
+   - The active button submits an empty status (clear), so every POST states the target state: a double tap is harmless.
 4. **Single main screen.**
    - Chronological list grouped by month.
    - Each card shows first names per status and my three status buttons.

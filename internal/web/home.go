@@ -8,9 +8,15 @@ import (
 	"concerts/internal/store"
 )
 
+// card is a concert in the list with its status block.
+type card struct {
+	store.Concert
+	Statuses statusBlock
+}
+
 type homePage struct {
 	*groupRequest
-	Concerts []store.Concert
+	Concerts []card
 	Added    *store.Concert // banner « Concert ajouté » with « Prévenir le groupe »
 	Share    string
 	Restored *store.Concert // banner « Concert rétabli »
@@ -29,7 +35,16 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 		s.fail(w, r, err)
 		return
 	}
-	p := &homePage{groupRequest: gr, Concerts: cs}
+	ss, err := s.store.Statuses(r.Context(), gr.Group.ID)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	statuses := byConcert(ss)
+	p := &homePage{groupRequest: gr}
+	for _, c := range cs {
+		p.Concerts = append(p.Concerts, card{c, newStatusBlock(gr, c, statuses[c.ID], "list")})
+	}
 	// Banners come from the URL, so each is shown only while still true: added and
 	// restored concerts must be in the live list just loaded, a deleted one still deleted.
 	find := func(param string) *store.Concert {

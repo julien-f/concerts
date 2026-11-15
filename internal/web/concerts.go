@@ -164,8 +164,9 @@ func (s *server) createConcert(w http.ResponseWriter, r *http.Request, gr *group
 type concertPage struct {
 	*groupRequest
 	store.Concert
-	Share string // « Prévenir le groupe » link
-	Saved bool   // banner after an edit
+	Statuses statusBlock
+	Share    string // « Prévenir le groupe » link
+	Saved    bool   // banner after an edit
 }
 
 func (s *server) showConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
@@ -173,7 +174,13 @@ func (s *server) showConcert(w http.ResponseWriter, r *http.Request, gr *groupRe
 	if !ok {
 		return
 	}
-	p := &concertPage{groupRequest: gr, Concert: c, Share: s.shareURL(gr, c), Saved: r.URL.Query().Has("saved")}
+	ss, err := s.store.Statuses(r.Context(), gr.Group.ID)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	p := &concertPage{groupRequest: gr, Concert: c, Statuses: newStatusBlock(gr, c, byConcert(ss)[c.ID], "concert"),
+		Share: s.shareURL(gr, c), Saved: r.URL.Query().Has("saved")}
 	if p.Saved {
 		p.Notice = "Concert modifié"
 	}

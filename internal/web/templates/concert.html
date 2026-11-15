@@ -12,6 +12,7 @@
 {{with .TicketURL}}<a class="button" href="{{.}}" rel="noopener noreferrer">Billetterie</a>{{end}}
 <a class="button" href="{{.Share}}" rel="noreferrer">Prévenir le groupe<span class="visually-hidden"> sur WhatsApp</span></a>
 </p>
+{{template "statuses" .Statuses}}
 </article>
 {{if .Me}}
 <div class="actions">

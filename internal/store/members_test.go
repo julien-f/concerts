@@ -28,7 +28,9 @@ func TestMigrateFromPreviousSlice(t *testing.T) {
 	}
 	if _, err := db.ExecContext(ctx, `
 		INSERT INTO groups (id, name, secret_hash, created_at) VALUES (1, 'Old', ?, '2026-01-01T00:00:00Z');
-		INSERT INTO members (group_id, name, name_key, created_at) VALUES (1, 'Léa', 'léa', '2026-01-01T00:00:00Z');`,
+		INSERT INTO members (id, group_id, name, name_key, created_at) VALUES (1, 1, 'Léa', 'léa', '2026-01-01T00:00:00Z');
+		INSERT INTO concerts (id, group_id, artist, date, venue, created_by, created_at)
+			VALUES (1, 1, 'A', '2026-03-14', 'V', 1, '2026-01-01T00:00:00Z');`,
 		hashSecret("old")); err != nil {
 		t.Fatal(err)
 	}
@@ -45,11 +47,10 @@ func TestMigrateFromPreviousSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	members, err := s.Members(ctx, g.ID)
-	if err != nil || len(members) != 1 {
-		t.Fatalf("Members = %v, %v", members, err)
+	if c, err := s.Concert(ctx, g.ID, 1); err != nil || c.AddedBy != "Léa" {
+		t.Fatalf("Concert = %+v, %v", c, err)
 	}
-	if _, err := s.CreateConcert(ctx, g.ID, members[0].ID, Concert{Artist: "A", Date: "2026-03-14", Venue: "V"}); err != nil {
+	if err := s.SetStatus(ctx, g.ID, 1, 1, Going); err != nil {
 		t.Fatal(err)
 	}
 }

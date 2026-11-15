@@ -9,7 +9,8 @@ const require = createRequire(`${tools}/node_modules/`);
 const { chromium } = require("playwright-core");
 const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
 
-// Each screen gets the page and returns the navigation response to check.
+// Each screen gets the page and returns the navigation response to check, or null
+// for an in-page change (htmx swap), whose DOM is then checked as is.
 // Screens run in order and share cookies, so later ones can rely on earlier steps.
 const submit = (p, selector) => Promise.all([p.waitForNavigation(), p.click(selector)]).then(([r]) => r);
 const screens = [
@@ -22,6 +23,14 @@ const screens = [
     },
   },
   { name: "group", go: (p) => submit(p, 'button:has-text("Léa")') },
+  {
+    name: "status-htmx",
+    go: async (p) => {
+      await p.click("#c1-going");
+      await p.waitForSelector('#c1-going[aria-pressed="true"]');
+      return null;
+    },
+  },
   { name: "concert", go: (p) => p.goto(`${groupURL}/concerts/1`) },
   { name: "edit", go: (p) => p.goto(`${groupURL}/concerts/1/edit`) },
   { name: "add", go: (p) => p.goto(`${groupURL}/concerts/new`) },
@@ -61,8 +70,12 @@ let failures = 0;
 
 for (const s of screens) {
   const resp = await s.go(page);
-  if (!resp || resp.status() >= 500) throw new Error(`${s.name}: HTTP ${resp && resp.status()}`);
-  writeFileSync(`${htmlDir}/${s.name}.html`, await resp.text());
+  if (resp && resp.status() >= 500) throw new Error(`${s.name}: HTTP ${resp.status()}`);
+  writeFileSync(`${htmlDir}/${s.name}.html`, resp ? await resp.text() : await page.content());
+  // Whole page in view: a fixed bar then covers only the bottom padding, unless content
+  // really sits under it (axe would otherwise report the bar's colors as a contrast issue).
+  const height = await page.evaluate(() => document.documentElement.scrollHeight);
+  await page.setViewportSize({ width: 390, height: Math.max(844, height) });
   for (const colorScheme of ["light", "dark"]) {
     await page.emulateMedia({ colorScheme });
     await page.evaluate(axeSource);
@@ -75,6 +88,7 @@ for (const s of screens) {
       for (const n of v.nodes) console.log(`  ${n.target.join(" ")}: ${n.failureSummary.split("\n").join(" ")}`);
     }
   }
+  await page.setViewportSize({ width: 390, height: 844 });
   console.log(`axe ${s.name}: checked light and dark`);
 }
 
