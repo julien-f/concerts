@@ -25,8 +25,15 @@ Re-read at the start of each slice and after each context compaction.
 
 | Slice | State | Next step | Measures |
 |---|---|---|---|
-| 0 design-v1 | in progress | integrate the 3 design reviews, merge | baseline `make check` 3.2 s; verify-ui 1.8 s warm (11.7 s first run, tools download); page weight 17.7 kB |
+| 0 design-v1 | done | slice 1 | baseline `make check` 3.2 s; verify-ui 1.8 s warm (11.7 s first run, tools download); page weight 17.7 kB |
 
 ### Discarded review findings
 
-(none yet)
+- Phase 0, security #11: move prefill to POST. Kept GET: the route needs the secret, is rate-limited, and a GET form is simpler without JS.
+- Phase 0, security #5: replace `wa.me` with Web Share or `whatsapp://`. The owner's spec names `wa.me`; recorded as an accepted risk instead.
+- Phase 0, data #6: one global fetch limiter instead of per group. The owner's spec says "one fetch in flight per group, 10 per minute"; a global cap of 2 concurrent fetches is added on top (security #12).
+
+## Research notes kept for later slices
+
+- Slice 5 (JSON-LD, fetched 2026-11): Fnac, Ticketmaster, Shotgun, See Tickets/Digitick, AXS, Infoconcert block plain clients (403/401/429 or challenge) → manual entry. Dice, Olympia, Zénith serve JSON-LD; Accor Arena OG only (`<meta name="og:title">`). Shapes: `@type` Event/MusicEvent/ComedyEvent; performer object or array; `startDate` with or without offset, seconds or ms; location `Place`/`EventVenue`; offers object or array, `validFrom` only if in the future (Fnac's is a past listing date); og:title cut at ` | `, `｜`, ` - `, ` @ `, ` Tickets`; treat "null" as missing; trim U+00A0.
+- Slice 6 (RFC 5545): VERSION, PRODID, no METHOD/CALSCALE; UID without host or secret (RFC 7986); DTSTAMP from clock; timed = UTC `Z` with DTEND = start + 3 h (never DURATION too); date-only = `VALUE=DATE` with exclusive next-day DTEND; escape `\ ; , newline` in that order; fold at 75 octets on rune boundaries; CRLF everywhere; no URL property, ticket URL in DESCRIPTION; `text/calendar; charset=utf-8`, `attachment; filename="concert.ics"`, `Cache-Control: private, no-store`.
