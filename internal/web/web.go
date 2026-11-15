@@ -2,15 +2,21 @@
 package web
 
 import (
+	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
 	"embed"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"html/template"
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"path"
 	"strings"
+	"time"
 
 	"concerts/internal/store"
 )
@@ -34,32 +40,79 @@ func GroupURL(baseURL, secret string) string {
 }
 
 type server struct {
-	store *store.Store
-	log   *slog.Logger
-	pages map[string]*template.Template
+	store  *store.Store
+	log    *slog.Logger
+	pages  map[string]*template.Template
+	static staticAssets
 }
 
 // New returns the app's HTTP handler; it fails if a template does not parse.
 func New(st *store.Store, log *slog.Logger) (http.Handler, error) {
-	pages, err := parsePages()
+	static, err := loadStatic()
 	if err != nil {
 		return nil, err
 	}
-	s := &server{store: st, log: log, pages: pages}
-	static, err := fs.Sub(staticFS, "static")
+	pages, err := parsePages(template.FuncMap{"static": static.url})
 	if err != nil {
 		return nil, err
 	}
+	s := &server{store: st, log: log, pages: pages, static: static}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.healthz)
 	mux.HandleFunc("GET /g/{secret}", s.group)
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(static)))
+	mux.HandleFunc("GET /static/{name}", s.serveStatic)
 	return s.logRequests(securityHeaders(mux)), nil
 }
 
+// staticAssets maps each static file to a content-hashed name, so it can be cached forever.
+type staticAssets struct {
+	hashed map[string]string // file name -> hashed name
+	bodies map[string][]byte // hashed name -> content
+}
+
+func loadStatic() (staticAssets, error) {
+	a := staticAssets{hashed: map[string]string{}, bodies: map[string][]byte{}}
+	entries, err := fs.ReadDir(staticFS, "static")
+	if err != nil {
+		return a, err
+	}
+	for _, e := range entries {
+		body, err := staticFS.ReadFile("static/" + e.Name())
+		if err != nil {
+			return a, err
+		}
+		sum := sha256.Sum256(body)
+		ext := path.Ext(e.Name())
+		h := strings.TrimSuffix(e.Name(), ext) + "." + hex.EncodeToString(sum[:8]) + ext
+		a.hashed[e.Name()] = h
+		a.bodies[h] = body
+	}
+	return a, nil
+}
+
+// url returns the cacheable URL of a static file; templates call it as {{static "style.css"}}.
+func (a staticAssets) url(name string) (string, error) {
+	h, ok := a.hashed[name]
+	if !ok {
+		return "", fmt.Errorf("unknown static file %q", name)
+	}
+	return "/static/" + h, nil
+}
+
+func (s *server) serveStatic(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	body, ok := s.static.bodies[name]
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(body))
+}
+
 // parsePages builds one template per page, each combined with the layout.
-func parsePages() (map[string]*template.Template, error) {
+func parsePages(funcs template.FuncMap) (map[string]*template.Template, error) {
 	names, err := fs.Glob(templatesFS, "templates/*.html")
 	if err != nil {
 		return nil, err
@@ -69,7 +122,7 @@ func parsePages() (map[string]*template.Template, error) {
 		if n == "templates/layout.html" {
 			continue
 		}
-		t, err := template.ParseFS(templatesFS, "templates/layout.html", n)
+		t, err := template.New("").Funcs(funcs).ParseFS(templatesFS, "templates/layout.html", n)
 		if err != nil {
 			return nil, err
 		}

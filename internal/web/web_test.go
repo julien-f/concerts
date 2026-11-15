@@ -2,6 +2,7 @@ package web
 
 import (
 	"net/http"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -18,10 +19,9 @@ func TestRoutes(t *testing.T) {
 		contains []string
 	}{
 		{"healthz", "/healthz", http.StatusOK, []string{"ok"}},
-		{"known secret", "/g/" + secret, http.StatusOK, []string{"Gig buddies", "No concerts yet", "/static/htmx-2.0.11.min.js", "/static/style.css", `"allowEval":false`}},
+		{"known secret", "/g/" + secret, http.StatusOK, []string{"Gig buddies", "No concerts yet", "/static/htmx-2.0.11.min.", "/static/style.", `"allowEval":false`}},
 		{"unknown secret", "/g/" + NewSecret(), http.StatusNotFound, nil},
-		{"htmx", "/static/htmx-2.0.11.min.js", http.StatusOK, []string{"htmx"}},
-		{"css", "/static/style.css", http.StatusOK, []string{":root"}},
+		{"unhashed static name", "/static/style.css", http.StatusNotFound, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -34,6 +34,45 @@ func TestRoutes(t *testing.T) {
 				if !strings.Contains(body, s) {
 					t.Errorf("body lacks %q", s)
 				}
+			}
+		})
+	}
+}
+
+func TestStaticAssets(t *testing.T) {
+	t.Parallel()
+	ts := newTestServer(t)
+	_, page := ts.get(t, "/g/"+ts.newGroup(t, "g"))
+
+	tests := []struct {
+		pattern     string
+		contentType string
+		contains    string
+	}{
+		{`/static/style\.[0-9a-f]{16}\.css`, "text/css; charset=utf-8", ":root"},
+		{`/static/htmx-2\.0\.11\.min\.[0-9a-f]{16}\.js`, "text/javascript; charset=utf-8", "htmx"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.pattern, func(t *testing.T) {
+			t.Parallel()
+			path := regexp.MustCompile(tt.pattern).FindString(page)
+			if path == "" {
+				t.Fatalf("page does not reference %s", tt.pattern)
+			}
+			resp, body := ts.get(t, path)
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("status = %d", resp.StatusCode)
+			}
+			for k, want := range map[string]string{
+				"Cache-Control": "public, max-age=31536000, immutable",
+				"Content-Type":  tt.contentType,
+			} {
+				if got := resp.Header.Get(k); got != want {
+					t.Errorf("%s = %q, want %q", k, got, want)
+				}
+			}
+			if !strings.Contains(body, tt.contains) {
+				t.Errorf("body lacks %q", tt.contains)
 			}
 		})
 	}

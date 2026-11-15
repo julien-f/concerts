@@ -25,6 +25,7 @@ Design, threat model and roadmap: [docs/design.md](docs/design.md). Decisions: [
 - Every slice's HTTP tests reuse `newTestServer(t)` (`internal/web/testserver_test.go`): temp DB, fake clock, real router, `t.Parallel()`; table tests for several cases.
 - One vertical slice per branch (roadmap in `docs/design.md`), with its migration, handlers, tests and an update of `docs/design.md`; merged with `--no-ff`.
 - New schema change = new migration file; never edit a committed one.
+- Templates link static files with `{{static "name"}}`, which returns a content-hashed URL served with `Cache-Control: immutable`.
 
 ## Commands
 
