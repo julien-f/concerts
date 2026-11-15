@@ -1,5 +1,5 @@
-{{define "title"}}{{.Name}} · Concerts{{end}}
+{{define "title"}}{{.Group.Name}} · Concerts{{end}}
+{{define "brand"}}<h1 class="brand">{{.Group.Name}}</h1>{{end}}
 {{define "content"}}
-<h1>{{.Name}}</h1>
-<p class="empty">No concerts yet.</p>
+<p class="empty">Aucun concert pour l'instant.</p>
 {{end}}

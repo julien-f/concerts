@@ -21,7 +21,8 @@ Design, threat model and roadmap: [docs/design.md](docs/design.md). Decisions: [
 ## Conventions
 
 - Time comes from an injected clock (`now func() time.Time`), never `time.Now()` in `internal/`.
-- The group secret never reaches logs or the database (only its SHA-256); request logs redact `/g/<secret>`.
+- The group secret never reaches logs or the database (only its SHA-256); request logs record the matched route pattern, never the raw path.
+- Every `/g/{secret}` handler goes through `inGroup` (`internal/web/identity.go`); user input goes through `parseForm` and `cleanText` (`internal/web/form.go`).
 - Every slice's HTTP tests reuse `newTestServer(t)` (`internal/web/testserver_test.go`): temp DB, fake clock, real router, `t.Parallel()`; table tests for several cases.
 - One vertical slice per branch (roadmap in `docs/design.md`), with its migration, handlers, tests and an update of `docs/design.md`; merged with `--no-ff`.
 - New schema change = new migration file; never edit a committed one.
@@ -34,3 +35,5 @@ Design, threat model and roadmap: [docs/design.md](docs/design.md). Decisions: [
 - `make demo`: fresh `demo.db` with sample data, then serves it. `make verify-ui`: axe-core, vnu and page weight on every demo screen; run before merging a UI change ([ADR 0006](docs/decisions/0006-scripted-ui-verification.md)).
 
 ## Pitfalls
+
+- Test expects « Qui es-tu ? » but the body has it: French templates put U+202F (narrow no-break space) before `? : ;` and inside « »; write `\u202f` in test strings and Playwright selectors, or match the words only.

@@ -12,14 +12,20 @@ import (
 
 func fixedNow() time.Time { return time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC) }
 
-func TestMigrateFromEmpty(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	s, err := Open(ctx, filepath.Join(t.TempDir(), "test.db"), fixedNow)
+func openTest(t *testing.T) *Store {
+	t.Helper()
+	s, err := Open(context.Background(), filepath.Join(t.TempDir(), "test.db"), fixedNow)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = s.Close() })
+	return s
+}
+
+func TestMigrateFromEmpty(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s := openTest(t)
 
 	ms, err := migrations()
 	if err != nil {

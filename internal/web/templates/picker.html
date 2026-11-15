@@ -1,0 +1,23 @@
+{{define "title"}}Qui es-tu ? · {{.Group.Name}}{{end}}
+{{define "content"}}
+<h1>Qui es-tu ?</h1>
+<form method="post" action="{{.Base}}/me" id="pick">
+{{if .Members}}
+<ul class="names">
+{{range .Members}}<li><button class="big" name="member_id" value="{{.ID}}">C'est moi : {{.Name}}</button></li>
+{{end}}</ul>
+{{end}}
+</form>
+{{if .Members}}<h2>Pas dans la liste ?</h2>{{end}}
+<form method="post" action="{{.Base}}/me" class="stack">
+<label for="name">Ton prénom</label>
+<input id="name" name="name" value="{{.Name}}" maxlength="{{.MaxRunes}}" autocomplete="given-name" required
+{{- if or .Error .Taken}} aria-invalid="true" aria-describedby="name-error" autofocus{{end}}>
+{{with .Error}}<p id="name-error" class="error">{{.}}</p>{{end}}
+{{- /* The « C'est moi » button submits the picker form, so Enter here still means « Rejoindre ». */}}
+{{with .Taken}}<p id="name-error" class="error">{{.Name}} est déjà dans la liste. Si c'est toi :
+<button class="inline" form="pick" name="member_id" value="{{.ID}}">C'est moi</button>
+Sinon, ajoute une initiale (ex. « {{.Name}} D. »).</p>{{end}}
+<button class="big">Rejoindre</button>
+</form>
+{{end}}

@@ -10,7 +10,10 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
+	"strconv"
 	"syscall"
+	"text/tabwriter"
 	"time"
 
 	"concerts/internal/store"
@@ -19,14 +22,18 @@ import (
 
 const usage = `usage:
   concerts serve
-  concerts new-group "<name>"
-  concerts backup <file>      write a consistent snapshot of the database; <file> must not exist
-  concerts demo               fill an empty database with a demo group (development)
+  concerts new-group "<name>"                    print the new group's link
+  concerts list-groups
+  concerts rotate-secret <group-id>              replace the link (the old one stops working) and print it
+  concerts delete-member <group-id> <first-name>
+  concerts backup <file>                         write a consistent snapshot of the database; <file> must not exist
+  concerts demo                                  fill an empty database with a demo group (development)
 
 environment:
   CONCERTS_ADDR      listen address (default :8080)
   CONCERTS_DB        SQLite database path (default concerts.db)
-  CONCERTS_BASE_URL  public base URL, required by new-group (e.g. https://concerts.example.com)
+  CONCERTS_BASE_URL  public base URL, e.g. https://concerts.example.com
+                     (required by serve, new-group, rotate-secret and demo)
 `
 
 func main() {
@@ -48,60 +55,110 @@ func run(args []string, log *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	dbPath := env("CONCERTS_DB", "concerts.db")
+	baseURL := os.Getenv("CONCERTS_BASE_URL")
 
+	var cmd func(*store.Store) error
 	switch {
 	case len(args) == 1 && args[0] == "serve":
-		return serve(ctx, log, env("CONCERTS_ADDR", ":8080"), dbPath)
+		cmd = func(st *store.Store) error { return serve(ctx, log, st, env("CONCERTS_ADDR", ":8080"), baseURL) }
 	case len(args) == 2 && args[0] == "new-group":
-		return newGroup(ctx, dbPath, os.Getenv("CONCERTS_BASE_URL"), args[1])
+		cmd = func(st *store.Store) error { _, err := newGroup(ctx, st, baseURL, args[1]); return err }
+	case len(args) == 1 && args[0] == "list-groups":
+		cmd = func(st *store.Store) error { return listGroups(ctx, st) }
+	case len(args) == 2 && args[0] == "rotate-secret":
+		cmd = func(st *store.Store) error { return rotateSecret(ctx, st, baseURL, args[1]) }
+	case len(args) == 3 && args[0] == "delete-member":
+		cmd = func(st *store.Store) error { return deleteMember(ctx, st, args[1], args[2]) }
 	case len(args) == 2 && args[0] == "backup":
-		return backup(ctx, dbPath, args[1])
+		cmd = func(st *store.Store) error { return st.Backup(ctx, args[1]) }
 	case len(args) == 1 && args[0] == "demo":
-		return demo(ctx, dbPath, os.Getenv("CONCERTS_BASE_URL"))
+		cmd = func(st *store.Store) error { return demo(ctx, st, baseURL) }
 	default:
 		fmt.Fprint(os.Stderr, usage)
 		return errors.New("invalid arguments")
 	}
-}
-
-func newGroup(ctx context.Context, dbPath, baseURL, name string) (err error) {
-	if baseURL == "" {
+	if baseURL == "" && slices.Contains([]string{"serve", "new-group", "rotate-secret", "demo"}, args[0]) {
 		return errors.New("CONCERTS_BASE_URL is required")
 	}
+
 	st, err := store.Open(ctx, dbPath, time.Now)
 	if err != nil {
 		return err
 	}
-	defer func() { err = errors.Join(err, st.Close()) }()
+	// Runs after serve's Shutdown, so in-flight requests finish before the DB closes.
+	return errors.Join(cmd(st), st.Close())
+}
+
+// newGroup creates a group and prints its link.
+func newGroup(ctx context.Context, st *store.Store, baseURL, name string) (store.Group, error) {
 	secret := web.NewSecret()
-	if _, err := st.CreateGroup(ctx, name, secret); err != nil {
+	g, err := st.CreateGroup(ctx, name, secret)
+	if err == nil {
+		fmt.Println(web.GroupURL(baseURL, secret))
+	}
+	return g, err
+}
+
+func listGroups(ctx context.Context, st *store.Store) error {
+	gs, err := st.Groups(ctx)
+	if err != nil {
 		return err
 	}
+	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	// tabwriter buffers: write errors surface at Flush.
+	_, _ = fmt.Fprintln(tw, "ID\tNAME\tMEMBERS\tCREATED")
+	for _, g := range gs {
+		_, _ = fmt.Fprintf(tw, "%d\t%s\t%d\t%s\n", g.ID, g.Name, g.Members, g.CreatedAt)
+	}
+	return tw.Flush()
+}
+
+func parseGroupID(s string) (int64, error) {
+	id, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("group id %q: not a number (see list-groups)", s)
+	}
+	return id, nil
+}
+
+func rotateSecret(ctx context.Context, st *store.Store, baseURL, groupID string) error {
+	id, err := parseGroupID(groupID)
+	if err != nil {
+		return err
+	}
+	secret := web.NewSecret()
+	if err := st.RotateSecret(ctx, id, secret); err != nil {
+		return fmt.Errorf("group %d: %w", id, err)
+	}
 	fmt.Println(web.GroupURL(baseURL, secret))
+	fmt.Fprintln(os.Stderr, "The old link no longer works; members pick their first name again from the list.")
 	return nil
 }
 
-func backup(ctx context.Context, dbPath, dst string) (err error) {
-	st, err := store.Open(ctx, dbPath, time.Now)
+func deleteMember(ctx context.Context, st *store.Store, groupID, name string) error {
+	id, err := parseGroupID(groupID)
 	if err != nil {
 		return err
 	}
-	defer func() { err = errors.Join(err, st.Close()) }()
-	return st.Backup(ctx, dst)
+	if err := st.DeleteMember(ctx, id, name); err != nil {
+		return fmt.Errorf("member %q of group %d: %w", name, id, err)
+	}
+	return nil
 }
 
-func serve(ctx context.Context, log *slog.Logger, addr, dbPath string) (err error) {
-	st, err := store.Open(ctx, dbPath, time.Now)
+func serve(ctx context.Context, log *slog.Logger, st *store.Store, addr, baseURL string) error {
+	h, err := web.New(st, log, baseURL)
 	if err != nil {
 		return err
 	}
-	// Runs after Shutdown, so in-flight requests finish before the DB closes.
-	defer func() { err = errors.Join(err, st.Close()) }()
-	h, err := web.New(st, log)
-	if err != nil {
-		return err
+	srv := &http.Server{
+		Handler:           h,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       2 * time.Minute,
+		MaxHeaderBytes:    64 << 10,
 	}
-	srv := &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second}
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
