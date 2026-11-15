@@ -27,3 +27,7 @@ main {
 h1 { font-size: 1.5rem; margin: 0.5rem 0 1rem; }
 a { color: var(--accent); }
 .empty { color: var(--muted); }
+
+/* htmx's own indicator styles are disabled (an inline <style> would break the CSP). */
+.htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
+.htmx-request .htmx-indicator, .htmx-request.htmx-indicator { opacity: 1; }

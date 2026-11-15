@@ -85,8 +85,14 @@ func (s *server) render(w http.ResponseWriter, r *http.Request, page string, dat
 	}
 }
 
+// contentSecurityPolicy allows only same-origin resources and no inline code;
+// htmx complies through its <meta name="htmx-config"> in the layout.
+const contentSecurityPolicy = "default-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+
 func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Security-Policy", contentSecurityPolicy)
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("X-Robots-Tag", "noindex")
 		next.ServeHTTP(w, r)
