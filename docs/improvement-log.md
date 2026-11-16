@@ -1,13 +1,12 @@
 # Improvement log (temporary, deleted in the last commit)
 
-Cycles merged: 7. Consecutive audits without a kept finding: 0.
+Cycles merged: 8. Consecutive audits without a kept finding: 0.
 
 ## Remaining (ranked)
 
-1. U+202F before « : » in Go-built French messages (UI, 2)
-2. Duplicate-name picker refills "Marc " as designed (UI, 2)
-3. Tests for the edit form GET and invalid edit (code, 2)
-4. Group-aware 404 page instead of plain text (UI, 2)
+1. Duplicate-name picker refills "Marc " as designed (UI, 2)
+2. Tests for the edit form GET and invalid edit (code, 2)
+3. Group-aware 404 page instead of plain text (UI, 2)
 
 ## Proposals (not delivered autonomously)
 
@@ -29,6 +28,9 @@ Cycles merged: 7. Consecutive audits without a kept finding: 0.
 - Statuses single-concert query uses group index: ≤ 1000 rows, negligible.
 
 - docs/design.md:180 says `Concert(groupID, id)` filters `deleted_at IS NULL`; it returns deleted rows too (concerts.go:57): score 1, misleads only a reader of the code who reads it anyway.
+
+- ics.go:63 « Billets : » with an ASCII space: no layout effect in calendar apps, golden-file churn only.
+- new-group/rotate-secret print an http:// link without a warning: the scheme is visible in the printed link.
 
 ## Blocked
 
