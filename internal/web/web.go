@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"concerts/internal/prefill"
 	"concerts/internal/store"
 )
 
@@ -48,21 +49,33 @@ type server struct {
 	secure  bool   // cookies get the Secure attribute
 	baseURL string // public URL without trailing slash, for absolute links
 	now     func() time.Time
+	fetch   *http.Client // ticketing pages, for prefill
+	fetches *fetchLimiter
+}
+
+// Config is what the app takes from its environment.
+type Config struct {
+	BaseURL string // public URL, e.g. https://concerts.example.com
+	Now     func() time.Time
+	Fetch   *http.Client // for ticketing pages; prefill.NewClient() if nil
 }
 
 // New returns the app's HTTP handler; it fails if a template does not parse.
-// baseURL is the public URL (e.g. https://concerts.example.com); now is the clock.
-func New(st *store.Store, log *slog.Logger, baseURL string, now func() time.Time) (http.Handler, error) {
-	u, err := url.Parse(baseURL)
+func New(st *store.Store, log *slog.Logger, cfg Config) (http.Handler, error) {
+	u, err := url.Parse(cfg.BaseURL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return nil, fmt.Errorf("base URL %q: want http(s)://host", baseURL)
+		return nil, fmt.Errorf("base URL %q: want http(s)://host", cfg.BaseURL)
+	}
+	if cfg.Fetch == nil {
+		cfg.Fetch = prefill.NewClient()
 	}
 	static, err := loadStatic()
 	if err != nil {
 		return nil, err
 	}
 	s := &server{store: st, log: log, static: static,
-		secure: u.Scheme == "https", baseURL: strings.TrimSuffix(baseURL, "/"), now: now}
+		secure: u.Scheme == "https", baseURL: strings.TrimSuffix(cfg.BaseURL, "/"), now: cfg.Now,
+		fetch: cfg.Fetch, fetches: newFetchLimiter()}
 	s.pages, err = parsePages(template.FuncMap{
 		"static":   static.url,
 		"stub":     stubOfDate,

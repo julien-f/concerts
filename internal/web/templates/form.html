@@ -3,12 +3,29 @@
 <p><a class="back" href="{{.Base}}{{with .ID}}/concerts/{{.}}{{end}}">← Annuler</a></p>
 <h1>{{if .ID}}Modifier le concert{{else}}Ajouter un concert{{end}}</h1>
 {{with .FormError}}<p class="error">{{.}}</p>{{else}}{{if .Notice}}<p class="error">Corrige les champs signalés.</p>{{end}}{{end}}
+{{if not .ID}}
+{{- /* Its own GET form, so Enter in the main form saves instead of prefilling. */}}
+<form method="get" action="{{.Base}}/concerts/new" class="prefill"
+ data-hx-get="{{.Base}}/concerts/new" data-hx-target="main" data-hx-select="main" data-hx-swap="outerHTML"
+ data-hx-push-url="true" data-hx-sync="this:drop" data-hx-indicator="find .wait">
+<label for="url">Lien de la billetterie <span class="hint">(facultatif, à coller en premier pour pré-remplir)</span></label>
+<div class="row">
+<input id="url" name="url" type="url" value="{{.PrefillURL}}" maxlength="2000" inputmode="url"
+{{- if .BadLink}} aria-invalid="true" aria-describedby="prefill-msg" autofocus{{end}}>
+<button class="button">Pré-remplir</button>
+</div>
+{{- /* Present before the request, so screen readers announce « Lecture… » when it appears. */}}
+<p class="wait" role="status"><span>Lecture de la page…</span></p>
+{{with .PrefillMsg}}<p id="prefill-msg" class="prefill-msg">{{.}}</p>{{end}}
+</form>
+{{end}}
 <form method="post" action="{{.Base}}/concerts{{with .ID}}/{{.}}{{end}}" class="stack">
 {{range .Fields}}{{$f := .}}
 <label for="{{.Name}}">{{.Label}}{{if .Optional}} <span class="hint">(facultatif)</span>{{end}}</label>
 <input id="{{.Name}}" name="{{.Name}}" type="{{.Type}}" value="{{.Value}}"
 {{- if not .Optional}} required{{end}}{{with .Max}} maxlength="{{.}}"{{end}}
-{{- with .Error}} aria-invalid="true" aria-describedby="{{$f.Name}}-error"{{end}}{{if .Autofocus}} autofocus{{end}}>
+{{- with .Error}} aria-invalid="true" aria-describedby="{{$f.Name}}-error"{{end}}
+{{- with .DescribedBy}} aria-describedby="{{.}}"{{end}}{{if .Autofocus}} autofocus{{end}}>
 {{with .Error}}<p id="{{$f.Name}}-error" class="error">{{.}}</p>{{end}}
 {{end}}
 <button class="big">Enregistrer</button>

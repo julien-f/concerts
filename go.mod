@@ -2,7 +2,10 @@ module concerts
 
 go 1.26.10
 
-require modernc.org/sqlite v1.62.0
+require (
+	golang.org/x/net v0.62.0
+	modernc.org/sqlite v1.62.0
+)
 
 require (
 	github.com/dustin/go-humanize v1.1.0 // indirect

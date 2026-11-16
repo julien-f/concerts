@@ -15,6 +15,7 @@ Design, threat model and roadmap: [docs/design.md](docs/design.md). Decisions: [
 - `cmd/concerts/`: subcommands (`serve`, `new-group`, `backup`, `demo`…).
 - `internal/store/`: SQLite, migrations (`migrations/NNNN_*.sql`, applied at startup), hand-written SQL.
 - `internal/web/`: handlers, templates (parsed at startup), static files.
+- `internal/prefill/`: ticketing-page parser (fixtures in `testdata/`) and SSRF-safe client.
 - `deploy/`: systemd units. `docs/`: design and ADRs. `scripts/`: dev tooling (`verify-ui`).
 - No interface without a second implementation, no speculative layers.
 
@@ -36,6 +37,8 @@ Design, threat model and roadmap: [docs/design.md](docs/design.md). Decisions: [
 - `make demo`: fresh `demo.db` with sample data, then serves it. `make verify-ui`: axe-core, vnu and page weight on every demo screen; run before merging a UI change ([ADR 0006](docs/decisions/0006-scripted-ui-verification.md)).
 
 ## Pitfalls
+
+- `verify-ui` times out waiting for a swap that never came: `page.click("text=…")` is not strict and silently clicks the first match (e.g. a hint containing the button's word). Target the element: `button:has-text("…")`, `#id`.
 
 - A heading inside `<summary>` is not announced as a heading (the summary's button role hides it), and neither axe nor vnu flags it: keep headings outside `<summary>`.
 

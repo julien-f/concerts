@@ -43,6 +43,15 @@ const screens = [
   { name: "edit", go: (p) => p.goto(`${groupURL}/concerts/1/edit`) },
   { name: "add", go: (p) => p.goto(`${groupURL}/concerts/new`) },
   {
+    name: "prefill-failed",
+    go: async (p) => {
+      await p.fill("#url", "https://concert.invalid/billets");
+      await p.click('button:has-text("Pré-remplir")');
+      await p.waitForSelector(".prefill-msg");
+      return null;
+    },
+  },
+  {
     name: "add-errors",
     go: async (p) => {
       await p.fill("#ticket_url", "ftp://nope");
