@@ -1,19 +1,18 @@
 # Improvement log (temporary, deleted in the last commit)
 
-Cycles merged: 1. Consecutive audits without a kept finding: 0.
+Cycles merged: 2. Consecutive audits without a kept finding: 0.
 
 ## Remaining (ranked)
 
-1. README: restore procedure (data, 6)
-2. 1000-row concert cap locks a group forever (security, gain 3)
-3. README: Caddy snippet lacks `encode`, pages sent uncompressed (perf, 3)
-4. README: leaked-link procedure (security, 2)
-5. `make deploy` re-run after a failed healthz overwrites pre-deploy.db and concerts.prev (deploy, 2)
-6. Warn at startup when CONCERTS_BASE_URL is http on a non-local host (data, 2)
-7. U+202F before « : » in Go-built French messages (UI, 2)
-8. Duplicate-name picker refills "Marc " as designed (UI, 2)
-9. Tests for the edit form GET and invalid edit (code, 2)
-10. Group-aware 404 page instead of plain text (UI, 2)
+1. 1000-row concert cap locks a group forever (security, gain 3)
+2. README: Caddy snippet lacks `encode`, pages sent uncompressed (perf, 3)
+3. README: leaked-link procedure (security, 2)
+4. `make deploy` re-run after a failed healthz overwrites pre-deploy.db and concerts.prev (deploy, 2)
+5. Warn at startup when CONCERTS_BASE_URL is http on a non-local host (data, 2)
+6. U+202F before « : » in Go-built French messages (UI, 2)
+7. Duplicate-name picker refills "Marc " as designed (UI, 2)
+8. Tests for the edit form GET and invalid edit (code, 2)
+9. Group-aware 404 page instead of plain text (UI, 2)
 
 ## Proposals (not delivered autonomously)
 
