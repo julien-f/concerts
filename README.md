@@ -81,6 +81,9 @@ Snapshots land in `/var/lib/concerts/backups/`; copy them off the server (rsync,
 ```sh
 ls /var/lib/concerts/backups/            # pick a snapshot, e.g. concerts-2026-11-16T040012.db
 snap=/var/lib/concerts/backups/concerts-2026-11-16T040012.db
+( set -e
+sudo test -f "$snap" || { echo "cannot read $snap" >&2; exit 1; }
+trap '[ $? = 0 ] || echo "restore failed: see systemctl status concerts; the old database is in *.pre-restore-*" >&2' EXIT
 sudo systemctl stop concerts-backup.timer concerts
 ts=$(date +%Y%m%dT%H%M%S)
 for f in /var/lib/concerts/concerts.db /var/lib/concerts/concerts.db-wal /var/lib/concerts/concerts.db-shm; do
@@ -88,8 +91,11 @@ for f in /var/lib/concerts/concerts.db /var/lib/concerts/concerts.db-wal /var/li
 done
 sudo install -o concerts -g concerts -m 600 "$snap" /var/lib/concerts/concerts.db
 sudo systemctl start concerts concerts-backup.timer
-for i in $(seq 20); do curl -fsS http://127.0.0.1:8080/healthz && break; sleep 1; done   # else: journalctl -u concerts
+for i in $(seq 20); do curl -fsS http://127.0.0.1:8080/healthz && exit; sleep 1; done
+false )
 ```
+
+The subshell stops at the first failing step and says so.
 
 - Never copy over `concerts.db` while the service runs or next to a leftover `-wal`: SQLite writes the old WAL into the snapshot, corrupting it without any error.
 - Writes made since the snapshot stay in the `*.pre-restore-<time>` files.

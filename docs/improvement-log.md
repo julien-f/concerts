@@ -1,15 +1,20 @@
 # Improvement log (temporary, deleted in the last commit)
 
-Cycles merged: 10. Consecutive audits without a kept finding: 0.
+Cycles merged: 11. Consecutive audits without a kept finding: 0.
 
 ## Remaining (ranked)
 
-(empty: second audit next)
+1. README: Host requirement far from the proxy step; nginx breaks it by default (security/docs, 2)
+2. Stale deploy-failed marker freezes the rollback pair after a healthz seen only later (deploy, 2)
+3. Restore/rollback rename -wal apart from its db: salvaged writes look missing (data, 2)
 
 ## Proposals (not delivered autonomously)
 
 - Hook runs `make vuln` only when go.mod/go.sum change (offline commits; vuln is 95 % of make check): relaxes a hook check.
 - Group-aware 404 page (header + link back) for a deleted concert reached from a shared link, instead of plain « Page introuvable. » (web.go notFound): a new screen.
+
+- Past concerts count against the 500 live cap; the page grows with every past card (465 past: 288 kB raw, 25 ms): changes the abuse bound.
+- Bulk removal of an intruder's concerts (leaked-link procedure): new command.
 
 ## Discarded
 
@@ -30,6 +35,10 @@ Cycles merged: 10. Consecutive audits without a kept finding: 0.
 
 - ics.go:63 « Billets : » with an ASCII space: no layout effect in calendar apps, golden-file churn only.
 - new-group/rotate-secret print an http:// link without a warning: the scheme is visible in the printed link.
+
+- Web 422 for the concert cap untested (concerts.go:143): score 1.
+- Invalid edit of a concert deleted meanwhile re-renders the form before the 404: score 1.
+- Past concert page offers « Choisis ton prénom pour répondre » to a visitor without identity: score 1.
 
 ## Blocked
 
