@@ -31,7 +31,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 - **Identity cookie**: `HttpOnly`, `SameSite=Lax`, `Path=/g/<secret>`, `Secure` when the base URL is https, `Max-Age` 400 days. It holds the member id, checked against the group on every request.
 - **CSRF**: every state change is a POST behind `http.CrossOriginProtection` (lets GET through; trusts `Sec-Fetch-Site`, else compares `Origin` with `Host`, so the proxy must keep `Host`). The prefill GET triggers an outbound fetch but needs the secret and is rate-limited.
 - **Abuse with a leaked link**: at most 100 members and 500 live concerts per group (422 beyond); server read, write and idle timeouts; request bodies capped at 64 kB.
-- **SSRF** (prefill): see slice 5.
+- **SSRF** (prefill): the resolved IP of every connection, redirects included, must be public unicast (IPv6 within `2000::/3`, special-purpose ranges excluded) on port 80 or 443; no proxy, no keep-alive, 3 redirects, 8 s, 1 MB of `text/html`; fetch errors are logged with the host only (a pasted group link must not reach the logs); one fetch in flight and 10 a minute per group, 2 in flight overall.
 - **Accepted risks**: anyone with the link can join and act as any first name; members are friends, so impersonation is social, not technical. « Prévenir le groupe » (`wa.me`) and link previews in other messengers hand the link to the messaging provider's servers. Both are fixed by rotating the secret.
 
 ## User journeys
@@ -252,9 +252,9 @@ One slice per branch, merged with `--no-ff`. ✅ = shipped.
    - Limit: one fetch in flight per group, 10 per minute.
    - `internal/prefill`: `Parse` (tokenizer, no tree: meta tags, `<title>`, every `ld+json` block) and an SSRF-safe client; tested on fictional fixtures shaped like Dice, Olympia, Zénith, Fnac and Accor Arena pages (most other French ticketing sites block plain clients: 401/403/429 or a challenge page, so manual entry is the common path).
    - JSON-LD: first `MusicEvent`, else any `*Event`/`Festival` (also in arrays, `@graph`, `ItemList`); artist = first performer, else event name; `startDate` with or without offset, converted to Paris; venue = location name; on-sale = earliest future `validFrom`/`availabilityStarts` in offers (a past one is a listing date). Fallback artist: og:title (`property` or `name`), twitter:title, `<title>`, cut at ` | `, ` - `, ` @ `…; never a date from a title.
-   - Client: `Dialer.Control` allows only public unicast IPs (after `Unmap`; no private, loopback, link-local, CGNAT, NAT64, 6to4, Teredo, benchmark, reserved) on ports 80/443; no proxy; 3 redirects max, http(s) only; 8 s total; `text/html` only; 1 MB read. The user sees one generic message, never the dial error.
+   - Client: see the threat model (SSRF). The user sees one generic message, never the dial error.
    - Values go through the form's own validation; invalid ones are dropped. A second fetch while one runs, beyond 10 per minute per group, or beyond 2 in flight in total, gets « Trop de lectures en cours » and the manual form.
-   - `GET …/concerts/new?url=` (a separate GET form above the main one; htmx swaps `<main>`).
+   - `GET …/concerts/new?url=` (a separate GET form above the main one; htmx swaps `<main>` and pushes the URL). The outcome is tied to the focused artist field (`aria-describedby`), or to the link field when the link is invalid; « Lecture de la page… » sits in a live region present before the request.
 6. **« Ajouter à mon agenda »**: a single concert's `.ics`, no subscription, so the secret never reaches a calendar provider.
 7. **Open Graph preview** of concert pages (in WhatsApp).
 

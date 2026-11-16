@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -78,46 +80,45 @@ func Parse(r io.Reader, now time.Time) Result {
 	return res
 }
 
-// findEvent returns the first schema.org event node (MusicEvent preferred) in the JSON-LD blocks.
+// walk calls fn on every object of a JSON value, parents first, keys in sorted
+// order so the first match is the same on every run.
+func walk(v any, fn func(map[string]any)) {
+	switch v := v.(type) {
+	case []any:
+		for _, e := range v {
+			walk(e, fn)
+		}
+	case map[string]any:
+		fn(v)
+		for _, k := range slices.Sorted(maps.Keys(v)) {
+			walk(v[k], fn)
+		}
+	}
+}
+
+// findEvent returns the first schema.org event (MusicEvent preferred) in the
+// JSON-LD blocks, wherever it sits: top level, array, @graph, ItemList…
 func findEvent(blocks [][]byte) map[string]any {
-	var first map[string]any
+	var music, event map[string]any
 	for _, b := range blocks {
 		var v any
 		if json.Unmarshal(b, &v) != nil {
 			continue // one broken block must not hide the others
 		}
-		for _, n := range nodes(v) {
-			switch t := types(n); {
-			case contains(t, "MusicEvent"):
-				return n
-			case first == nil && isEvent(t):
-				first = n
+		walk(v, func(n map[string]any) {
+			ts := types(n)
+			if music == nil && slices.Contains(ts, "MusicEvent") {
+				music = n
 			}
-		}
-	}
-	return first
-}
-
-// nodes flattens a JSON-LD value: objects, arrays, @graph and ItemList items.
-func nodes(v any) []map[string]any {
-	var out []map[string]any
-	switch v := v.(type) {
-	case []any:
-		for _, e := range v {
-			out = append(out, nodes(e)...)
-		}
-	case map[string]any:
-		out = append(out, v)
-		out = append(out, nodes(v["@graph"])...)
-		if items, ok := v["itemListElement"].([]any); ok {
-			for _, it := range items {
-				if m, ok := it.(map[string]any); ok {
-					out = append(out, nodes(m["item"])...)
-				}
+			if event == nil && slices.ContainsFunc(ts, func(t string) bool { return strings.HasSuffix(t, "Event") || t == "Festival" }) {
+				event = n
 			}
-		}
+		})
 	}
-	return out
+	if music != nil {
+		return music
+	}
+	return event
 }
 
 func types(n map[string]any) []string {
@@ -134,25 +135,6 @@ func types(n map[string]any) []string {
 		return out
 	}
 	return nil
-}
-
-func contains(ss []string, s string) bool {
-	for _, x := range ss {
-		if x == s {
-			return true
-		}
-	}
-	return false
-}
-
-// isEvent accepts Event and its subtypes (MusicEvent, ComedyEvent…) and Festival.
-func isEvent(ts []string) bool {
-	for _, t := range ts {
-		if strings.HasSuffix(t, "Event") || t == "Festival" {
-			return true
-		}
-	}
-	return false
 }
 
 func fromEvent(ev map[string]any, now time.Time) Result {
@@ -214,32 +196,17 @@ func wallClock(s string, loc *time.Location) (date, hm string) {
 	return "", ""
 }
 
-// onSale finds the earliest future validFrom or availabilityStarts among the offers
-// (also inside AggregateOffer and itemOffered); a past one is a listing date, not news.
-func onSale(v any, now time.Time) string {
-	best := ""
-	var walk func(v any)
-	walk = func(v any) {
-		switch v := v.(type) {
-		case []any:
-			for _, e := range v {
-				walk(e)
-			}
-		case map[string]any:
-			for _, k := range []string{"validFrom", "availabilityStarts"} {
-				if d, _ := wallClock(str(v[k]), now.Location()); d != "" && d > now.Format(time.DateOnly) {
-					if best == "" || d < best {
-						best = d
-					}
-				}
-			}
-			walk(v["offers"])
-			if item, ok := v["itemOffered"].(map[string]any); ok {
-				walk(item["offers"])
+// onSale finds the earliest validFrom or availabilityStarts among the offers,
+// however nested, from today on: an earlier one is a listing date, not news.
+func onSale(offers any, now time.Time) string {
+	today, best := now.Format(time.DateOnly), ""
+	walk(offers, func(n map[string]any) {
+		for _, k := range []string{"validFrom", "availabilityStarts"} {
+			if d, _ := wallClock(str(n[k]), now.Location()); d >= today && (best == "" || d < best) {
+				best = d
 			}
 		}
-	}
-	walk(v)
+	})
 	return best
 }
 

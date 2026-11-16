@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 	"net/url"
+	"slices"
 	"sync"
 	"time"
 
@@ -12,11 +13,10 @@ import (
 
 // fetchLimiter keeps prefill fetches cheap for the server and polite to ticketing
 // sites: one in flight per group, 10 per minute per group, 2 in flight in total.
-// Its maps hold one entry per group that ever prefilled: a handful.
 type fetchLimiter struct {
 	mu       sync.Mutex
 	inFlight map[int64]bool
-	recent   map[int64][]time.Time
+	recent   map[int64][]time.Time // emptied entries are deleted
 	total    int
 }
 
@@ -25,20 +25,20 @@ const (
 	fetchesInFlight  = 2
 )
 
+func newFetchLimiter() *fetchLimiter {
+	return &fetchLimiter{inFlight: map[int64]bool{}, recent: map[int64][]time.Time{}}
+}
+
 // acquire reserves a fetch for group at now; call release when done.
 func (l *fetchLimiter) acquire(group int64, now time.Time) (release func(), ok bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if l.inFlight == nil {
-		l.inFlight, l.recent = map[int64]bool{}, map[int64][]time.Time{}
+	keep := slices.DeleteFunc(l.recent[group], func(t time.Time) bool { return now.Sub(t) >= time.Minute })
+	if len(keep) == 0 {
+		delete(l.recent, group)
+	} else {
+		l.recent[group] = keep
 	}
-	var keep []time.Time
-	for _, t := range l.recent[group] {
-		if now.Sub(t) < time.Minute {
-			keep = append(keep, t)
-		}
-	}
-	l.recent[group] = keep
 	if l.inFlight[group] || len(keep) >= fetchesPerMinute || l.total >= fetchesInFlight {
 		return nil, false
 	}
@@ -52,41 +52,33 @@ func (l *fetchLimiter) acquire(group int64, now time.Time) (release func(), ok b
 	}, true
 }
 
-// prefill reads the ticketing page u; it returns the concert to show in the
-// form (only values the form itself accepts) and a message for the user.
-func (s *server) prefill(r *http.Request, gr *groupRequest, u string) (store.Concert, string) {
-	if !validTicketURL(u) {
-		return store.Concert{}, "Lien invalide : il doit commencer par http:// ou https://."
+// prefill reads the ticketing page u. It returns the concert to show in the form
+// (only values the form itself accepts), a message, and whether the link itself is wrong.
+func (s *server) prefill(r *http.Request, gr *groupRequest, u string) (c store.Concert, msg string, badLink bool) {
+	if _, errs := parseConcert(url.Values{"ticket_url": {u}}); errs["ticket_url"] != "" {
+		return store.Concert{}, errs["ticket_url"], true
 	}
+	c.TicketURL = u
 	release, ok := s.fetches.acquire(gr.Group.ID, s.now())
 	if !ok {
-		return store.Concert{TicketURL: u}, "Trop de lectures en cours : réessaie dans une minute, ou remplis à la main."
+		return c, "Trop de lectures en cours : réessaie dans une minute, ou remplis à la main.", false
 	}
 	defer release()
 	res, err := prefill.Fetch(r.Context(), s.fetch, u, s.now().In(paris))
 	if err != nil {
-		s.log.InfoContext(r.Context(), "prefill failed", "err", err)
-		return store.Concert{TicketURL: u}, "Impossible de lire cette page : remplis à la main."
+		s.log.InfoContext(r.Context(), "prefill failed", "err", err) // host only, see prefill.Fetch
+		return c, "Impossible de lire cette page : remplis à la main.", false
 	}
 	if res == (prefill.Result{}) {
-		return store.Concert{TicketURL: u}, "Rien trouvé sur cette page : remplis à la main."
+		return c, "Rien trouvé sur cette page : remplis à la main.", false
 	}
 	// The page is untrusted input: run it through the form's validation and drop what fails.
-	c, errs := parseConcert(url.Values{"artist": {res.Artist}, "date": {res.Date}, "time": {res.Time},
-		"venue": {res.Venue}, "ticket_url": {u}, "on_sale_date": {res.OnSaleDate}})
+	v := url.Values{"artist": {res.Artist}, "date": {res.Date}, "time": {res.Time},
+		"venue": {res.Venue}, "ticket_url": {u}, "on_sale_date": {res.OnSaleDate}}
+	_, errs := parseConcert(v)
 	for name := range errs {
-		switch name {
-		case "artist":
-			c.Artist = ""
-		case "date":
-			c.Date = ""
-		case "time":
-			c.Time = ""
-		case "venue":
-			c.Venue = ""
-		case "on_sale_date":
-			c.OnSaleDate = ""
-		}
+		v.Del(name)
 	}
-	return c, "Vérifie les champs pré-remplis avant d'enregistrer."
+	c, _ = parseConcert(v)
+	return c, "Vérifie les champs pré-remplis avant d'enregistrer.", false
 }

@@ -9,7 +9,13 @@ import (
 	"time"
 )
 
-var paris, _ = time.LoadLocation("Europe/Paris")
+var paris = func() *time.Location {
+	loc, err := time.LoadLocation("Europe/Paris")
+	if err != nil {
+		panic(err) // the tests need real zone data, as the app embeds it
+	}
+	return loc
+}()
 
 // now is before every fixture's concert; Fnac's first validFrom (2025) is past, its second (2027) future.
 var now = time.Date(2026, 11, 16, 10, 0, 0, 0, paris)

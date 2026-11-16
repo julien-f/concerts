@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	neturl "net/url"
 	"syscall"
 	"time"
 )
@@ -16,23 +17,31 @@ import (
 // maxPage caps what is read of a page; metadata sits in the <head>.
 const maxPage = 1 << 20
 
-// notPublic lists special-purpose ranges that netip's predicates do not cover.
-var notPublic = func() []netip.Prefix {
+func prefixes(ss ...string) []netip.Prefix {
 	var ps []netip.Prefix
-	for _, s := range []string{
-		"0.0.0.0/8", "100.64.0.0/10" /* CGNAT */, "192.0.0.0/24", "192.0.2.0/24", "198.18.0.0/15", /* benchmarking */
-		"198.51.100.0/24", "203.0.113.0/24", "240.0.0.0/4",
-		"64:ff9b::/96", "64:ff9b:1::/48" /* NAT64 */, "2001::/32" /* Teredo */, "2001:db8::/32", "2002::/16", /* 6to4 */
-	} {
+	for _, s := range ss {
 		ps = append(ps, netip.MustParsePrefix(s))
 	}
 	return ps
-}()
+}
+
+var (
+	// globalIPv6 is the only IPv6 range handed out as public unicast: an allowlist,
+	// since ::/96 (IPv4-compatible), fec0::/10 and others can reach internal networks.
+	globalIPv6 = netip.MustParsePrefix("2000::/3")
+	// notPublic lists special-purpose ranges that netip's predicates do not cover.
+	notPublic = prefixes(
+		"0.0.0.0/8", "100.64.0.0/10" /* CGNAT */, "192.0.0.0/24", "192.0.2.0/24", "198.18.0.0/15", /* benchmarking */
+		"198.51.100.0/24", "203.0.113.0/24", "240.0.0.0/4",
+		"2001::/32" /* Teredo */, "2001:10::/28", "2001:20::/28" /* ORCHID */, "2001:db8::/32", "2002::/16", /* 6to4 */
+		"3fff::/20", /* documentation */
+	)
+)
 
 // public reports whether ip is a public unicast address, IPv4-mapped IPv6 included.
 func public(ip netip.Addr) bool {
 	ip = ip.Unmap()
-	if !ip.IsGlobalUnicast() || ip.IsPrivate() {
+	if !ip.IsGlobalUnicast() || ip.IsPrivate() || (ip.Is6() && !globalIPv6.Contains(ip)) {
 		return false
 	}
 	for _, p := range notPublic {
@@ -88,9 +97,24 @@ func NewClient() *http.Client {
 	}
 }
 
-// Fetch reads a ticketing page with client and parses it. Errors are for logs:
-// the user only learns that the page could not be read.
+// Fetch reads a ticketing page with client and parses it. Errors are for logs and
+// name the host only: the URL may hold tokens, or even a group secret pasted by mistake.
 func Fetch(ctx context.Context, client *http.Client, url string, now time.Time) (Result, error) {
+	res, err := fetch(ctx, client, url, now)
+	if ue := (*neturl.Error)(nil); errors.As(err, &ue) {
+		err = ue.Err
+	}
+	if err != nil {
+		host := "?"
+		if u, perr := neturl.Parse(url); perr == nil {
+			host = u.Host
+		}
+		err = fmt.Errorf("fetch from %s: %w", host, err)
+	}
+	return res, err
+}
+
+func fetch(ctx context.Context, client *http.Client, url string, now time.Time) (Result, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return Result{}, err

@@ -16,6 +16,8 @@ func ticketSite(t *testing.T) *httptest.Server {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		switch r.URL.Path {
+		case "/empty":
+			_, _ = w.Write([]byte("<p>Just a moment...</p>"))
 		case "/blocked":
 			http.Error(w, "Just a moment...", http.StatusForbidden)
 		case "/hostile":
@@ -43,9 +45,11 @@ func TestPrefill(t *testing.T) {
 		{"dice", site.URL + "/dice.html", []string{"Vérifie les champs pré-remplis", `value="Les Hiboux"`, `value="2026-11-27"`,
 			`value="20:00"`, `value="Salle Exemple"`, `id="ticket_url" name="ticket_url" type="url" value="` + site.URL + `/dice.html"`, "autofocus"}},
 		{"blocked site", site.URL + "/blocked", []string{"Impossible de lire cette page", `name="ticket_url" type="url" value="` + site.URL + `/blocked"`}},
-		{"nothing found", site.URL + "/accor.html?none", []string{`value="Duo Fictif"`}},
+		{"og:title only", site.URL + "/accor.html", []string{`value="Duo Fictif"`}},
+		{"nothing found", site.URL + "/empty", []string{"Rien trouvé sur cette page", `aria-describedby="prefill-msg" autofocus`}},
 		{"hostile values dropped", site.URL + "/hostile", []string{`id="artist" name="artist" type="text" value=""`, `id="venue" name="venue" type="text" value=""`, `value="2026-07-01"`}},
-		{"not a web link", "javascript:alert(1)", []string{"Lien invalide", `id="url" name="url" type="url" value="javascript:alert(1)"`}},
+		{"not a web link", "javascript:alert(1)", []string{"Lien invalide",
+			`id="url" name="url" type="url" value="javascript:alert(1)" maxlength="2000" inputmode="url" aria-invalid="true" aria-describedby="prefill-msg" autofocus`}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -58,7 +62,7 @@ func TestPrefill(t *testing.T) {
 				t.Errorf("javascript: link rendered")
 			}
 		})
-		ts.clock.Advance(10 * time.Second) // stay under 10 fetches a minute
+		ts.clock.Advance(10 * time.Second) // so the table never hits fetchesPerMinute
 	}
 
 	if resp, _ := ts.browser(t).get(t, newURL+url.QueryEscape(site.URL+"/dice.html")); resp.StatusCode != http.StatusSeeOther {
@@ -68,7 +72,7 @@ func TestPrefill(t *testing.T) {
 
 func TestFetchLimiter(t *testing.T) {
 	t.Parallel()
-	var l fetchLimiter
+	l := newFetchLimiter()
 	t0 := time.Date(2026, 6, 1, 20, 0, 0, 0, time.UTC)
 
 	release, ok := l.acquire(1, t0)

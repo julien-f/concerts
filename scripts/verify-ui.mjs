@@ -46,7 +46,7 @@ const screens = [
     name: "prefill-failed",
     go: async (p) => {
       await p.fill("#url", "https://concert.invalid/billets");
-      await p.click("text=Pré-remplir");
+      await p.click('button:has-text("Pré-remplir")');
       await p.waitForSelector(".prefill-msg");
       return null;
     },

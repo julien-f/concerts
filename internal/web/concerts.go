@@ -18,7 +18,8 @@ type field struct {
 	Max                      int // maxlength, 0 for none
 	Optional                 bool
 	Error                    string
-	Autofocus                bool // first invalid field
+	Autofocus                bool   // first invalid field, or the artist after a prefill
+	DescribedBy              string // id of an extra description (the prefill outcome)
 }
 
 // concertForm is the add (ID 0) and edit page.
@@ -29,6 +30,7 @@ type concertForm struct {
 	FormError  string // error not tied to a field
 	PrefillURL string // ticketing page last read (add form only)
 	PrefillMsg string // outcome of that read
+	BadLink    bool   // the prefill link itself is invalid: focus goes there
 }
 
 func newConcertForm(gr *groupRequest, c store.Concert, errs map[string]string) *concertForm {
@@ -153,10 +155,17 @@ func (s *server) newConcert(w http.ResponseWriter, r *http.Request, gr *groupReq
 		s.render(w, r, http.StatusOK, "form", newConcertForm(gr, store.Concert{}, nil))
 		return
 	}
-	c, msg := s.prefill(r, gr, u)
+	c, msg, bad := s.prefill(r, gr, u)
 	f := newConcertForm(gr, c, nil)
-	f.PrefillURL, f.PrefillMsg = u, msg
-	f.Fields[0].Autofocus = true // htmx honours autofocus in swapped content
+	f.PrefillURL, f.PrefillMsg, f.BadLink = u, msg, bad
+	if !bad {
+		// htmx honours autofocus in swapped content; the outcome is read with the field.
+		for i := range f.Fields {
+			if f.Fields[i].Name == "artist" {
+				f.Fields[i].Autofocus, f.Fields[i].DescribedBy = true, "prefill-msg"
+			}
+		}
+	}
 	s.render(w, r, http.StatusOK, "form", f)
 }
 
