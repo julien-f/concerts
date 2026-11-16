@@ -27,21 +27,8 @@ func nameKey(name string) string { return strings.ToLower(name) }
 
 // Members returns the group's members in alphabetical order.
 func (s *Store) Members(ctx context.Context, groupID int64) ([]Member, error) {
-	rows, err := s.db.QueryContext(ctx,
+	return queryAll(ctx, s.db, func(m *Member) []any { return []any{&m.ID, &m.Name} },
 		"SELECT id, name FROM members WHERE group_id = ? ORDER BY name_key", groupID)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-	var ms []Member
-	for rows.Next() {
-		var m Member
-		if err := rows.Scan(&m.ID, &m.Name); err != nil {
-			return nil, err
-		}
-		ms = append(ms, m)
-	}
-	return ms, rows.Err()
 }
 
 // CreateMember adds name to the group. It returns ErrDuplicate with the existing

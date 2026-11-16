@@ -25,40 +25,26 @@ type Concert struct {
 	Deleted    bool
 }
 
-// concertSelect matches scanConcert.
+// concertSelect matches concertFields.
 const concertSelect = `SELECT c.id, c.artist, c.date, coalesce(c.time, ''), c.venue,
 	coalesce(c.ticket_url, ''), coalesce(c.on_sale_date, ''), coalesce(m.name, ''), c.deleted_at IS NOT NULL
 	FROM concerts c LEFT JOIN members m ON m.id = c.created_by`
 
-func scanConcert(row interface{ Scan(...any) error }) (Concert, error) {
-	var c Concert
-	err := row.Scan(&c.ID, &c.Artist, &c.Date, &c.Time, &c.Venue, &c.TicketURL, &c.OnSaleDate, &c.AddedBy, &c.Deleted)
-	return c, err
+func concertFields(c *Concert) []any {
+	return []any{&c.ID, &c.Artist, &c.Date, &c.Time, &c.Venue, &c.TicketURL, &c.OnSaleDate, &c.AddedBy, &c.Deleted}
 }
 
 // Concerts returns the group's live concerts in chronological order (no time first within a day).
 func (s *Store) Concerts(ctx context.Context, groupID int64) ([]Concert, error) {
-	rows, err := s.db.QueryContext(ctx, concertSelect+`
+	return queryAll(ctx, s.db, concertFields, concertSelect+`
 		WHERE c.group_id = ? AND c.deleted_at IS NULL
 		ORDER BY c.date, c.time, c.id`, groupID)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-	var cs []Concert
-	for rows.Next() {
-		c, err := scanConcert(rows)
-		if err != nil {
-			return nil, err
-		}
-		cs = append(cs, c)
-	}
-	return cs, rows.Err()
 }
 
 // Concert returns the group's concert id, deleted or not, or ErrNotFound.
 func (s *Store) Concert(ctx context.Context, groupID, id int64) (Concert, error) {
-	c, err := scanConcert(s.db.QueryRowContext(ctx, concertSelect+" WHERE c.id = ? AND c.group_id = ?", id, groupID))
+	var c Concert
+	err := s.db.QueryRowContext(ctx, concertSelect+" WHERE c.id = ? AND c.group_id = ?", id, groupID).Scan(concertFields(&c)...)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Concert{}, ErrNotFound
 	}

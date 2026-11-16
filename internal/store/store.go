@@ -178,25 +178,32 @@ type GroupSummary struct {
 	CreatedAt string
 }
 
-// Groups lists every group with its member count, oldest first.
-func (s *Store) Groups(ctx context.Context) ([]GroupSummary, error) {
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT g.id, g.name, g.created_at, count(m.id)
-		FROM groups g LEFT JOIN members m ON m.group_id = g.id
-		GROUP BY g.id ORDER BY g.id`)
+// queryAll runs query and scans each row into a T through the pointers fields returns.
+func queryAll[T any](ctx context.Context, db *sql.DB, fields func(*T) []any, query string, args ...any) ([]T, error) {
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	var gs []GroupSummary
+	var xs []T
 	for rows.Next() {
-		var g GroupSummary
-		if err := rows.Scan(&g.ID, &g.Name, &g.CreatedAt, &g.Members); err != nil {
+		var x T
+		if err := rows.Scan(fields(&x)...); err != nil {
 			return nil, err
 		}
-		gs = append(gs, g)
+		xs = append(xs, x)
 	}
-	return gs, rows.Err()
+	return xs, rows.Err()
+}
+
+// Groups lists every group with its member count, oldest first.
+func (s *Store) Groups(ctx context.Context) ([]GroupSummary, error) {
+	return queryAll(ctx, s.db, func(g *GroupSummary) []any {
+		return []any{&g.ID, &g.Name, &g.CreatedAt, &g.Members}
+	}, `
+		SELECT g.id, g.name, g.created_at, count(m.id)
+		FROM groups g LEFT JOIN members m ON m.group_id = g.id
+		GROUP BY g.id ORDER BY g.id`)
 }
 
 // RotateSecret replaces the group's secret, which breaks the old link; ErrNotFound if no such group.

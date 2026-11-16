@@ -19,26 +19,15 @@ type Status struct {
 // Statuses returns the answers to the group's live concerts (to one concert if
 // concertID is not 0), members in name order.
 func (s *Store) Statuses(ctx context.Context, groupID, concertID int64) ([]Status, error) {
-	rows, err := s.db.QueryContext(ctx, `
+	return queryAll(ctx, s.db, func(st *Status) []any {
+		return []any{&st.ConcertID, &st.Member.ID, &st.Member.Name, &st.Status}
+	}, `
 		SELECT s.concert_id, m.id, m.name, s.status
 		FROM statuses s
 		JOIN concerts c ON c.id = s.concert_id
 		JOIN members m ON m.id = s.member_id
 		WHERE c.group_id = ?1 AND c.deleted_at IS NULL AND (?2 = 0 OR c.id = ?2)
 		ORDER BY m.name_key`, groupID, concertID)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-	var ss []Status
-	for rows.Next() {
-		var st Status
-		if err := rows.Scan(&st.ConcertID, &st.Member.ID, &st.Member.Name, &st.Status); err != nil {
-			return nil, err
-		}
-		ss = append(ss, st)
-	}
-	return ss, rows.Err()
 }
 
 // SetStatus records memberID's answer to the group's live concert; "" clears it.
