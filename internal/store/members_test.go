@@ -23,7 +23,7 @@ func TestMigrateFromPreviousSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := migrateTo(ctx, db, ms[:len(ms)-1]); err != nil {
+	if err := migrate(ctx, db, ms[:len(ms)-1]); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.ExecContext(ctx, `

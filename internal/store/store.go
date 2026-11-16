@@ -40,7 +40,11 @@ func Open(ctx context.Context, path string, now func() time.Time) (*Store, error
 	if err != nil {
 		return nil, err
 	}
-	if err := migrate(ctx, db); err != nil {
+	ms, err := migrations()
+	if err == nil {
+		err = migrate(ctx, db, ms)
+	}
+	if err != nil {
 		_ = db.Close()
 		return nil, err
 	}
@@ -92,16 +96,8 @@ func migrations() ([]migration, error) {
 	return ms, nil
 }
 
-func migrate(ctx context.Context, db *sql.DB) error {
-	ms, err := migrations()
-	if err != nil {
-		return err
-	}
-	return migrateTo(ctx, db, ms)
-}
-
-// migrateTo applies the pending migrations among ms; tests pass a prefix to build older schemas.
-func migrateTo(ctx context.Context, db *sql.DB, ms []migration) error {
+// migrate applies the pending migrations among ms; tests pass a prefix to build older schemas.
+func migrate(ctx context.Context, db *sql.DB, ms []migration) error {
 	var current int
 	if err := db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&current); err != nil {
 		return err
