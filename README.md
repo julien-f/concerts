@@ -36,6 +36,7 @@ The pre-commit hook runs `make check`; enable it once per clone with `git config
        encode zstd gzip
    }
    ```
+   The proxy must pass the original `Host` header: cross-origin protection compares it with `Origin`, and browsers without `Sec-Fetch-Site` get 403 on every form otherwise. Caddy does by default; nginx needs `proxy_set_header Host $http_host;`.
    No proxy log may hold a `/g/…` path (it contains the group secret): no access log (Caddy writes none without a `log` directive; nginx needs `access_log off;` in this site's `server` block). Both still write the request path to their error log when the app is down (restart, deploy): keep that log readable by root only.
 5. Create a group: `sudo -u concerts env CONCERTS_DB=/var/lib/concerts/concerts.db CONCERTS_BASE_URL=https://concerts.example.com concerts new-group "Gig buddies"`
 
@@ -63,7 +64,6 @@ make rollback DEPLOY_HOST=admin@server   # previous binary and pre-deploy databa
 - Needs SSH with `sudo` on the server; `DEPLOY_HOST` has no default.
 - `deploy` keeps the previous binary (`/usr/local/bin/concerts.prev`) and a pre-deploy snapshot (`/var/lib/concerts/backups/pre-deploy.db`), taken by the old binary so the new one cannot migrate the live database first. Deploying again after a failed deploy (`/healthz` never passed) keeps that pair, so `rollback` still reaches the last good version.
 - `rollback` stops the service, moves the current database and its `-wal`/`-shm` aside (`*.pre-rollback-<time>`: writes made since the deploy are there), restores both, restarts and checks `/healthz`.
-- The reverse proxy must keep the `Host` header (Caddy does by default): cross-origin protection compares it with `Origin`.
 
 ### Backup
 

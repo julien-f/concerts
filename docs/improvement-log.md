@@ -1,12 +1,11 @@
 # Improvement log (temporary, deleted in the last commit)
 
-Cycles merged: 11. Consecutive audits without a kept finding: 0.
+Cycles merged: 12. Consecutive audits without a kept finding: 0.
 
 ## Remaining (ranked)
 
-1. README: Host requirement far from the proxy step; nginx breaks it by default (security/docs, 2)
-2. Stale deploy-failed marker freezes the rollback pair after a healthz seen only later (deploy, 2)
-3. Restore/rollback rename -wal apart from its db: salvaged writes look missing (data, 2)
+1. Stale deploy-failed marker freezes the rollback pair after a healthz seen only later (deploy, 2)
+2. Restore/rollback rename -wal apart from its db: salvaged writes look missing (data, 2)
 
 ## Proposals (not delivered autonomously)
 
