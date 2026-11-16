@@ -55,7 +55,10 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 		s.fail(w, r, err)
 		return
 	}
-	statuses := byConcert(ss)
+	statuses := map[int64][]store.Status{} // by concert id
+	for _, st := range ss {
+		statuses[st.ConcertID] = append(statuses[st.ConcertID], st)
+	}
 	p := &homePage{groupRequest: gr, Mine: q.Get("mine") == "1"}
 	back := "list"
 	if p.Mine {

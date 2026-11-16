@@ -63,15 +63,6 @@ func newStatusBlock(gr *groupRequest, c store.Concert, statuses []store.Status, 
 	return b
 }
 
-// byConcert groups statuses by concert id.
-func byConcert(ss []store.Status) map[int64][]store.Status {
-	m := map[int64][]store.Status{}
-	for _, st := range ss {
-		m[st.ConcertID] = append(m[st.ConcertID], st)
-	}
-	return m
-}
-
 func validStatus(v string) bool {
 	if v == "" {
 		return true
