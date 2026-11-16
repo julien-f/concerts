@@ -242,11 +242,4 @@ One slice per branch, merged with `--no-ff`. All shipped (v1).
    - TEXT escaping (a field cannot start a property line), folding at 75 octets on rune boundaries, CRLF; golden files. `attachment; filename="concert.ics"`, `private, no-store`. An edited concert re-imported on iOS is not updated (known limit).
 7. **Open Graph preview** of concert pages: no identity needed, so a previewer gets `og:title` (artist), `og:description` (date · venue), `og:url` (from `CONCERTS_BASE_URL`), `og:site_name`, `og:type`. No `og:image`: weight for no information.
 
-Also in v1: `make deploy` / `make rollback` (see [Operations](#operations)).
-
-## Operations
-
-- `make demo`: fresh `demo.db` with a group, 3 members, past and future concerts, then serves it.
-- `make verify-ui` (`scripts/verify-ui.sh`): every screen of `make demo` at 390 px, light and dark: 0 axe-core violations, 0 vnu errors, `/g/<secret>` page weight (gzip -9 of HTML, CSS, JS, icons) < 40 kB. Pinned tools in the main checkout's `bin/tools/`.
-- `make deploy DEPLOY_HOST=…` (no default, checked before anything runs): govulncheck, build, copy; the **installed (old) binary** writes the pre-deploy backup as the `concerts` user (the new one would migrate the live database first), to `.new` renamed once complete, so a failed backup keeps the previous one; previous binary kept; both kept as they are while the last deploy has not passed `/healthz` and the service still fails it (marker file next to the snapshot, cleared by a passing deploy or rollback); atomic swap (`mv`); restart; `/healthz` checked (20 s). Verified with `make -n` and runs with stubbed `ssh`, `sudo` and `systemctl` (see commit history).
-- `make rollback DEPLOY_HOST=…`: refuses an empty snapshot; stop; move the current db, `-wal` and `-shm` aside; install the pre-deploy snapshot owned by `concerts`; restore the previous binary; start; `/healthz`. Writes since the deploy are lost (kept in the moved-aside files).
+Also in v1: `make deploy` / `make rollback` ([README](../README.md#update-and-roll-back)).
