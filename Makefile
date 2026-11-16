@@ -58,17 +58,23 @@ endif
 REMOTE_BIN := /usr/local/bin/concerts
 REMOTE_DB := /var/lib/concerts/concerts.db
 REMOTE_BACKUP := /var/lib/concerts/backups/pre-deploy.db
-REMOTE_HEALTHZ := for i in $$(seq 20); do curl -fsS http://127.0.0.1:8080/healthz && exit 0; sleep 1; done; echo "healthz failed: journalctl -u concerts" >&2; exit 1
+# Present while the last deploy has not passed /healthz (rollback clears it too).
+REMOTE_FAILED := $(REMOTE_BACKUP).deploy-failed
+REMOTE_HEALTHZ := for i in $$(seq 20); do curl -fsS http://127.0.0.1:8080/healthz && sudo rm -f $(REMOTE_FAILED) && exit 0; sleep 1; done; echo "healthz failed: journalctl -u concerts" >&2; exit 1
 
 # The installed (old) binary takes the backup: the new one would first migrate the live database.
+# After a failed deploy, the installed binary is the broken one: the last good pair is kept.
 deploy: build
 	scp bin/concerts $(DEPLOY_HOST):concerts.new
 	ssh -t $(DEPLOY_HOST) 'set -e; \
-		if [ -x $(REMOTE_BIN) ]; then \
+		if sudo test -e $(REMOTE_FAILED) && sudo test -f $(REMOTE_BACKUP) && [ -x $(REMOTE_BIN).prev ]; then \
+			echo "last deploy failed: keeping its pre-deploy snapshot and $(REMOTE_BIN).prev" >&2; \
+		elif [ -x $(REMOTE_BIN) ]; then \
 			sudo -u concerts mkdir -p $(dir $(REMOTE_BACKUP)); \
 			sudo -u concerts rm -f $(REMOTE_BACKUP); \
 			sudo -u concerts env CONCERTS_DB=$(REMOTE_DB) $(REMOTE_BIN) backup $(REMOTE_BACKUP); \
 			sudo cp -p $(REMOTE_BIN) $(REMOTE_BIN).prev; \
+			sudo touch $(REMOTE_FAILED); \
 		fi; \
 		sudo install -m 755 concerts.new $(REMOTE_BIN).new; \
 		rm concerts.new; \
