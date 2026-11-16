@@ -61,8 +61,8 @@ make deploy DEPLOY_HOST=admin@server     # build, back up with the old binary, s
 make rollback DEPLOY_HOST=admin@server   # previous binary and pre-deploy database back
 ```
 
-- Needs SSH with `sudo` on the server; `DEPLOY_HOST` has no default.
-- `deploy` keeps the previous binary (`/usr/local/bin/concerts.prev`) and a pre-deploy snapshot (`/var/lib/concerts/backups/pre-deploy.db`), taken by the old binary so the new one cannot migrate the live database first. Deploying again after a failed deploy (`/healthz` never passed) keeps that pair, so `rollback` still reaches the last good version.
+- Needs SSH with `sudo` and `curl` on the server; `DEPLOY_HOST` has no default.
+- `deploy` keeps the previous binary (`/usr/local/bin/concerts.prev`) and a pre-deploy snapshot (`/var/lib/concerts/backups/pre-deploy.db`), taken by the old binary so the new one cannot migrate the live database first. Deploying again after a failed deploy (`/healthz` never passed, and still failing) keeps that pair, so `rollback` still reaches the last good version.
 - `rollback` stops the service, moves the current database and its `-wal`/`-shm` aside (`*.pre-rollback-<time>`: writes made since the deploy are there), restores both, restarts and checks `/healthz`.
 
 ### Backup
