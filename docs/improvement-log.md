@@ -1,10 +1,10 @@
 # Improvement log (temporary, deleted in the last commit)
 
-Cycles merged: 14. Consecutive audits without a kept finding: 0.
+Cycles merged: 15 (cap reached). Consecutive audits without a kept finding: 0.
 
 ## Remaining (ranked)
 
-(empty: third audit next)
+1. README leaked-link: an intruder may act under an existing first name or edit concerts; « ajouté par » does not reveal it (security, 2) — not delivered, cap reached
 
 ## Proposals (not delivered autonomously)
 
@@ -13,6 +13,8 @@ Cycles merged: 14. Consecutive audits without a kept finding: 0.
 
 - Past concerts count against the 500 live cap; the page grows with every past card (465 past: 288 kB raw, 25 ms): changes the abuse bound.
 - Bulk removal of an intruder's concerts (leaked-link procedure): new command.
+
+- `GORACE=atexit_sleep_ms=0` for `make test`: 1.94 -> 0.92 s median (5 runs each, clean test cache); the race detector sleeps 1 s at exit of every package's test binary.
 
 ## Discarded
 

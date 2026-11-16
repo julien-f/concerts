@@ -69,13 +69,14 @@ REMOTE_HEALTHZ := for i in $$(seq 20); do curl -fsS http://127.0.0.1:8080/health
 deploy: build
 	scp bin/concerts $(DEPLOY_HOST):concerts.new
 	ssh -t $(DEPLOY_HOST) 'set -e; $(REMOTE_CURL); \
-		if sudo test -e $(REMOTE_FAILED) && sudo test -f $(REMOTE_BACKUP) && [ -x $(REMOTE_BIN).prev ] \
+		if sudo test -e $(REMOTE_FAILED) && sudo test -s $(REMOTE_BACKUP) && [ -x $(REMOTE_BIN).prev ] \
 			&& ! curl -fs --max-time 5 http://127.0.0.1:8080/healthz >/dev/null; then \
 			echo "last deploy failed: keeping its pre-deploy snapshot and $(REMOTE_BIN).prev" >&2; \
 		elif [ -x $(REMOTE_BIN) ]; then \
 			sudo -u concerts mkdir -p $(dir $(REMOTE_BACKUP)); \
-			sudo -u concerts rm -f $(REMOTE_BACKUP); \
-			sudo -u concerts env CONCERTS_DB=$(REMOTE_DB) $(REMOTE_BIN) backup $(REMOTE_BACKUP); \
+			sudo -u concerts rm -f $(REMOTE_BACKUP).new; \
+			sudo -u concerts env CONCERTS_DB=$(REMOTE_DB) $(REMOTE_BIN) backup $(REMOTE_BACKUP).new; \
+			sudo -u concerts mv $(REMOTE_BACKUP).new $(REMOTE_BACKUP); \
 			sudo cp -p $(REMOTE_BIN) $(REMOTE_BIN).prev; \
 			sudo touch $(REMOTE_FAILED); \
 		fi; \
@@ -90,7 +91,7 @@ deploy: build
 rollback:
 	ssh -t $(DEPLOY_HOST) 'set -e; $(REMOTE_CURL); \
 		test -x $(REMOTE_BIN).prev; \
-		sudo test -f $(REMOTE_BACKUP); \
+		sudo test -s $(REMOTE_BACKUP); \
 		sudo systemctl stop concerts; \
 		ts=$$(date +%Y%m%dT%H%M%S); \
 		for s in "" -wal -shm; do \

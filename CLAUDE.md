@@ -42,4 +42,6 @@ Design, threat model and roadmap: [docs/design.md](docs/design.md). Decisions: [
 
 - A heading inside `<summary>` is not announced as a heading (the summary's button role hides it), and neither axe nor vnu flags it: keep headings outside `<summary>`.
 
+- A test that re-runs the test binary as a child (e.g. under `RLIMIT_FSIZE`) costs about 1 s more wall time: the race detector sleeps 1 s at exit (`atexit_sleep_ms`). Give the child `GORACE=atexit_sleep_ms=0`.
+
 - Test expects « Qui es-tu ? » but the body has it: French templates put U+202F (narrow no-break space) before `? : ;` and inside « »; write `\u202f` in test strings and Playwright selectors, or match the words only.
