@@ -61,16 +61,16 @@ func (s *server) prefill(r *http.Request, gr *groupRequest, u string) (c store.C
 	c.TicketURL = u
 	release, ok := s.fetches.acquire(gr.Group.ID, s.now())
 	if !ok {
-		return c, "Trop de lectures en cours : réessaie dans une minute, ou remplis à la main.", false
+		return c, "Trop de lectures en cours : réessaie dans une minute, ou remplis à la main.", false
 	}
 	defer release()
 	res, err := prefill.Fetch(r.Context(), s.fetch, u, s.now().In(paris))
 	if err != nil {
 		s.log.InfoContext(r.Context(), "prefill failed", "err", err) // host only, see prefill.Fetch
-		return c, "Impossible de lire cette page : remplis à la main.", false
+		return c, "Impossible de lire cette page : remplis à la main.", false
 	}
 	if res == (prefill.Result{}) {
-		return c, "Rien trouvé sur cette page : remplis à la main.", false
+		return c, "Rien trouvé sur cette page : remplis à la main.", false
 	}
 	// The page is untrusted input: run it through the form's validation and drop what fails.
 	v := url.Values{"artist": {res.Artist}, "date": {res.Date}, "time": {res.Time},

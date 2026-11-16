@@ -84,7 +84,7 @@ func parseConcert(f url.Values) (c store.Concert, errs map[string]string) {
 		errs["venue"] = fmt.Sprintf("Indique la salle (%d caractères au plus).", maxTextRunes)
 	}
 	if c.TicketURL = strings.TrimSpace(f.Get("ticket_url")); c.TicketURL != "" && !validTicketURL(c.TicketURL) {
-		errs["ticket_url"] = "Lien invalide : il doit commencer par http:// ou https://."
+		errs["ticket_url"] = "Lien invalide : il doit commencer par http:// ou https://."
 	}
 	if c.OnSaleDate = f.Get("on_sale_date"); c.OnSaleDate != "" && !validDate(c.OnSaleDate) {
 		errs["on_sale_date"] = "Date de mise en vente invalide."
@@ -141,7 +141,7 @@ func (s *server) done(w http.ResponseWriter, r *http.Request, err error, target 
 	case errors.Is(err, store.ErrNotFound):
 		notFound(w, r)
 	case errors.Is(err, store.ErrLimit):
-		http.Error(w, fmt.Sprintf("Le groupe a atteint %d concerts : supprime les anciens d'abord.", store.MaxConcerts), http.StatusUnprocessableEntity)
+		http.Error(w, fmt.Sprintf("Le groupe a atteint %d concerts : supprime les anciens d'abord.", store.MaxConcerts), http.StatusUnprocessableEntity)
 	case err != nil:
 		s.fail(w, r, err)
 	default:
