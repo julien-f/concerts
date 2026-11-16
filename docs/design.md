@@ -30,7 +30,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 - **Leaks through features**: the `.ics` holds no page URL; the prefill fetcher sends no cookie or `Referer`; absolute URLs come from `CONCERTS_BASE_URL` (required by `serve`), never from `Host`.
 - **Identity cookie**: `HttpOnly`, `SameSite=Lax`, `Path=/g/<secret>`, `Secure` when the base URL is https, `Max-Age` 400 days. It holds the member id, checked against the group on every request.
 - **CSRF**: every state change is a POST behind `http.CrossOriginProtection` (lets GET through; trusts `Sec-Fetch-Site`, else compares `Origin` with `Host`, so the proxy must keep `Host`). The prefill GET triggers an outbound fetch but needs the secret and is rate-limited.
-- **Abuse with a leaked link**: at most 100 members and 500 live concerts per group (422 beyond); server read, write and idle timeouts; request bodies capped at 64 kB.
+- **Abuse with a leaked link**: at most 100 members and 500 live concerts per group (422 beyond), and 1000 rows with deleted ones (so a leaked link can also flush the undo history); server read, write and idle timeouts; request bodies capped at 64 kB.
 - **SSRF** (prefill): the resolved IP of every connection, redirects included, must be public unicast (IPv6 within `2000::/3`, special-purpose ranges excluded) on port 80 or 443; no proxy, no keep-alive, 3 redirects, 8 s, 1 MB of `text/html`; fetch errors are logged with the host only (a pasted group link must not reach the logs); one fetch in flight and 10 a minute per group, 2 in flight overall.
 - **Accepted risks**: anyone with the link can join and act as any first name; members are friends, so impersonation is social, not technical. « Prévenir le groupe » (`wa.me`) and link previews in other messengers hand the link to the messaging provider's servers, and with it the concert page, first names and answers included. Both are fixed by rotating the secret.
 
@@ -178,7 +178,7 @@ statuses (concert_id → concerts ON DELETE CASCADE,
 - Main page = 2 queries per group (live concerts with creator name; their statuses with member names), assembled in Go: no N+1.
 - The identity cookie holds the member id; `inGroup` (web) resolves the secret, sets `Cache-Control` and drops a cookie naming a member of another group or a deleted one.
 - One accessor `Concert(groupID, id)` filters `group_id` and `deleted_at IS NULL` for every route but restore, which updates only a deleted row of the group; anything else is 404. Status writes also check the member belongs to the group.
-- Required: artist, date, venue. Optional: time, ticket link, on-sale date (a link is often not known yet). At most 500 live concerts per group (restores included) and 1000 rows with deleted ones, so create-then-delete cannot fill the disk.
+- Required: artist, date, venue. Optional: time, ticket link, on-sale date (a link is often not known yet). At most 500 live concerts per group (restores included) and 1000 rows with deleted ones, so create-then-delete cannot fill the disk: at 1000 rows, a create purges the oldest deleted concert (and its statuses).
 - Validation (`parseForm`, also applied to prefilled values): text trimmed, 1–100 runes (name 1–30), valid UTF-8, no invisible characters (control, format, variation selectors, default-ignorable, braille blank), first names starting with a letter or digit; dates `YYYY-MM-DD`, time `HH:MM`; ticket URL absolute `http`/`https`, ≤ 2000 bytes.
 - Writes use `_txlock=immediate` and `busy_timeout`; status writes are upserts (idempotent). `synchronous(NORMAL)` may lose the last commits on power loss: accepted.
 
@@ -215,7 +215,7 @@ All under `/g/{secret}` (written `…`); unknown secret → 404. Every POST: `Cr
 - **Secret rotation**: the old link 404s; the cookie path changes with the secret, so everyone re-picks their name from the list; data is untouched.
 - **Concert without time**: card and page show the date only; `.ics` becomes an all-day event; sorting puts it before timed concerts the same day.
 - **Past concerts**: a concert moves to « Passés » the day after its date (Europe/Paris), newest first.
-- **Delete and undo**: delete sets `deleted_at`; the main page banner offers « Annuler la suppression » (POST restore). Deleted concerts are hidden everywhere; their pages, edits and status writes 404 (stale tab); statuses kept for undo. No purge in v1.
+- **Delete and undo**: delete sets `deleted_at`; the main page banner offers « Annuler la suppression » (POST restore). Deleted concerts are hidden everywhere; their pages, edits and status writes 404 (stale tab); statuses kept for undo, until the 1000-row cap purges the oldest deleted ones.
 - **Deleted member**: their statuses go (cascade); their concerts stay, shown without « ajouté par ».
 - **Ticket URL**: only `http`/`https`; rendered with `rel="noopener noreferrer"`.
 - **Double submit**: status writes are idempotent (the form sends the target state, not a toggle); creating twice creates two concerts (accepted; delete fixes it).

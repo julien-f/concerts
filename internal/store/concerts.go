@@ -7,7 +7,7 @@ import (
 )
 
 // MaxConcerts bounds a group's live concerts, so a leaked link cannot flood the list;
-// deleted ones count too up to twice that, so create-then-delete cannot fill the disk.
+// rows, deleted ones included, stay under twice that, so create-then-delete cannot fill the disk.
 const MaxConcerts = 500
 
 // Concert is a gig shared in a group. Optional fields are "" when unset.
@@ -63,7 +63,8 @@ func (s *Store) Concert(ctx context.Context, groupID, id int64) (Concert, error)
 	return c, err
 }
 
-// checkRoom returns ErrLimit if the group cannot take one more live concert.
+// checkRoom returns ErrLimit if the group cannot take one more live concert; at the row cap,
+// it purges the oldest deleted concert instead of locking the group.
 func checkRoom(ctx context.Context, tx *sql.Tx, groupID int64) error {
 	var live, all int
 	if err := tx.QueryRowContext(ctx,
@@ -71,8 +72,13 @@ func checkRoom(ctx context.Context, tx *sql.Tx, groupID int64) error {
 		groupID).Scan(&live, &all); err != nil {
 		return err
 	}
-	if live >= MaxConcerts || all >= 2*MaxConcerts {
+	if live >= MaxConcerts {
 		return ErrLimit
+	}
+	if all >= 2*MaxConcerts {
+		_, err := tx.ExecContext(ctx, `DELETE FROM concerts WHERE id = (SELECT id FROM concerts
+			WHERE group_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at, id LIMIT 1)`, groupID)
+		return err
 	}
 	return nil
 }

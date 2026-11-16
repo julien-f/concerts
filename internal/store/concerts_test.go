@@ -134,19 +134,25 @@ func TestConcertLimit(t *testing.T) {
 		t.Fatal("a refused restore still restored the concert")
 	}
 
-	// Create-then-delete cannot grow the table without bound either: 2×MaxConcerts rows at most.
-	if _, err := s.db.ExecContext(ctx, "UPDATE concerts SET deleted_at = 'x' WHERE group_id = ?", g.ID); err != nil {
+	// Create-then-delete cannot grow the table without bound either: at 2×MaxConcerts rows,
+	// a create purges the oldest deleted concert, so the group never gets stuck.
+	if _, err := s.db.ExecContext(ctx, "UPDATE concerts SET deleted_at = '2026-01-01T00:00:00Z' WHERE group_id = ?", g.ID); err != nil {
 		t.Fatal(err)
 	}
-	fill(2*MaxConcerts-(MaxConcerts+1)-1, "x") // all deleted, one row short of the cap
-	id, err := create()
-	if err != nil {
-		t.Fatalf("last row under the cap: %v", err)
+	fill(2*MaxConcerts-(MaxConcerts+1), "2026-02-01T00:00:00Z") // all deleted, at the cap
+	if _, err := create(); err != nil {
+		t.Fatalf("create with %d deleted rows: %v", 2*MaxConcerts, err)
 	}
-	if err := s.DeleteConcert(ctx, g.ID, id); err != nil {
+	var rows, newer int
+	if err := s.db.QueryRowContext(ctx,
+		"SELECT count(*), count(*) FILTER (WHERE deleted_at = '2026-02-01T00:00:00Z') FROM concerts WHERE group_id = ?",
+		g.ID).Scan(&rows, &newer); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := create(); !errors.Is(err, ErrLimit) {
-		t.Fatalf("create with %d rows: err = %v, want ErrLimit", 2*MaxConcerts, err)
+	if rows != 2*MaxConcerts || newer != 2*MaxConcerts-(MaxConcerts+1) {
+		t.Fatalf("rows = %d, newer deleted = %d; want %d, %d", rows, newer, 2*MaxConcerts, 2*MaxConcerts-(MaxConcerts+1))
+	}
+	if _, err := s.Concert(ctx, g.ID, early); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("oldest deleted concert: err = %v, want ErrNotFound (purged)", err)
 	}
 }
