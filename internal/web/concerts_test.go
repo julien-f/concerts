@@ -191,3 +191,25 @@ func TestPickerReturnsToConcert(t *testing.T) {
 		}
 	}
 }
+
+// TestOpenGraph: a link previewer, without identity, gets the concert's preview tags, escaped.
+func TestOpenGraph(t *testing.T) {
+	t.Parallel()
+	ts := newTestServer(t)
+	b, secret := ts.member(t, "Léa")
+	g := "/g/" + secret
+	b.postRedirect(t, g+"/concerts", concertValues(`Les "Rita" <Mitsouko>`, "2026-06-13", "20:30", "Zénith", "", ""))
+
+	resp, body := ts.browser(t).get(t, g+"/concerts/1")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	assertContains(t, body,
+		`<meta property="og:title" content="Les &#34;Rita&#34; &lt;Mitsouko&gt;">`,
+		"<meta property=\"og:description\" content=\"sam. 13 juin · 20\u00a0h\u00a030 · Zénith\">",
+		`<meta property="og:url" content="http://example.test`+g+`/concerts/1">`,
+		`<meta property="og:site_name" content="Concerts · g">`)
+	if _, home := b.get(t, g); strings.Contains(home, "og:title") {
+		t.Errorf("the list page carries concert preview tags")
+	}
+}

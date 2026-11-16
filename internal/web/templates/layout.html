@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false}'>
+{{block "meta" .}}{{end}}
 <title>{{with .Notice}}{{.}} – {{end}}{{template "title" .}}</title>
 <link rel="icon" href="{{static "icon.svg"}}" type="image/svg+xml">
 <link rel="stylesheet" href="{{static "style.css"}}">

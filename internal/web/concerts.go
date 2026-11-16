@@ -187,6 +187,7 @@ type concertPage struct {
 	*groupRequest
 	store.Concert
 	Statuses statusBlock
+	URL      string // absolute page URL, for Open Graph
 	Share    string // « Prévenir le groupe » link
 	Saved    bool   // banner after an edit
 }
@@ -202,7 +203,7 @@ func (s *server) showConcert(w http.ResponseWriter, r *http.Request, gr *groupRe
 		return
 	}
 	p := &concertPage{groupRequest: gr, Concert: c, Statuses: newStatusBlock(gr, c, ss, "concert", s.upcoming(c)),
-		Share: s.shareURL(gr, c), Saved: r.URL.Query().Has("saved")}
+		URL: s.pageURL(gr, c), Share: s.shareURL(gr, c), Saved: r.URL.Query().Has("saved")}
 	if p.Saved {
 		p.Notice = "Concert modifié"
 	}
@@ -244,10 +245,14 @@ func (s *server) restoreConcert(w http.ResponseWriter, r *http.Request, gr *grou
 	}
 }
 
+// pageURL is the absolute link of a concert page.
+func (s *server) pageURL(gr *groupRequest, c store.Concert) string {
+	return fmt.Sprintf("%s%s/concerts/%d", s.baseURL, gr.Base, c.ID)
+}
+
 // shareURL is the « Prévenir le groupe » link: WhatsApp with the concert and its page.
 func (s *server) shareURL(gr *groupRequest, c store.Concert) string {
-	page := fmt.Sprintf("%s%s/concerts/%d", s.baseURL, gr.Base, c.ID)
-	text := fmt.Sprintf("%s, %s, %s\n%s", c.Artist, s.when(c), c.Venue, page)
+	text := fmt.Sprintf("%s, %s, %s\n%s", c.Artist, s.when(c), c.Venue, s.pageURL(gr, c))
 	// %20, not +: WhatsApp shows a literal + otherwise.
 	return "https://wa.me/?text=" + strings.ReplaceAll(url.QueryEscape(text), "+", "%20")
 }
