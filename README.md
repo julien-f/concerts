@@ -51,7 +51,8 @@ c rotate-secret <id>        # prints the new link; the old one returns 404 at on
 ```
 
 - Share the new link only where the leaker cannot see it; everyone picks their first name again. What the leaker already saw stays disclosed.
-- Delete the intruder's concerts in the app first (« ajouté par » names them), then `c delete-member <id> "<first-name>"`.
+- Review every concert, ticket links included: the intruder may have added or edited them under any first name, an existing one too, and nothing tells such a change from the real person's. Fix or delete them in the app.
+- Then remove a first name nobody in the group claims: `c delete-member <id> "<first-name>"`. Its answers go with it, whoever used it is sent back to the picker, and its concerts lose « ajouté par », so review those first.
 - Restoring a backup or `make rollback` brings the old secret back: run `rotate-secret` again afterwards.
 
 ### Update and roll back
