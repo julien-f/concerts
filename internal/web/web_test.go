@@ -131,6 +131,8 @@ func TestPlainHTTPBaseURLWarns(t *testing.T) {
 		"http://localhost:8080":        false,
 		"http://127.0.0.1:8080":        false,
 		"http://[::1]:8080":            false,
+		"http://LOCALHOST:8080":        false,
+		"http://192.168.1.5":           true,
 	} {
 		t.Run(base, func(t *testing.T) {
 			t.Parallel()
