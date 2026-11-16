@@ -15,12 +15,14 @@ import (
 func TestBackupFailureLeavesNoFile(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	cmd := exec.Command(os.Args[0], "-test.run=^TestBackupFailureChild$") //nolint:gosec // G204: re-runs this test binary
-	// No race-detector pause at exit (1 s by default), which would only lengthen make check.
-	cmd.Env = append(os.Environ(), "BACKUP_FAILURE_DIR="+dir, "GORACE=atexit_sleep_ms=0")
+	cmd := exec.Command(os.Args[0], "-test.run=^TestBackupFailureChild$")                                         //nolint:gosec // G204: re-runs this test binary
+	cmd.Env = append(os.Environ(), "BACKUP_FAILURE_DIR="+dir, "GORACE="+os.Getenv("GORACE")+" atexit_sleep_ms=0") // see CLAUDE.md Pitfalls
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("child: %v\n%s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "failed")); err != nil {
+		t.Fatalf("the child did not run the failing backup: %v\n%s", err, out)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "backup.db")); !os.IsNotExist(err) {
 		t.Fatalf("failed backup left a file (stat err = %v); a restore could pick it\n%s", err, out)
@@ -49,5 +51,8 @@ func TestBackupFailureChild(t *testing.T) {
 	}
 	if err := s.Backup(ctx, filepath.Join(dir, "backup.db")); err == nil {
 		t.Fatal("backup past the file size limit: want an error")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "failed"), nil, 0o600); err != nil { //nolint:gosec // G703: the parent test's temp dir
+		t.Fatal(err)
 	}
 }
