@@ -39,28 +39,23 @@ func (s *server) today() string { return s.now().In(paris).Format(time.DateOnly)
 
 func (s *server) upcoming(c store.Concert) bool { return c.Date >= s.today() }
 
-// stub is a date split for the ticket stub: « sam. », « 14 », « mars ».
+// stub is a YYYY-MM-DD date split for the ticket stub: « sam. », « 14 », « mars ».
 type stub struct{ Weekday, Day, Month string }
 
-func stubOf(d time.Time) stub {
+func stubOf(date string) stub {
+	d, _ := time.Parse(time.DateOnly, date)
 	return stub{weekdays[d.Weekday()], strconv.Itoa(d.Day()), months[d.Month()-1]}
 }
 
-// stubOfDate is stubOf for a YYYY-MM-DD string, as templates hold.
-func stubOfDate(date string) stub {
-	d, _ := time.Parse(time.DateOnly, date)
-	return stubOf(d)
-}
-
 // frDate formats a YYYY-MM-DD date as « sam. 14 mars », adding the year when it is not now's.
-func frDate(date string, now time.Time) string {
+func (s *server) frDate(date string) string {
 	d, err := time.Parse(time.DateOnly, date)
 	if err != nil {
 		return date
 	}
-	s := stubOf(d)
-	out := s.Weekday + " " + s.Day + " " + s.Month
-	if d.Year() != now.In(paris).Year() {
+	st := stubOf(date)
+	out := st.Weekday + " " + st.Day + " " + st.Month
+	if d.Year() != s.now().In(paris).Year() {
 		out += " " + strconv.Itoa(d.Year())
 	}
 	return out
@@ -80,14 +75,12 @@ func frTime(hm string) string {
 
 // when is a concert's date and optional time: « sam. 14 mars · 20 h ».
 func (s *server) when(c store.Concert) string {
-	out := frDate(c.Date, s.now())
+	out := s.frDate(c.Date)
 	if c.Time != "" {
 		out += " · " + frTime(c.Time)
 	}
 	return out
 }
-
-func (s *server) frDate(date string) string { return frDate(date, s.now()) }
 
 // datetime is the machine-readable value of a concert's <time> element.
 func datetime(c store.Concert) string {

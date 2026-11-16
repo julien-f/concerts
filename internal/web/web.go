@@ -83,7 +83,7 @@ func New(st *store.Store, log *slog.Logger, cfg Config) (http.Handler, error) {
 		fetch: cfg.Fetch, fetches: newFetchLimiter()}
 	s.pages, err = parsePages(template.FuncMap{
 		"static":   static.url,
-		"stub":     stubOfDate,
+		"stub":     stubOf,
 		"when":     s.when,
 		"frdate":   s.frDate,
 		"datetime": datetime,
