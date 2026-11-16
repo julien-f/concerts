@@ -122,3 +122,22 @@ func TestLogsNeverContainSecret(t *testing.T) {
 		}
 	}
 }
+
+func TestPlainHTTPBaseURLWarns(t *testing.T) {
+	t.Parallel()
+	for base, warn := range map[string]bool{
+		"http://concerts.example.com":  true,
+		"https://concerts.example.com": false,
+		"http://localhost:8080":        false,
+		"http://127.0.0.1:8080":        false,
+		"http://[::1]:8080":            false,
+	} {
+		t.Run(base, func(t *testing.T) {
+			t.Parallel()
+			ts := newTestServerWith(t, base)
+			if got := strings.Contains(ts.logs.String(), "level=WARN"); got != warn {
+				t.Errorf("warning logged = %v, want %v:\n%s", got, warn, ts.logs.String())
+			}
+		})
+	}
+}

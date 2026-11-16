@@ -13,6 +13,7 @@ import (
 	"html/template"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"path"
@@ -65,6 +66,10 @@ func New(st *store.Store, log *slog.Logger, cfg Config) (http.Handler, error) {
 	u, err := url.Parse(cfg.BaseURL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return nil, fmt.Errorf("base URL %q: want http(s)://host", cfg.BaseURL)
+	}
+	if h := u.Hostname(); u.Scheme == "http" && !strings.EqualFold(h, "localhost") && !net.ParseIP(h).IsLoopback() {
+		log.Warn("plain http base URL: cookies lack Secure and shared links send the secret in clear; use https",
+			"host", u.Host)
 	}
 	if cfg.Fetch == nil {
 		cfg.Fetch = prefill.NewClient()
