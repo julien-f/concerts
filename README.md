@@ -26,7 +26,7 @@ The pre-commit hook runs `make check`; enable it once per clone with `git config
 
 ## Deploy
 
-1. `make build`, then copy `bin/concerts` to `/usr/local/bin/concerts` on the server.
+1. `make build`, then copy `bin/concerts` to `/usr/local/bin/concerts` on the server (later updates: `make deploy`, below).
 2. `sudo useradd --system --no-create-home --shell /usr/sbin/nologin concerts`
 3. Copy `deploy/concerts.service` to `/etc/systemd/system/`, set `CONCERTS_BASE_URL`, then `sudo systemctl enable --now concerts`.
 4. Reverse proxy HTTPS to `127.0.0.1:8080`, e.g. Caddy:
@@ -38,6 +38,18 @@ The pre-commit hook runs `make check`; enable it once per clone with `git config
 5. Create a group: `sudo -u concerts env CONCERTS_DB=/var/lib/concerts/concerts.db CONCERTS_BASE_URL=https://concerts.example.com concerts new-group "Gig buddies"`
 
 Migrations run at startup; the binary refuses to start on a database newer than itself.
+
+### Update and roll back
+
+```sh
+make deploy DEPLOY_HOST=admin@server     # build, back up with the old binary, swap, restart, check /healthz
+make rollback DEPLOY_HOST=admin@server   # previous binary and pre-deploy database back
+```
+
+- Needs SSH with `sudo` on the server; `DEPLOY_HOST` has no default.
+- `deploy` keeps the previous binary (`/usr/local/bin/concerts.prev`) and a pre-deploy snapshot (`/var/lib/concerts/backups/pre-deploy.db`), taken by the old binary so the new one cannot migrate the live database first.
+- `rollback` stops the service, moves the current database and its `-wal`/`-shm` aside (`*.pre-rollback-<time>`: writes made since the deploy are there), restores both, restarts and checks `/healthz`.
+- The reverse proxy must keep the `Host` header (Caddy does by default): cross-origin protection compares it with `Origin`.
 
 ### Backup
 

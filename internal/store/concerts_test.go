@@ -104,16 +104,24 @@ func TestConcertLimit(t *testing.T) {
 	m, _ := s.CreateMember(ctx, g.ID, "Léa")
 	c := Concert{Artist: "A", Date: "2027-01-01", Venue: "V"}
 	create := func() (int64, error) { return s.CreateConcert(ctx, g.ID, m.ID, c) }
+	// fill adds n rows in one statement; the limits are then crossed through the API.
+	fill := func(n int, deletedAt any) {
+		t.Helper()
+		if _, err := s.db.ExecContext(ctx, `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?)
+			INSERT INTO concerts (group_id, artist, date, venue, created_at, deleted_at)
+			SELECT ?, 'A', '2027-01-01', 'V', '2026-01-01T00:00:00Z', ? FROM n`, n, g.ID, deletedAt); err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	// Deleted concerts kept for undo do not count against the live limit...
 	early, _ := create()
 	if err := s.DeleteConcert(ctx, g.ID, early); err != nil {
 		t.Fatal(err)
 	}
-	for range MaxConcerts {
-		if _, err := create(); err != nil {
-			t.Fatal(err)
-		}
+	fill(MaxConcerts-1, nil)
+	if _, err := create(); err != nil {
+		t.Fatalf("create up to the limit: %v", err)
 	}
 	if _, err := create(); !errors.Is(err, ErrLimit) {
 		t.Fatalf("create past the limit: err = %v, want ErrLimit", err)
@@ -126,21 +134,17 @@ func TestConcertLimit(t *testing.T) {
 		t.Fatal("a refused restore still restored the concert")
 	}
 
-	// Create-then-delete cannot grow the table without bound either.
-	cs, _ := s.Concerts(ctx, g.ID)
-	for _, c := range cs {
-		if err := s.DeleteConcert(ctx, g.ID, c.ID); err != nil {
-			t.Fatal(err)
-		}
+	// Create-then-delete cannot grow the table without bound either: 2×MaxConcerts rows at most.
+	if _, err := s.db.ExecContext(ctx, "UPDATE concerts SET deleted_at = 'x' WHERE group_id = ?", g.ID); err != nil {
+		t.Fatal(err)
 	}
-	for i := range 2*MaxConcerts - MaxConcerts - 1 {
-		id, err := create()
-		if err != nil {
-			t.Fatalf("create %d: %v", i, err)
-		}
-		if err := s.DeleteConcert(ctx, g.ID, id); err != nil {
-			t.Fatal(err)
-		}
+	fill(2*MaxConcerts-(MaxConcerts+1)-1, "x") // all deleted, one row short of the cap
+	id, err := create()
+	if err != nil {
+		t.Fatalf("last row under the cap: %v", err)
+	}
+	if err := s.DeleteConcert(ctx, g.ID, id); err != nil {
+		t.Fatal(err)
 	}
 	if _, err := create(); !errors.Is(err, ErrLimit) {
 		t.Fatalf("create with %d rows: err = %v, want ErrLimit", 2*MaxConcerts, err)
