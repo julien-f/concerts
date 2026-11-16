@@ -255,7 +255,10 @@ One slice per branch, merged with `--no-ff`. ✅ = shipped.
    - Client: see the threat model (SSRF). The user sees one generic message, never the dial error.
    - Values go through the form's own validation; invalid ones are dropped. A second fetch while one runs, beyond 10 per minute per group, or beyond 2 in flight in total, gets « Trop de lectures en cours » and the manual form.
    - `GET …/concerts/new?url=` (a separate GET form above the main one; htmx swaps `<main>` and pushes the URL). The outcome is tied to the focused artist field (`aria-describedby`), or to the link field when the link is invalid; « Lecture de la page… » sits in a live region present before the request.
-6. **« Ajouter à mon agenda »**: a single concert's `.ics`, no subscription, so the secret never reaches a calendar provider.
+6. ✅ **« Ajouter à mon agenda »**: a single concert's `.ics`, no subscription, so the secret never reaches a calendar provider.
+   - Hand-written (RFC 5545): VERSION, PRODID, no METHOD (Outlook would treat it as an invitation); UID `concert-<group>-<id>` (stable, no host per RFC 7986); DTSTAMP from the clock; timed concerts in UTC with an end 3 h later (no VTIMEZONE needed), date-only ones as `VALUE=DATE` with the next day as exclusive end; SUMMARY, LOCATION, DESCRIPTION « Billets : <link> » only; no URL property and nothing from `/g/`.
+   - TEXT escaping of `\ ; , newline` (so a field cannot start a new property), folding at 75 octets on rune boundaries, CRLF everywhere; golden-file tests.
+   - `text/calendar; charset=utf-8`, `attachment; filename="concert.ics"`, `Cache-Control: private, no-store`. Re-importing an edited concert does not update it on iOS (known limit).
 7. **Open Graph preview** of concert pages (in WhatsApp).
 
 Also in v1: `make deploy` / `make rollback` (see [Operations](#operations)).

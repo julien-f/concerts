@@ -4,6 +4,12 @@ linters:
     - gosec
     - sqlclosecheck
     - rowserrcheck
+  exclusions:
+    rules:
+      # Tests read their own fixtures from testdata/ by name.
+      - path: _test\.go
+        linters: [gosec]
+        text: G304
 formatters:
   enable:
     - gofmt
