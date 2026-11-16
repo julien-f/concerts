@@ -1,10 +1,10 @@
 # Improvement log (temporary, deleted in the last commit)
 
-Cycles merged: 13. Consecutive audits without a kept finding: 0.
+Cycles merged: 14. Consecutive audits without a kept finding: 0.
 
 ## Remaining (ranked)
 
-1. Restore/rollback rename -wal apart from its db: salvaged writes look missing (data, 2)
+(empty: third audit next)
 
 ## Proposals (not delivered autonomously)
 

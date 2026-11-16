@@ -86,15 +86,15 @@ deploy: build
 		$(REMOTE_HEALTHZ)'
 
 # Restores the previous binary and the pre-deploy database; writes made since the deploy
-# stay in the moved-aside concerts.db.pre-rollback-* files.
+# stay in the moved-aside concerts.db.pre-rollback-<time>{,-wal,-shm}, which SQLite opens as one database.
 rollback:
 	ssh -t $(DEPLOY_HOST) 'set -e; $(REMOTE_CURL); \
 		test -x $(REMOTE_BIN).prev; \
 		sudo test -f $(REMOTE_BACKUP); \
 		sudo systemctl stop concerts; \
 		ts=$$(date +%Y%m%dT%H%M%S); \
-		for f in $(REMOTE_DB) $(REMOTE_DB)-wal $(REMOTE_DB)-shm; do \
-			if sudo test -e $$f; then sudo mv $$f $$f.pre-rollback-$$ts; fi; \
+		for s in "" -wal -shm; do \
+			if sudo test -e $(REMOTE_DB)$$s; then sudo mv $(REMOTE_DB)$$s $(REMOTE_DB).pre-rollback-$$ts$$s; fi; \
 		done; \
 		sudo install -o concerts -g concerts -m 600 $(REMOTE_BACKUP) $(REMOTE_DB); \
 		sudo cp -p $(REMOTE_BIN).prev $(REMOTE_BIN); \

@@ -63,7 +63,7 @@ make rollback DEPLOY_HOST=admin@server   # previous binary and pre-deploy databa
 
 - Needs SSH with `sudo` and `curl` on the server; `DEPLOY_HOST` has no default.
 - `deploy` keeps the previous binary (`/usr/local/bin/concerts.prev`) and a pre-deploy snapshot (`/var/lib/concerts/backups/pre-deploy.db`), taken by the old binary so the new one cannot migrate the live database first. Deploying again after a failed deploy (`/healthz` never passed, and still failing) keeps that pair, so `rollback` still reaches the last good version.
-- `rollback` stops the service, moves the current database and its `-wal`/`-shm` aside (`*.pre-rollback-<time>`: writes made since the deploy are there), restores both, restarts and checks `/healthz`.
+- `rollback` stops the service, moves the current database and its `-wal`/`-shm` aside (`concerts.db.pre-rollback-<time>`, with its `-wal`: writes made since the deploy are there), restores both, restarts and checks `/healthz`.
 
 ### Backup
 
@@ -86,8 +86,8 @@ sudo test -f "$snap" || { echo "cannot read $snap" >&2; exit 1; }
 trap '[ $? = 0 ] || echo "restore failed: see systemctl status concerts; the old database is in *.pre-restore-*" >&2' EXIT
 sudo systemctl stop concerts-backup.timer concerts
 ts=$(date +%Y%m%dT%H%M%S)
-for f in /var/lib/concerts/concerts.db /var/lib/concerts/concerts.db-wal /var/lib/concerts/concerts.db-shm; do
-    if sudo test -e "$f"; then sudo mv "$f" "$f.pre-restore-$ts"; fi
+for s in "" -wal -shm; do
+    f=/var/lib/concerts/concerts.db; if sudo test -e "$f$s"; then sudo mv "$f$s" "$f.pre-restore-$ts$s"; fi
 done
 sudo install -o concerts -g concerts -m 600 "$snap" /var/lib/concerts/concerts.db
 sudo systemctl start concerts concerts-backup.timer
@@ -98,5 +98,5 @@ false )
 The subshell stops at the first failing step and says so.
 
 - Never copy over `concerts.db` while the service runs or next to a leftover `-wal`: SQLite writes the old WAL into the snapshot, corrupting it without any error.
-- Writes made since the snapshot stay in the `*.pre-restore-<time>` files.
+- Writes made since the snapshot stay in `concerts.db.pre-restore-<time>`; open it next to its `-wal`, as `concerts` (`sudo -u concerts sqlite3 …`).
 - An older snapshot is migrated at startup; one from a newer binary is refused (healthz fails, the reason is in the journal).
