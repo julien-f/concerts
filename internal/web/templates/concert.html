@@ -1,4 +1,13 @@
 {{define "title"}}{{.Artist}} · {{.Group.Name}}{{end}}
+{{- /* Read by link previews (WhatsApp), which come without identity. */}}
+{{define "meta"}}<meta name="description" content="{{when .Concert}} · {{.Venue}}">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="fr_FR">
+<meta property="og:site_name" content="Concerts · {{.Group.Name}}">
+<meta property="og:title" content="{{.Artist}}">
+<meta property="og:description" content="{{when .Concert}} · {{.Venue}}">
+<meta property="og:url" content="{{.URL}}">
+{{end}}
 {{define "content"}}
 <p><a class="back" href="{{.Base}}#c{{.ID}}">← Tous les concerts</a></p>
 {{if .Saved}}<div class="banner" role="status"><p>Modifications enregistrées.</p></div>{{end}}

@@ -259,7 +259,8 @@ One slice per branch, merged with `--no-ff`. ✅ = shipped.
    - Hand-written (RFC 5545): VERSION, PRODID, no METHOD (Outlook would treat it as an invitation); UID `concert-<group>-<id>` (stable, no host per RFC 7986); DTSTAMP from the clock; timed concerts in UTC with an end 3 h later (no VTIMEZONE needed), date-only ones as `VALUE=DATE` with the next day as exclusive end; SUMMARY, LOCATION, DESCRIPTION « Billets : <link> » only; no URL property and nothing from `/g/`.
    - TEXT escaping of `\ ; , newline` (so a field cannot start a new property), folding at 75 octets on rune boundaries, CRLF everywhere; golden-file tests.
    - `text/calendar; charset=utf-8`, `attachment; filename="concert.ics"`, `Cache-Control: private, no-store`. Re-importing an edited concert does not update it on iOS (known limit).
-7. **Open Graph preview** of concert pages (in WhatsApp).
+7. ✅ **Open Graph preview** of concert pages (in WhatsApp).
+   - The concert page needs no identity, so a previewer without cookie gets it; its `<head>` carries `og:title` (artist), `og:description` (« sam. 14 mars · 20 h · Salle »), `og:url` (absolute, from `CONCERTS_BASE_URL`), `og:site_name`, `og:locale`, and the same `description`. No `og:image`: a generic picture adds weight and nothing a friend needs.
 
 Also in v1: `make deploy` / `make rollback` (see [Operations](#operations)).
 
