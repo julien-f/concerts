@@ -149,7 +149,7 @@ func (s *server) serveStatic(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	body, ok := s.static.bodies[name]
 	if !ok {
-		notFound(w, r)
+		s.notFound(w, r, nil)
 		return
 	}
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
@@ -194,13 +194,19 @@ func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	http.Error(w, "Erreur interne, réessaie plus tard.", http.StatusInternalServerError)
 }
 
-// notFound answers 404; htmx, which swaps no 4xx, is told to reload the page
-// instead (e.g. a concert deleted meanwhile).
-func notFound(w http.ResponseWriter, r *http.Request) {
+// notFound answers 404: inside a group (gr != nil), a page with the group header and
+// a way back; elsewhere (unknown secret, static file), plain text that reveals nothing.
+// htmx, which swaps no 4xx, is told to reload instead (e.g. a concert deleted meanwhile).
+func (s *server) notFound(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
 	if isHTMX(r) {
-		w.Header().Set("HX-Refresh", "true")
+		w.Header().Set("HX-Refresh", "true") // the reload then gets the page
 	}
-	http.Error(w, "Page introuvable.", http.StatusNotFound)
+	if gr == nil || isHTMX(r) {
+		http.Error(w, "Page introuvable.", http.StatusNotFound)
+		return
+	}
+	gr.Notice = "Erreur"
+	s.render(w, r, http.StatusNotFound, "notfound", gr)
 }
 
 // contentSecurityPolicy allows only same-origin resources and no inline code;

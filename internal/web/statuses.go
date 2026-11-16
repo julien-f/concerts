@@ -106,7 +106,7 @@ func (s *server) setStatus(w http.ResponseWriter, r *http.Request, gr *groupRequ
 	// a ticket mentioned afterwards) is harmless, so the server still takes it.
 	err := s.store.SetStatus(r.Context(), gr.Group.ID, c.ID, gr.Me.ID, status)
 	if err != nil || !isHTMX(r) {
-		s.done(w, r, err, target)
+		s.done(w, r, gr, err, target)
 		return
 	}
 	ss, err := s.store.Statuses(r.Context(), gr.Group.ID, c.ID)
