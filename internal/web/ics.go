@@ -10,8 +10,11 @@ import (
 	"concerts/internal/store"
 )
 
-// concertLength is the assumed length of a timed concert: calendars need an end.
-const concertLength = 3 * time.Hour
+const (
+	// concertLength is the assumed length of a timed concert: calendars need an end.
+	concertLength = 3 * time.Hour
+	icsUTC        = "20060102T150405Z"
+)
 
 // icsEscape escapes a TEXT value (RFC 5545 §3.3.11); escaping newlines also stops
 // a field from starting a new property line.
@@ -23,8 +26,10 @@ func icsFold(line string) string {
 	var b strings.Builder
 	limit := 75
 	for len(line) > limit {
+		// A rune spans at most 4 octets: step back at most 3, so invalid UTF-8
+		// (a run of continuation bytes) cannot stall the loop.
 		cut := limit
-		for !utf8.RuneStart(line[cut]) {
+		for cut > limit-3 && !utf8.RuneStart(line[cut]) {
 			cut--
 		}
 		b.WriteString(line[:cut] + "\r\n ")
@@ -41,14 +46,14 @@ func ics(groupID int64, c store.Concert, stamp time.Time) string {
 		"BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//concerts//FR", "BEGIN:VEVENT",
 		// Stable, so importing twice does not duplicate; no host, per RFC 7986 §5.3.
 		fmt.Sprintf("UID:concert-%d-%d", groupID, c.ID),
-		"DTSTAMP:" + stamp.UTC().Format("20060102T150405Z"),
+		"DTSTAMP:" + stamp.UTC().Format(icsUTC),
 	}
-	day, _ := time.ParseInLocation(time.DateOnly, c.Date, paris)
 	if start, err := time.ParseInLocation(time.DateOnly+" 15:04", c.Date+" "+c.Time, paris); err == nil {
 		lines = append(lines,
-			"DTSTART:"+start.UTC().Format("20060102T150405Z"),
-			"DTEND:"+start.Add(concertLength).UTC().Format("20060102T150405Z"))
+			"DTSTART:"+start.UTC().Format(icsUTC),
+			"DTEND:"+start.Add(concertLength).UTC().Format(icsUTC))
 	} else {
+		day, _ := time.Parse(time.DateOnly, c.Date)
 		lines = append(lines,
 			"DTSTART;VALUE=DATE:"+day.Format("20060102"),
 			"DTEND;VALUE=DATE:"+day.AddDate(0, 0, 1).Format("20060102")) // exclusive end

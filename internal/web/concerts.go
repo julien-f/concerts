@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"concerts/internal/store"
 )
@@ -99,7 +100,7 @@ func validDate(s string) bool {
 // validTicketURL accepts only absolute http(s) links with an ASCII host, so no
 // javascript: or data: URL, and no look-alike host, is ever rendered.
 func validTicketURL(s string) bool {
-	if len(s) > maxURLBytes || strings.ContainsFunc(s, func(r rune) bool { return r <= ' ' || r == 0x7f }) {
+	if len(s) > maxURLBytes || !utf8.ValidString(s) || strings.ContainsFunc(s, func(r rune) bool { return r <= ' ' || r == 0x7f }) {
 		return false
 	}
 	u, err := url.Parse(s)

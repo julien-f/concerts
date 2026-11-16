@@ -31,7 +31,7 @@ Re-read at the start of each slice and after each context compaction.
 | 3 statuses | done | — | 1740 Go lines, binary 13.4 MB, page 21.0 kB, `make check` 3.7 s |
 | 4 main-screen | done | — | 1803 Go lines, binary 13.4 MB, page 21.2 kB, `make check` 6.3 s (cold) |
 | 5 prefill | done | — | 2303 Go lines, binary 14.0 MB (+0.6 MB, x/net/html and the client), page 21.3 kB, `make check` 3.0 s |
-| 6 agenda | review | 1 review, then merge | 2382 Go lines, binary 14.1 MB, page 21.3 kB, `make check` 8.4 s (lint cache rebuilt after the config change) |
+| 6 agenda | done | — | 2382 Go lines, binary 14.1 MB, page 21.3 kB, `make check` 8.4 s (lint cache rebuilt after the config change) |
 
 ### Discarded review findings
 
@@ -49,6 +49,8 @@ Re-read at the start of each slice and after each context compaction.
 
 - Slice 5, a11y #4 (complete fix): keep typed fields across a prefill. Rewording the label (« à coller en premier ») is enough for now.
 - Slice 5, a11y #7: swap htmx error responses. The prefill route only fails with a rare 500; 404s already trigger HX-Refresh.
+
+- Slice 6, #4: per-line nolint instead of the G304 exclusion in tests. It was the second occurrence (prefill tests too), so the exclusion is the automation.
 
 ## Research notes kept for later slices
 
