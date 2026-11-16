@@ -22,7 +22,7 @@ Environment: `CONCERTS_ADDR` (default `:8080`), `CONCERTS_DB` (default `concerts
 make check   # golangci-lint, govulncheck (needs network), then go test -race ./...
 ```
 
-The pre-commit hook runs `make check`; enable it once per clone with `git config core.hooksPath .githooks`.
+The pre-commit hook runs lint and tests, plus govulncheck when `go.mod` or `go.sum` is staged (`make deploy` always runs it); enable it once per clone with `git config core.hooksPath .githooks`.
 
 ## Deploy
 

@@ -32,7 +32,7 @@ Design, threat model and roadmap: [docs/design.md](docs/design.md). Decisions: [
 
 ## Commands
 
-- `make fmt` after editing Go files. `make run`, `make test` (`go test -race ./...`), `make lint`, `make vuln` (needs network), `make check` (lint + vuln + test, run by the pre-commit hook), `make build`.
+- `make fmt` after editing Go files. `make run`, `make test` (`go test -race ./...`), `make lint`, `make vuln` (needs network), `make check` (lint + vuln + test; the pre-commit hook runs it when `go.mod`/`go.sum` are staged, else lint + test; `make deploy` runs vuln), `make build`.
 - Single test: `go test -race -run TestName ./internal/web`.
 - `make demo`: fresh `demo.db` with sample data, then serves it. `make verify-ui`: axe-core, vnu and page weight on every demo screen; run before merging a UI change ([ADR 0006](docs/decisions/0006-scripted-ui-verification.md)).
 

@@ -1,2 +1,6 @@
 #!/bin/sh
+# govulncheck takes most of the time and needs network: only on dependency changes here; make deploy always runs it.
+if git diff --cached --quiet -- go.mod go.sum; then
+	exec make lint test
+fi
 exec make check

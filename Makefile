@@ -21,7 +21,7 @@ lint: $(GOLANGCI_LINT)
 fmt:
 	gofmt -w cmd internal
 
-# Needs network: fetches the Go vulnerability database.
+# Needs network: fetches the Go vulnerability database. Run by make deploy, and by the pre-commit hook when go.mod or go.sum is staged.
 vuln:
 	go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
 
@@ -67,7 +67,7 @@ REMOTE_HEALTHZ := for i in $$(seq 20); do curl -fsS http://127.0.0.1:8080/health
 # The installed (old) binary takes the backup: the new one would first migrate the live database.
 # After a failed deploy, the installed binary is the broken one: the last good pair is kept,
 # unless it now passes /healthz (the failure was elsewhere, e.g. a dropped ssh session).
-deploy: build
+deploy: vuln build
 	scp bin/concerts $(DEPLOY_HOST):concerts.new
 	ssh -t $(DEPLOY_HOST) 'set -e; $(REMOTE_CURL); \
 		if sudo test -e $(REMOTE_FAILED) && sudo test -s $(REMOTE_BACKUP) && [ -x $(REMOTE_BIN).prev ] \

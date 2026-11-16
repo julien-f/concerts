@@ -12,7 +12,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 - No account: on the first visit, a member picks their first name, which the app remembers (cookie).
 - Anyone holding the link belongs to the group; if the link leaks, the secret is rotated.
 - Go, single binary under systemd on a personal server, behind an HTTPS reverse proxy.
-- Local repository, no CI: the pre-commit hook (`make check`) is the safeguard.
+- Local repository, no CI: the pre-commit hook is the safeguard: lint and tests, plus govulncheck when `go.mod`/`go.sum` are staged. `make deploy` runs govulncheck first, so a vulnerability published since, or newly reached by a code change, still blocks a deploy.
 - UI in French (`lang="fr"`); code, docs and commits in English.
 
 ## Out of scope
@@ -247,5 +247,5 @@ Also in v1: `make deploy` / `make rollback` (see [Operations](#operations)).
 
 - `make demo`: fresh `demo.db` with a group, 3 members, past and future concerts, then serves it.
 - `make verify-ui` (`scripts/verify-ui.sh`): every screen of `make demo` at 390 px, light and dark: 0 axe-core violations, 0 vnu errors, `/g/<secret>` page weight (gzip -9 of HTML, CSS, JS, icons) < 40 kB. Pinned tools in the main checkout's `bin/tools/`.
-- `make deploy DEPLOY_HOST=…` (no default, checked before anything runs): build, copy; the **installed (old) binary** writes the pre-deploy backup as the `concerts` user (the new one would migrate the live database first), to `.new` renamed once complete, so a failed backup keeps the previous one; previous binary kept; both kept as they are while the last deploy has not passed `/healthz` and the service still fails it (marker file next to the snapshot, cleared by a passing deploy or rollback); atomic swap (`mv`); restart; `/healthz` checked (20 s). Verified with `make -n` and runs with stubbed `ssh`, `sudo` and `systemctl` (see commit history).
+- `make deploy DEPLOY_HOST=…` (no default, checked before anything runs): govulncheck, build, copy; the **installed (old) binary** writes the pre-deploy backup as the `concerts` user (the new one would migrate the live database first), to `.new` renamed once complete, so a failed backup keeps the previous one; previous binary kept; both kept as they are while the last deploy has not passed `/healthz` and the service still fails it (marker file next to the snapshot, cleared by a passing deploy or rollback); atomic swap (`mv`); restart; `/healthz` checked (20 s). Verified with `make -n` and runs with stubbed `ssh`, `sudo` and `systemctl` (see commit history).
 - `make rollback DEPLOY_HOST=…`: refuses an empty snapshot; stop; move the current db, `-wal` and `-shm` aside; install the pre-deploy snapshot owned by `concerts`; restore the previous binary; start; `/healthz`. Writes since the deploy are lost (kept in the moved-aside files).
