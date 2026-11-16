@@ -31,7 +31,7 @@ func demo(ctx context.Context, st *store.Store, baseURL string) error {
 		{Artist: "Air", Date: day(-20), Time: "20:00", Venue: "Salle Pleyel"},
 		{Artist: "Justice", Date: day(-60), Venue: "Accor Arena"},
 	} {
-		id, err := st.CreateConcert(ctx, g.ID, ids[i%len(ids)], c)
+		id, err := st.CreateConcert(ctx, g.ID, ids[i%len(ids)], c, day(0))
 		if err != nil {
 			return err
 		}

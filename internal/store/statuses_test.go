@@ -16,8 +16,8 @@ func TestStatuses(t *testing.T) {
 	zoe, _ := s.CreateMember(ctx, g.ID, "Zoé")
 	lea, _ := s.CreateMember(ctx, g.ID, "Léa")
 	intrus, _ := s.CreateMember(ctx, other.ID, "Intrus")
-	c1, _ := s.CreateConcert(ctx, g.ID, lea.ID, Concert{Artist: "A", Date: "2027-01-01", Venue: "V"})
-	c2, _ := s.CreateConcert(ctx, g.ID, lea.ID, Concert{Artist: "B", Date: "2027-01-02", Venue: "V"})
+	c1, _ := s.CreateConcert(ctx, g.ID, lea.ID, Concert{Artist: "A", Date: "2027-01-01", Venue: "V"}, testToday)
+	c2, _ := s.CreateConcert(ctx, g.ID, lea.ID, Concert{Artist: "B", Date: "2027-01-02", Venue: "V"}, testToday)
 
 	for _, st := range []struct {
 		concert, member int64
@@ -63,7 +63,7 @@ func TestStatuses(t *testing.T) {
 	if got, _ := s.Statuses(ctx, g.ID, 0); len(got) != 0 {
 		t.Errorf("statuses of a deleted concert listed: %v", got)
 	}
-	if err := s.RestoreConcert(ctx, g.ID, c1); err != nil {
+	if err := s.RestoreConcert(ctx, g.ID, c1, testToday); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := s.Statuses(ctx, g.ID, 0); len(got) != 2 {

@@ -38,9 +38,10 @@ func (c *fakeClock) Advance(d time.Duration) {
 
 type testServer struct {
 	*httptest.Server
-	store *store.Store
-	clock *fakeClock
-	logs  *syncBuffer
+	store  *store.Store
+	dbPath string
+	clock  *fakeClock
+	logs   *syncBuffer
 }
 
 type syncBuffer struct {
@@ -70,7 +71,8 @@ func newTestServer(t *testing.T) *testServer {
 func newTestServerWith(t *testing.T, baseURL string) *testServer {
 	t.Helper()
 	clock := &fakeClock{t: time.Date(2026, 6, 1, 20, 0, 0, 0, time.UTC)}
-	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "test.db"), clock.Now)
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	st, err := store.Open(context.Background(), dbPath, clock.Now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +86,7 @@ func newTestServerWith(t *testing.T, baseURL string) *testServer {
 		srv.Close()
 		_ = st.Close()
 	})
-	return &testServer{Server: srv, store: st, clock: clock, logs: logs}
+	return &testServer{Server: srv, store: st, dbPath: dbPath, clock: clock, logs: logs}
 }
 
 // newGroup creates a group and returns its secret.
