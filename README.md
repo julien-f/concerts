@@ -35,6 +35,7 @@ The pre-commit hook runs `make check`; enable it once per clone with `git config
        reverse_proxy 127.0.0.1:8080
    }
    ```
+   No proxy log may hold a `/g/…` path (it contains the group secret): no access log (Caddy writes none without a `log` directive; nginx needs `access_log off;` in this site's `server` block). Both still write the request path to their error log when the app is down (restart, deploy): keep that log readable by root only.
 5. Create a group: `sudo -u concerts env CONCERTS_DB=/var/lib/concerts/concerts.db CONCERTS_BASE_URL=https://concerts.example.com concerts new-group "Gig buddies"`
 
 Migrations run at startup; the binary refuses to start on a database newer than itself.
