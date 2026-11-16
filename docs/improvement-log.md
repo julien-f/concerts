@@ -1,12 +1,11 @@
 # Improvement log (temporary, deleted in the last commit)
 
-Cycles merged: 8. Consecutive audits without a kept finding: 0.
+Cycles merged: 9. Consecutive audits without a kept finding: 0.
 
 ## Remaining (ranked)
 
-1. Duplicate-name picker refills "Marc " as designed (UI, 2)
-2. Tests for the edit form GET and invalid edit (code, 2)
-3. Group-aware 404 page instead of plain text (UI, 2)
+1. Tests for the edit form GET and invalid edit (code, 2)
+2. Group-aware 404 page instead of plain text (UI, 2)
 
 ## Proposals (not delivered autonomously)
 

@@ -20,6 +20,8 @@ func TestJoin(t *testing.T) {
 	secret := ts.newGroup(t, "g")
 	b := ts.browser(t)
 	b.join(t, secret, "Marc")
+	long := strings.Repeat("é", 30)
+	ts.browser(t).join(t, secret, long)
 
 	tests := []struct {
 		name     string
@@ -30,7 +32,9 @@ func TestJoin(t *testing.T) {
 		{"new name, extra spaces collapsed", url.Values{"name": {"  Léa \u00a0 B. "}}, http.StatusSeeOther, nil},
 		{"existing member", url.Values{"member_id": {"1"}}, http.StatusSeeOther, nil},
 		{"duplicate offers C'est moi and an initial", url.Values{"name": {"marc"}}, http.StatusUnprocessableEntity,
-			[]string{"<title>Erreur – ", "Marc est déjà dans la liste", `name="member_id" value="1"`, `value="marc"`, `aria-invalid="true"`, "autofocus"}},
+			[]string{"<title>Erreur – ", "Marc est déjà dans la liste", `name="member_id" value="1"`, `value="Marc "`, `aria-invalid="true"`, "autofocus"}},
+		{"duplicate at the length limit gets no space", url.Values{"name": {long}}, http.StatusUnprocessableEntity,
+			[]string{`value="` + long + `"`}},
 		{"empty", url.Values{"name": {"   "}}, http.StatusUnprocessableEntity, []string{"de 1 à 30 caractères"}},
 		{"too long", url.Values{"name": {strings.Repeat("é", 31)}}, http.StatusUnprocessableEntity, []string{"de 1 à 30 caractères"}},
 		{"zero-width character", url.Values{"name": {"Ma\u200brc"}}, http.StatusUnprocessableEntity, []string{"de 1 à 30 caractères"}},

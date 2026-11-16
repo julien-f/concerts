@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"unicode/utf8"
 
 	"concerts/internal/store"
 )
@@ -145,6 +146,9 @@ func (s *server) join(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 	switch {
 	case errors.Is(err, store.ErrDuplicate):
 		p.Taken = &m
+		if p.Name = m.Name; utf8.RuneCountInString(p.Name) < maxNameRunes {
+			p.Name += " " // ready for an initial
+		}
 		s.picker(w, r, http.StatusUnprocessableEntity, p)
 	case errors.Is(err, store.ErrLimit):
 		p.Error = fmt.Sprintf("Le groupe est complet (%d prénoms au plus).", store.MaxMembers)
