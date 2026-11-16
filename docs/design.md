@@ -40,7 +40,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 2. **Add**: tap « Ajouter un concert » (fixed at the bottom) → paste a ticket URL, tap « Pré-remplir » → check or type the fields → « Enregistrer » → main screen with a banner « Concert ajouté » and « Prévenir le groupe » (opens WhatsApp with artist, date and the concert link).
 3. **Respond**: on a card, tap « Ça m'intéresse », « J'y vais » or « J'ai mon billet »; tapping the active one clears it. The status block updates in place (htmx) or after a full reload (no JS).
 4. **Plan**: filter « Mes concerts »; open a concert → « Ajouter à mon agenda » downloads its `.ics`; « Billetterie » opens the ticket link.
-5. **Fix**: open a concert → « Modifier » or « Supprimer » → banner « Concert supprimé » with « Annuler ».
+5. **Fix**: open a concert → « Modifier » or « Supprimer » → banner « Concert supprimé » with « Annuler la suppression ».
 6. **Shared phone**: « Ce n'est pas moi » in every page header → picker again.
 7. **Operator** (SSH): `new-group`, `list-groups`, `rotate-secret`, `delete-member`, `backup`; `make deploy`, `make rollback`.
 
@@ -61,7 +61,7 @@ Mobile first (390 px), one column, max 40 rem wide on larger screens. Landmarks 
 │ │      C'est moi : Marc    │ │
 │ └──────────────────────────┘ │
 │ ── Pas dans la liste ? ───── │
-│ Nouveau prénom [__________]  │
+│ Ton prénom [______________]  │
 │ Marc est déjà dans la liste :│  on duplicate: aria-invalid,
 │ si c'est toi, [C'est moi :   │  aria-describedby, autofocus,
 │ Marc] ; sinon ajoute une     │  field refilled "Marc "
@@ -215,52 +215,31 @@ All under `/g/{secret}` (written `…`); unknown secret → 404. Every POST: `Cr
 - **Secret rotation**: the old link 404s; the cookie path changes with the secret, so everyone re-picks their name from the list; data is untouched.
 - **Concert without time**: card and page show the date only; `.ics` becomes an all-day event; sorting puts it before timed concerts the same day.
 - **Past concerts**: a concert moves to « Passés » the day after its date (Europe/Paris), newest first.
-- **Delete and undo**: delete sets `deleted_at`; the main page banner offers « Annuler » (POST restore). Deleted concerts are hidden everywhere; their pages, edits and status writes 404 (stale tab); statuses kept for undo. No purge in v1.
+- **Delete and undo**: delete sets `deleted_at`; the main page banner offers « Annuler la suppression » (POST restore). Deleted concerts are hidden everywhere; their pages, edits and status writes 404 (stale tab); statuses kept for undo. No purge in v1.
 - **Deleted member**: their statuses go (cascade); their concerts stay, shown without « ajouté par ».
 - **Ticket URL**: only `http`/`https`; rendered with `rel="noopener noreferrer"`.
 - **Double submit**: status writes are idempotent (the form sends the target state, not a toggle); creating twice creates two concerts (accepted; delete fixes it).
 
 ## Roadmap
 
-One slice per branch, merged with `--no-ff`. ✅ = shipped.
+One slice per branch, merged with `--no-ff`. All shipped (v1).
 
-0. ✅ Skeleton: groups, `new-group`, `/g/<secret>` empty page, `/healthz`.
-1. ✅ **Members and identity.**
-   - First visit: existing first names as big « C'est moi » buttons, plus a « Nouveau prénom » field.
-   - If the first name is taken, suggest adding an initial.
-   - « Ce n'est pas moi » link on every page, for shared phones.
-   - Subcommands: `concerts list-groups`; `concerts rotate-secret <group-id>`, printing the new link (after a rotation everyone picks their name again from the list); `concerts delete-member <group-id> <first-name>`.
-2. ✅ **Concerts** (ticket cards in one chronological list, with the French date format; slice 4 adds month groups, « Passés » and the filter).
-   - Fields: artist, date, optional time, venue, ticket link (http/https only), optional on-sale date.
-   - Editable.
-   - Soft delete (`deleted_at`) with an « Annuler » banner.
-   - « ajouté par X » on each concert.
-   - « Prévenir le groupe » button (`https://wa.me/?text=`), shown right after adding.
-3. ✅ **Statuses**: interested / going / ticket bought. Tapping the active status again clears it.
-   - One status block (names per status, my three buttons) shared by the card and the concert page; htmx swaps that block only (`hx-target="closest .statuses"`), and buttons keep stable ids so focus survives the swap.
-   - The active button submits an empty status (clear), so every POST states the target state: a double tap is harmless.
-4. ✅ **Single main screen.**
-   - Chronological list grouped by month.
-   - Each card shows first names per status and my three status buttons.
-   - « Mes concerts » is a filter of this list, not another screen.
-   - A concert moves to « Passés » (collapsible section) the day after its date.
-   - Date format « sam. 14 mars · 20 h », Europe/Paris time zone.
-   - « Today » is the Europe/Paris date of the injected clock; a concert dated today is still upcoming. The card is one partial for both sections; past cards get no status buttons (on the concert page either).
-5. ✅ **Prefill from a ticketing URL** (Open Graph and JSON-LD `MusicEvent`).
-   - Manual entry if fetching fails.
-   - SSRF protection per ADR 0004.
-   - Limit: one fetch in flight per group, 10 per minute.
-   - `internal/prefill`: `Parse` (tokenizer, no tree: meta tags, `<title>`, every `ld+json` block) and an SSRF-safe client; tested on fictional fixtures shaped like Dice, Olympia, Zénith, Fnac and Accor Arena pages (most other French ticketing sites block plain clients: 401/403/429 or a challenge page, so manual entry is the common path).
-   - JSON-LD: first `MusicEvent`, else any `*Event`/`Festival` (also in arrays, `@graph`, `ItemList`); artist = first performer, else event name; `startDate` with or without offset, converted to Paris; venue = location name; on-sale = earliest future `validFrom`/`availabilityStarts` in offers (a past one is a listing date). Fallback artist: og:title (`property` or `name`), twitter:title, `<title>`, cut at ` | `, ` - `, ` @ `…; never a date from a title.
-   - Client: see the threat model (SSRF). The user sees one generic message, never the dial error.
-   - Values go through the form's own validation; invalid ones are dropped. A second fetch while one runs, beyond 10 per minute per group, or beyond 2 in flight in total, gets « Trop de lectures en cours » and the manual form.
-   - `GET …/concerts/new?url=` (a separate GET form above the main one; htmx swaps `<main>` and pushes the URL). The outcome is tied to the focused artist field (`aria-describedby`), or to the link field when the link is invalid; « Lecture de la page… » sits in a live region present before the request.
-6. ✅ **« Ajouter à mon agenda »**: a single concert's `.ics`, no subscription, so the secret never reaches a calendar provider.
-   - Hand-written (RFC 5545): VERSION, PRODID, no METHOD (Outlook would treat it as an invitation); UID `concert-<group>-<id>` (stable, no host per RFC 7986); DTSTAMP from the clock; timed concerts in UTC with an end 3 h later (no VTIMEZONE needed), date-only ones as `VALUE=DATE` with the next day as exclusive end; SUMMARY, LOCATION, DESCRIPTION « Billets : <link> » only; no URL property and nothing from `/g/`.
-   - TEXT escaping of `\ ; , newline` (so a field cannot start a new property), folding at 75 octets on rune boundaries, CRLF everywhere; golden-file tests.
-   - `text/calendar; charset=utf-8`, `attachment; filename="concert.ics"`, `Cache-Control: private, no-store`. Re-importing an edited concert does not update it on iOS (known limit).
-7. ✅ **Open Graph preview** of concert pages (in WhatsApp).
-   - The concert page needs no identity, so a previewer without cookie gets it; its `<head>` carries `og:title` (artist), `og:description` (« sam. 14 mars · 20 h · Salle »), `og:url` (absolute, from `CONCERTS_BASE_URL`), `og:site_name`, `og:type`. No `og:image`: a generic picture adds weight and nothing a friend needs.
+0. Skeleton: groups, `new-group`, `/g/<secret>`, `/healthz`.
+1. **Members and identity**: first names as « C'est moi » buttons plus a « Ton prénom » field; a taken name offers « C'est moi » or an initial; « Ce n'est pas moi » on every page; `list-groups`, `rotate-secret <group-id>` (prints the new link; everyone picks their name again), `delete-member <group-id> <first-name>`.
+2. **Concerts**: artist, date, optional time, venue, optional http(s) ticket link, optional on-sale date; editable; soft delete with « Annuler la suppression »; « ajouté par X »; « Prévenir le groupe » (`wa.me`, [ADR 0007](decisions/0007-plain-whatsapp-link.md)) right after adding.
+3. **Statuses**: interested / going / ticket bought; tapping the active one clears it.
+   - One status block (names per status, my three buttons) shared by card and concert page; htmx swaps that block only, and buttons keep stable ids so focus survives.
+   - The active button submits an empty status, so every POST states the target state: a double tap is harmless.
+4. **Single main screen**: upcoming concerts grouped by month; « Mes concerts » filters the same list; « Passés » (collapsed, newest first, no buttons) from the day after the date; « sam. 14 mars · 20 h », Europe/Paris. « Today » is the Paris date of the injected clock.
+5. **Prefill from a ticketing URL** (`internal/prefill`), manual entry on failure.
+   - `Parse` uses the tokenizer (meta tags, `<title>`, every `ld+json` block); fixtures shaped like Dice, Olympia, Zénith, Fnac and Accor Arena pages. Most other French ticketing sites block plain clients (401/403/429 or a challenge), so manual entry is the common path.
+   - JSON-LD: first `MusicEvent`, else any `*Event`/`Festival`, wherever nested; artist = first performer, else event name; `startDate` converted to Paris; venue = location name; on-sale = earliest `validFrom`/`availabilityStarts` from today on. Fallback artist: og:title (`property` or `name`), twitter:title, `<title>`, cut at ` | `, ` - `, ` @ `…; never a date from a title.
+   - Client and limits: see the threat model (SSRF). Fetched values go through the form's validation; invalid ones are dropped. The user sees one generic message, never the error.
+   - `GET …/concerts/new?url=`: a separate GET form above the main one (Enter in the main form saves); htmx swaps `<main>` and pushes the URL. The outcome is tied to the focused field (`aria-describedby`); « Lecture de la page… » sits in a live region present before the request.
+6. **« Ajouter à mon agenda »**: one concert's `.ics`, no feed, so the secret never reaches a calendar provider.
+   - Hand-written RFC 5545: no METHOD (Outlook would see an invitation); UID `concert-<group>-<id>` (no host, RFC 7986); timed concerts in UTC with a 3 h end (no VTIMEZONE), date-only ones `VALUE=DATE` with an exclusive next-day end; SUMMARY, LOCATION, DESCRIPTION « Billets : <link> » only.
+   - TEXT escaping (a field cannot start a property line), folding at 75 octets on rune boundaries, CRLF; golden files. `attachment; filename="concert.ics"`, `private, no-store`. An edited concert re-imported on iOS is not updated (known limit).
+7. **Open Graph preview** of concert pages: no identity needed, so a previewer gets `og:title` (artist), `og:description` (date · venue), `og:url` (from `CONCERTS_BASE_URL`), `og:site_name`, `og:type`. No `og:image`: weight for no information.
 
 Also in v1: `make deploy` / `make rollback` (see [Operations](#operations)).
 
