@@ -97,7 +97,7 @@ Mobile first (390 px), one column, max 40 rem wide on larger screens. Landmarks 
 
 - Status lines: « Billet : », « Y va : » / « Y vont : », « Intérêt : » (no gender, count-aware).
 - « Mes concerts » = concerts where I have a status, computed in Go from the statuses already loaded; « Passés » is filtered too; clearing a status under the filter keeps the card until reload.
-- Past cards show names only, no buttons, newest first, under an `h2` « Passés (N) » followed by a `<details>` (« Afficher les concerts passés »), rendered `open` when an added or restored concert is past. A late answer posted to a past concert is still accepted.
+- Past cards show names only, no buttons, newest first, under an `h2` « Passés (N) » followed by a `<details>` (« Afficher les concerts passés »). Only the 30 newest are rendered (cards are built for those only), then « Afficher les N concerts passés » (`?past=all`, keeping `mine=1`) lands on the first card not shown so far. N is the total. All are rendered, `open`, with `?past=all` or when an added or restored concert is past. A late answer posted to a past concert is still accepted.
 - Empty filter with only past answers: « Aucun concert à venir parmi les tiens. »
 - Empty list: « Aucun concert pour l'instant. Ajoute le premier ! »; empty filter: « Tu n'as encore réagi à aucun concert. »
 - Banners come from the URL but show only while true: `?added=<id>` and `?restored=<id>` if that concert is in the list, `?deleted=<id>` (« Annuler la suppression ») if it is still deleted; an edit returns to the concert page with `?saved`.
@@ -190,7 +190,7 @@ All under `/g/{secret}` (written `…`); unknown secret → 404. Every POST: `Cr
 |---|---|---|---|
 | GET | `/healthz` | DB ping | text |
 | GET | `/static/{name}` | hashed static file | file |
-| GET | `…` | picker (no identity, optional `next`) or main list; `?mine=1` filter, `?added=<id>` / `?deleted=<id>` banner | page |
+| GET | `…` | picker (no identity, optional `next`) or main list; `?mine=1` filter, `?past=all` every past concert, `?added=<id>` / `?restored=<id>` / `?deleted=<id>` banner | page |
 | POST | `…/me` | pick `member_id` or create `name`; sets cookie | 303 `next` (a path inside the group) or `…`; 422 picker |
 | POST | `…/logout` | « Ce n'est pas moi »: clears cookie | 303 `…` |
 | GET | `…/concerts/new` | add form; `?url=` pre-fills from the ticket page | page; htmx swaps the form (`hx-select`) |

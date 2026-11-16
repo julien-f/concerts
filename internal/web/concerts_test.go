@@ -1,7 +1,6 @@
 package web
 
 import (
-	"database/sql"
 	"net/http"
 	"net/url"
 	"strings"
@@ -236,16 +235,9 @@ func TestUpcomingLimit(t *testing.T) {
 	b, secret := ts.member(t, "Léa")
 	g := "/g/" + secret
 	b.postRedirect(t, g+"/concerts", concertValues("Past", "2026-05-31", "", "V", "", "")) // id 1
-	db, err := sql.Open("sqlite", ts.dbPath)                                               // one statement: 500 creates through the API take a second
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = db.Close() }()
-	if _, err := db.Exec(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?)
+	ts.exec(t, `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?)
 		INSERT INTO concerts (group_id, artist, date, venue, created_at)
-		SELECT 1, 'A', '2026-06-01', 'V', '2026-01-01T00:00:00Z' FROM n`, store.MaxConcerts); err != nil {
-		t.Fatal(err)
-	}
+		SELECT 1, 'A', '2026-06-01', 'V', '2026-01-01T00:00:00Z' FROM n`, store.MaxConcerts)
 	for name, path := range map[string]string{"create": g + "/concerts", "edit into the future": g + "/concerts/1"} {
 		resp, body := b.post(t, path, validConcert())
 		if resp.StatusCode != http.StatusUnprocessableEntity {

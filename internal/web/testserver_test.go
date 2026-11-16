@@ -3,6 +3,7 @@ package web
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"io"
 	"log/slog"
 	"net/http"
@@ -59,6 +60,20 @@ func (b *syncBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.b.String()
+}
+
+// exec runs SQL on the test database: bulk inserts in one statement, where hundreds of
+// creates through the API would take a second.
+func (ts *testServer) exec(t *testing.T, query string, args ...any) {
+	t.Helper()
+	db, err := sql.Open("sqlite", ts.dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	if _, err := db.Exec(query, args...); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // newTestServer starts the real router on a fresh database with a fake clock.

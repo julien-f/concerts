@@ -21,16 +21,21 @@ type month struct {
 	Cards []card
 }
 
+// pastShown bounds the past cards rendered by default: a group's history grows without end.
+const pastShown = 30
+
 type homePage struct {
 	*groupRequest
-	Mine     bool           // « Mes concerts »: only concerts I answered
-	Months   []month        // upcoming, chronological
-	Past     []card         // newest first, in a collapsed section
-	PastOpen bool           // a banner targets a past concert
-	Added    *store.Concert // banner « Concert ajouté » with « Prévenir le groupe »
-	Share    string
-	Restored *store.Concert // banner « Concert rétabli »
-	Deleted  *store.Concert // banner « Concert supprimé » with « Annuler la suppression »
+	Mine      bool    // « Mes concerts »: only concerts I answered
+	Months    []month // upcoming, chronological
+	Past      []card  // newest first, in a collapsed section; the pastShown newest unless PastOpen
+	PastTotal int
+	PastMore  int64          // first past concert not rendered (link to all of them), 0 if none
+	PastOpen  bool           // ?past=all, or a banner targets a past concert: all of them, section open
+	Added     *store.Concert // banner « Concert ajouté » with « Prévenir le groupe »
+	Share     string
+	Restored  *store.Concert // banner « Concert rétabli »
+	Deleted   *store.Concert // banner « Concert supprimé » with « Annuler la suppression »
 }
 
 // home is the picker without identity, else the concert list.
@@ -58,23 +63,24 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 	}
 	today := s.today() // once, so every card of the page agrees
 	lastMonth := ""
+	var past []store.Concert
 	for _, c := range cs {
 		if p.Mine && !answered(statuses[c.ID], gr.Me.ID) {
 			continue
 		}
-		upcoming := c.Date >= today
-		cd := card{c, gr.Base, newStatusBlock(gr, c, statuses[c.ID], back, upcoming)}
-		switch n := len(p.Months); {
-		case !upcoming:
-			p.Past = append(p.Past, cd)
-		case c.Date[:7] == lastMonth:
-			p.Months[n-1].Cards = append(p.Months[n-1].Cards, cd)
-		default:
+		if c.Date < today {
+			past = append(past, c)
+			continue
+		}
+		cd := card{c, gr.Base, newStatusBlock(gr, c, statuses[c.ID], back, true)}
+		if c.Date[:7] == lastMonth {
+			p.Months[len(p.Months)-1].Cards = append(p.Months[len(p.Months)-1].Cards, cd)
+		} else {
 			lastMonth = c.Date[:7]
 			p.Months = append(p.Months, month{monthOf(c.Date), []card{cd}})
 		}
 	}
-	slices.Reverse(p.Past) // newest first
+	slices.Reverse(past) // newest first
 
 	// Banners come from the URL, so each is shown only while still true: added and
 	// restored concerts must be in the live list just loaded, a deleted one still deleted.
@@ -96,10 +102,18 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 	if p.Restored = find("restored"); p.Restored != nil {
 		p.Notice = "Concert rétabli"
 	}
+	p.PastOpen = q.Get("past") == "all"
 	for _, c := range []*store.Concert{p.Added, p.Restored} {
 		if c != nil && c.Date < today {
 			p.PastOpen = true
 		}
+	}
+	// Cards are built for the shown concerts only: most of the cost of a long history.
+	if p.PastTotal = len(past); !p.PastOpen && p.PastTotal > pastShown {
+		p.PastMore, past = past[pastShown].ID, past[:pastShown]
+	}
+	for _, c := range past {
+		p.Past = append(p.Past, card{c, gr.Base, newStatusBlock(gr, c, statuses[c.ID], back, false)})
 	}
 	if id, err := strconv.ParseInt(q.Get("deleted"), 10, 64); err == nil {
 		c, err := s.store.Concert(r.Context(), gr.Group.ID, id)

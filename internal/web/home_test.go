@@ -99,3 +99,49 @@ func TestHomeMineFilter(t *testing.T) {
 	_, body = b.get(t, g)
 	assertContains(t, body, `href="`+g+`" aria-current="page"`, ">Autre</a>")
 }
+
+func TestHomePastShown(t *testing.T) {
+	t.Parallel()
+	ts := newTestServer(t) // 2026-06-01
+	b, secret := ts.member(t, "Léa")
+	g := "/g/" + secret
+	// Concert i is i days ago, so ids run newest first; Léa answered all but the first.
+	ts.exec(t, `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 32)
+		INSERT INTO concerts (id, group_id, artist, date, venue, created_at)
+		SELECT i, 1, 'A', date('2026-06-01', '-' || i || ' days'), 'V', '2026-01-01T00:00:00Z' FROM n`)
+	ts.exec(t, "INSERT INTO statuses SELECT id, 1, 'going' FROM concerts WHERE id > 1")
+	cards := regexp.MustCompile(`id="c\d+"`)
+
+	for _, tc := range []struct {
+		name, path string
+		cards      int
+		want       []string
+		link       bool
+	}{
+		{"30 newest", g, 30, []string{"Passés (32)", `<details class="past">`,
+			`<a class="more" href="` + g + `?past=all#c31">Afficher les 32 concerts passés</a>`}, true},
+		{"all", g + "?past=all", 32, []string{"Passés (32)", `<details class="past" open>`, `id="c32"`}, false},
+		{"filtered", g + "?mine=1", 30, []string{"Passés (31)",
+			`<a class="more" href="` + g + `?past=all&amp;mine=1#c32">Afficher les 31 concerts passés</a>`}, true},
+		{"banner on a hidden card", g + "?added=32", 32, []string{"Concert ajouté", `<details class="past" open>`, `id="c32"`}, false},
+	} {
+		_, body := b.get(t, tc.path)
+		if n := len(cards.FindAllString(body, -1)); n != tc.cards {
+			t.Errorf("%s: %d cards, want %d", tc.name, n, tc.cards)
+		}
+		assertContains(t, body, tc.want...)
+		if got := strings.Contains(body, `class="more"`); got != tc.link {
+			t.Errorf("%s: link to all = %v, want %v", tc.name, got, tc.link)
+		}
+	}
+
+	b.postRedirect(t, g+"/concerts/32/delete", nil)
+	_, body := b.postRedirect(t, g+"/concerts/32/restore", nil)
+	assertContains(t, body, "Concert rétabli", `<details class="past" open>`, `id="c32"`)
+
+	// Exactly pastShown past concerts: no link.
+	b.postRedirect(t, g+"/concerts/2/status", url.Values{"status": {""}})
+	if _, body = b.get(t, g+"?mine=1"); strings.Contains(body, `class="more"`) || !strings.Contains(body, "Passés (30)") {
+		t.Errorf("30 past concerts: want no link to all, Passés (30):\n%s", body)
+	}
+}
