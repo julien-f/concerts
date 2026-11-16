@@ -61,7 +61,7 @@ make rollback DEPLOY_HOST=admin@server   # previous binary and pre-deploy databa
 ```
 
 - Needs SSH with `sudo` on the server; `DEPLOY_HOST` has no default.
-- `deploy` keeps the previous binary (`/usr/local/bin/concerts.prev`) and a pre-deploy snapshot (`/var/lib/concerts/backups/pre-deploy.db`), taken by the old binary so the new one cannot migrate the live database first.
+- `deploy` keeps the previous binary (`/usr/local/bin/concerts.prev`) and a pre-deploy snapshot (`/var/lib/concerts/backups/pre-deploy.db`), taken by the old binary so the new one cannot migrate the live database first. Deploying again after a failed deploy (`/healthz` never passed) keeps that pair, so `rollback` still reaches the last good version.
 - `rollback` stops the service, moves the current database and its `-wal`/`-shm` aside (`*.pre-rollback-<time>`: writes made since the deploy are there), restores both, restarts and checks `/healthz`.
 - The reverse proxy must keep the `Host` header (Caddy does by default): cross-origin protection compares it with `Origin`.
 
