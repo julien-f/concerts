@@ -67,7 +67,7 @@ make rollback DEPLOY_HOST=admin@server   # previous binary and pre-deploy databa
 
 ### Backup
 
-`concerts backup <file>` writes a consistent snapshot while the app runs (`VACUUM INTO`). Nightly, keeping 14 days:
+`concerts backup <file>` writes a consistent snapshot while the app runs (`VACUUM INTO`); a failed one (full disk) leaves no file. Nightly, keeping 14 days:
 
 ```sh
 sudo cp deploy/concerts-backup.{service,timer} /etc/systemd/system/
@@ -82,7 +82,7 @@ Snapshots land in `/var/lib/concerts/backups/`; copy them off the server (rsync,
 ls /var/lib/concerts/backups/            # pick a snapshot, e.g. concerts-2026-11-16T040012.db
 snap=/var/lib/concerts/backups/concerts-2026-11-16T040012.db
 ( set -e
-sudo test -f "$snap" || { echo "cannot read $snap" >&2; exit 1; }
+sudo test -s "$snap" || { echo "missing or empty: $snap" >&2; exit 1; }
 trap '[ $? = 0 ] || echo "restore failed: see systemctl status concerts; the old database is in *.pre-restore-*" >&2' EXIT
 sudo systemctl stop concerts-backup.timer concerts
 ts=$(date +%Y%m%dT%H%M%S)

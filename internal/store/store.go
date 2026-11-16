@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/url"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -50,8 +51,13 @@ func Open(ctx context.Context, path string, now func() time.Time) (*Store, error
 func (s *Store) Close() error { return s.db.Close() }
 
 // Backup writes a consistent snapshot of the live database to dst, which must not exist.
+// A failed snapshot is removed: a full disk would otherwise leave an empty file to restore.
 func (s *Store) Backup(ctx context.Context, dst string) error {
+	_, statErr := os.Stat(dst) //nolint:gosec // G703: dst is the operator's backup path
 	_, err := s.db.ExecContext(ctx, "VACUUM INTO ?", dst)
+	if err != nil && errors.Is(statErr, fs.ErrNotExist) {
+		_ = os.Remove(dst) //nolint:gosec // G703: dst is the operator's backup path
+	}
 	return err
 }
 
