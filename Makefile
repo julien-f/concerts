@@ -10,9 +10,10 @@ DEMO_DB ?= demo.db
 run:
 	CONCERTS_BASE_URL=http://localhost:8080 go run ./cmd/concerts serve
 
+# GORACE skips the race detector's 1 s pause at each test binary's exit (see CLAUDE.md Pitfalls).
 test:
 	@command -v gcc >/dev/null || { echo "gcc is required by -race"; exit 1; }
-	go test -race ./...
+	GORACE="$${GORACE:+$$GORACE }atexit_sleep_ms=0" go test -race ./...
 
 lint: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) run
