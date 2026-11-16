@@ -32,7 +32,8 @@ Re-read at the start of each slice and after each context compaction.
 | 4 main-screen | done | — | 1803 Go lines, binary 13.4 MB, page 21.2 kB, `make check` 6.3 s (cold) |
 | 5 prefill | done | — | 2303 Go lines, binary 14.0 MB (+0.6 MB, x/net/html and the client), page 21.3 kB, `make check` 3.0 s |
 | 6 agenda | done | — | 2382 Go lines, binary 14.1 MB, page 21.3 kB, `make check` 8.4 s (lint cache rebuilt after the config change) |
-| 7 og-preview | done | deploy targets | 2393 Go lines, binary 14.1 MB, page 21.3 kB, `make check` 3.0 s warm / 11.2 s after a change (uncached tests 5.2 s, mostly TestConcertLimit) |
+| 7 og-preview | done | — | 2393 Go lines, binary 14.1 MB, page 21.3 kB, `make check` 3.0 s warm / 11.2 s after a change (uncached tests 5.2 s, mostly TestConcertLimit) |
+| deploy | done | the End | `make -n` checked; TestConcertLimit 3.76 s → 0.09 s, uncached `make test` 5.33 s → 1.83 s |
 
 ### Discarded review findings
 
