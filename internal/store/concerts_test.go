@@ -17,7 +17,7 @@ func TestConcerts(t *testing.T) {
 
 	add := func(c Concert) int64 {
 		t.Helper()
-		id, err := s.CreateConcert(ctx, g.ID, lea.ID, c)
+		id, err := s.CreateConcert(ctx, g.ID, lea.ID, c, testToday)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -43,7 +43,7 @@ func TestConcerts(t *testing.T) {
 	}
 
 	upd := Concert{Artist: "Later", Date: "2027-04-01", Venue: "W"}
-	if err := s.UpdateConcert(ctx, g.ID, late, upd); err != nil {
+	if err := s.UpdateConcert(ctx, g.ID, late, upd, testToday); err != nil {
 		t.Fatal(err)
 	}
 	if c, _ := s.Concert(ctx, g.ID, late); c.Artist != "Later" || c.Time != "" || c.Venue != "W" {
@@ -55,9 +55,9 @@ func TestConcerts(t *testing.T) {
 		t.Fatalf("Concert from another group: %v", err)
 	}
 	for name, err := range map[string]error{
-		"update":  s.UpdateConcert(ctx, other.ID, late, upd),
+		"update":  s.UpdateConcert(ctx, other.ID, late, upd, testToday),
 		"delete":  s.DeleteConcert(ctx, other.ID, late),
-		"restore": s.RestoreConcert(ctx, other.ID, late),
+		"restore": s.RestoreConcert(ctx, other.ID, late, testToday),
 	} {
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("%s from another group: err = %v, want ErrNotFound", name, err)
@@ -71,7 +71,7 @@ func TestConcerts(t *testing.T) {
 	if c, err := s.Concert(ctx, g.ID, late); err != nil || !c.Deleted || c.Artist != "Later" {
 		t.Fatalf("deleted Concert = %+v, %v; want it flagged Deleted", c, err)
 	}
-	if err := s.UpdateConcert(ctx, g.ID, late, upd); !errors.Is(err, ErrNotFound) {
+	if err := s.UpdateConcert(ctx, g.ID, late, upd, testToday); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("update of a deleted concert: %v", err)
 	}
 	if err := s.DeleteConcert(ctx, g.ID, late); !errors.Is(err, ErrNotFound) {
@@ -80,10 +80,10 @@ func TestConcerts(t *testing.T) {
 	if cs, _ := s.Concerts(ctx, g.ID); len(cs) != 2 {
 		t.Fatalf("list still has %d concerts", len(cs))
 	}
-	if err := s.RestoreConcert(ctx, g.ID, late); err != nil {
+	if err := s.RestoreConcert(ctx, g.ID, late, testToday); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.RestoreConcert(ctx, g.ID, late); !errors.Is(err, ErrNotFound) {
+	if err := s.RestoreConcert(ctx, g.ID, late, testToday); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("second restore: %v", err)
 	}
 
@@ -96,63 +96,113 @@ func TestConcerts(t *testing.T) {
 	}
 }
 
+// testToday is the Paris date callers pass; concerts dated before it are past.
+const testToday = "2026-06-01"
+
 func TestConcertLimit(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s := openTest(t)
 	g, _ := s.CreateGroup(ctx, "g", "s")
 	m, _ := s.CreateMember(ctx, g.ID, "Léa")
-	c := Concert{Artist: "A", Date: "2027-01-01", Venue: "V"}
-	create := func() (int64, error) { return s.CreateConcert(ctx, g.ID, m.ID, c) }
+	const past, later = "2026-05-31", "2026-07-01"
+	create := func(date string) (int64, error) {
+		return s.CreateConcert(ctx, g.ID, m.ID, Concert{Artist: "A", Date: date, Venue: "V"}, testToday)
+	}
+	mustCreate := func(date string) int64 {
+		t.Helper()
+		id, err := create(date)
+		if err != nil {
+			t.Fatalf("create %s: %v", date, err)
+		}
+		return id
+	}
+	update := func(id int64, date string) error {
+		return s.UpdateConcert(ctx, g.ID, id, Concert{Artist: "A", Date: date, Venue: "V"}, testToday)
+	}
 	// fill adds n rows in one statement; the limits are then crossed through the API.
-	fill := func(n int, deletedAt any) {
+	fill := func(n int, date string) {
 		t.Helper()
 		if _, err := s.db.ExecContext(ctx, `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?)
-			INSERT INTO concerts (group_id, artist, date, venue, created_at, deleted_at)
-			SELECT ?, 'A', '2027-01-01', 'V', '2026-01-01T00:00:00Z', ? FROM n`, n, g.ID, deletedAt); err != nil {
+			INSERT INTO concerts (group_id, artist, date, venue, created_at)
+			SELECT ?, 'A', ?, 'V', '2026-01-01T00:00:00Z' FROM n`, n, g.ID, date); err != nil {
 			t.Fatal(err)
 		}
 	}
+	count := func(where string) (n int) {
+		t.Helper()
+		if err := s.db.QueryRowContext(ctx, "SELECT count(*) FROM concerts WHERE group_id = ? AND "+where, g.ID).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	gone := func(name string, id int64) {
+		t.Helper()
+		if _, err := s.Concert(ctx, g.ID, id); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("%s: err = %v, want ErrNotFound (purged)", name, err)
+		}
+	}
 
-	// Deleted concerts kept for undo do not count against the live limit...
-	early, _ := create()
-	if err := s.DeleteConcert(ctx, g.ID, early); err != nil {
+	// Deleted and past concerts do not count against the limit; a concert dated today does.
+	deleted := mustCreate(later)
+	if err := s.DeleteConcert(ctx, g.ID, deleted); err != nil {
 		t.Fatal(err)
 	}
-	fill(MaxConcerts-1, nil)
-	if _, err := create(); err != nil {
-		t.Fatalf("create up to the limit: %v", err)
+	pastID := mustCreate(past)
+	fill(MaxConcerts-1, testToday)
+	upcoming := mustCreate(later)
+	for _, date := range []string{testToday, later} {
+		if _, err := create(date); !errors.Is(err, ErrLimit) {
+			t.Fatalf("create %s past the limit: err = %v, want ErrLimit", date, err)
+		}
 	}
-	if _, err := create(); !errors.Is(err, ErrLimit) {
-		t.Fatalf("create past the limit: err = %v, want ErrLimit", err)
-	}
-	// ...but restoring one cannot exceed it.
-	if err := s.RestoreConcert(ctx, g.ID, early); !errors.Is(err, ErrLimit) {
+	mustCreate(past)
+
+	// Restoring or editing a concert into the future cannot exceed the limit; into the past can.
+	if err := s.RestoreConcert(ctx, g.ID, deleted, testToday); !errors.Is(err, ErrLimit) {
 		t.Fatalf("restore past the limit: err = %v, want ErrLimit", err)
 	}
-	if c, _ := s.Concert(ctx, g.ID, early); !c.Deleted {
+	if c, _ := s.Concert(ctx, g.ID, deleted); !c.Deleted {
 		t.Fatal("a refused restore still restored the concert")
 	}
+	if err := update(pastID, later); !errors.Is(err, ErrLimit) {
+		t.Fatalf("edit into the future past the limit: err = %v, want ErrLimit", err)
+	}
+	if c, _ := s.Concert(ctx, g.ID, pastID); c.Date != past {
+		t.Fatalf("a refused edit still changed the date to %s", c.Date)
+	}
+	if err := update(upcoming, testToday); err != nil {
+		t.Fatalf("edit an upcoming concert at the limit: %v", err)
+	}
+	if err := update(upcoming, past); err != nil {
+		t.Fatalf("edit into the past at the limit: %v", err)
+	}
+	if err := s.DeleteConcert(ctx, g.ID, upcoming); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RestoreConcert(ctx, g.ID, upcoming, testToday); err != nil {
+		t.Fatalf("restore a past concert at the limit: %v", err)
+	}
 
-	// Create-then-delete cannot grow the table without bound either: at 2×MaxConcerts rows,
-	// a create purges the oldest deleted concert, so the group never gets stuck.
-	if _, err := s.db.ExecContext(ctx, "UPDATE concerts SET deleted_at = '2026-01-01T00:00:00Z' WHERE group_id = ?", g.ID); err != nil {
+	// At 2×MaxConcerts rows a create purges a row instead of locking the group: the oldest
+	// deleted concert first, then the oldest past one with its statuses, never an upcoming one.
+	oldest := mustCreate("2025-01-01")
+	if err := s.SetStatus(ctx, g.ID, oldest, m.ID, "going"); err != nil {
 		t.Fatal(err)
 	}
-	fill(2*MaxConcerts-(MaxConcerts+1), "2026-02-01T00:00:00Z") // all deleted, at the cap
-	if _, err := create(); err != nil {
-		t.Fatalf("create with %d deleted rows: %v", 2*MaxConcerts, err)
+	fill(2*MaxConcerts-count("1"), "2026-03-01")
+	mustCreate(past)
+	gone("oldest deleted concert", deleted)
+	if _, err := s.Concert(ctx, g.ID, oldest); err != nil {
+		t.Fatalf("oldest past concert purged before the deleted one: %v", err)
 	}
-	var rows, newer int
-	if err := s.db.QueryRowContext(ctx,
-		"SELECT count(*), count(*) FILTER (WHERE deleted_at = '2026-02-01T00:00:00Z') FROM concerts WHERE group_id = ?",
-		g.ID).Scan(&rows, &newer); err != nil {
-		t.Fatal(err)
+	mustCreate(past)
+	gone("oldest past concert", oldest)
+	var statuses int
+	if err := s.db.QueryRowContext(ctx, "SELECT count(*) FROM statuses WHERE concert_id = ?", oldest).Scan(&statuses); err != nil || statuses != 0 {
+		t.Fatalf("statuses of the purged concert: %d, %v; want 0", statuses, err)
 	}
-	if rows != 2*MaxConcerts || newer != 2*MaxConcerts-(MaxConcerts+1) {
-		t.Fatalf("rows = %d, newer deleted = %d; want %d, %d", rows, newer, 2*MaxConcerts, 2*MaxConcerts-(MaxConcerts+1))
-	}
-	if _, err := s.Concert(ctx, g.ID, early); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("oldest deleted concert: err = %v, want ErrNotFound (purged)", err)
+	if rows, up := count("1"), count("date >= '"+testToday+"'"); rows != 2*MaxConcerts || up != MaxConcerts-1 {
+		t.Fatalf("rows = %d, upcoming = %d; want %d, %d", rows, up, 2*MaxConcerts, MaxConcerts-1)
 	}
 }

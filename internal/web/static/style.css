@@ -109,6 +109,7 @@ input[aria-invalid="true"] { border: 2px solid var(--error); }
   color: var(--accent); margin: 1.25rem 0 0.6rem;
 }
 .past summary { display: flex; align-items: center; min-height: 2.75rem; cursor: pointer; }
+.past .more { display: flex; align-items: center; min-height: 2.75rem; }
 .past summary::before { content: "▸"; color: var(--accent); margin-right: 0.5rem; }
 .past[open] summary::before { content: "▾"; }
 .past summary::-webkit-details-marker { display: none; }

@@ -5,6 +5,9 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
+
+	"concerts/internal/store"
 )
 
 func concertValues(artist, date, tm, venue, ticket, onSale string) url.Values {
@@ -222,5 +225,31 @@ func TestOpenGraph(t *testing.T) {
 		`<meta property="og:site_name" content="Concerts · g">`)
 	if _, home := b.get(t, g); strings.Contains(home, "og:title") {
 		t.Errorf("the list page carries concert preview tags")
+	}
+}
+
+// TestUpcomingLimit: only upcoming concerts count, as of the clock's Paris date.
+func TestUpcomingLimit(t *testing.T) {
+	t.Parallel()
+	ts := newTestServer(t) // clock: 2026-06-01
+	b, secret := ts.member(t, "Léa")
+	g := "/g/" + secret
+	b.postRedirect(t, g+"/concerts", concertValues("Past", "2026-05-31", "", "V", "", "")) // id 1
+	ts.exec(t, `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?)
+		INSERT INTO concerts (group_id, artist, date, venue, created_at)
+		SELECT 1, 'A', '2026-06-01', 'V', '2026-01-01T00:00:00Z' FROM n`, store.MaxConcerts)
+	for name, path := range map[string]string{"create": g + "/concerts", "edit into the future": g + "/concerts/1"} {
+		resp, body := b.post(t, path, validConcert())
+		if resp.StatusCode != http.StatusUnprocessableEntity {
+			t.Fatalf("%s at the limit: status = %d, want 422", name, resp.StatusCode)
+		}
+		assertContains(t, body, "Le groupe a atteint 500 concerts à venir : supprimes-en d'abord.")
+	}
+	if resp, _ := b.post(t, g+"/concerts", concertValues("Past", "2026-05-30", "", "V", "", "")); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("past create at the limit: status = %d, want 303", resp.StatusCode)
+	}
+	ts.clock.Advance(24 * time.Hour) // the 500 concerts of 2026-06-01 are now past
+	if resp, _ := b.post(t, g+"/concerts", validConcert()); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("create the next day: status = %d, want 303", resp.StatusCode)
 	}
 }

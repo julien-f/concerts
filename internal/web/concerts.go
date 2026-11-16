@@ -141,7 +141,7 @@ func (s *server) done(w http.ResponseWriter, r *http.Request, gr *groupRequest, 
 	case errors.Is(err, store.ErrNotFound):
 		s.notFound(w, r, gr)
 	case errors.Is(err, store.ErrLimit):
-		http.Error(w, fmt.Sprintf("Le groupe a atteint %d concerts : supprime les anciens d'abord.", store.MaxConcerts), http.StatusUnprocessableEntity)
+		http.Error(w, fmt.Sprintf("Le groupe a atteint %d concerts à venir : supprimes-en d'abord.", store.MaxConcerts), http.StatusUnprocessableEntity)
 	case err != nil:
 		s.fail(w, r, err)
 	default:
@@ -179,7 +179,7 @@ func (s *server) createConcert(w http.ResponseWriter, r *http.Request, gr *group
 		s.render(w, r, http.StatusUnprocessableEntity, "form", newConcertForm(gr, c, errs))
 		return
 	}
-	id, err := s.store.CreateConcert(r.Context(), gr.Group.ID, gr.Me.ID, c)
+	id, err := s.store.CreateConcert(r.Context(), gr.Group.ID, gr.Me.ID, c, s.today())
 	s.done(w, r, gr, err, fmt.Sprintf("%s?added=%d", gr.Base, id))
 }
 
@@ -227,7 +227,7 @@ func (s *server) updateConcert(w http.ResponseWriter, r *http.Request, gr *group
 		s.render(w, r, http.StatusUnprocessableEntity, "form", newConcertForm(gr, c, errs))
 		return
 	}
-	err := s.store.UpdateConcert(r.Context(), gr.Group.ID, id, c)
+	err := s.store.UpdateConcert(r.Context(), gr.Group.ID, id, c, s.today())
 	s.done(w, r, gr, err, fmt.Sprintf("%s/concerts/%d?saved", gr.Base, id))
 }
 
@@ -240,7 +240,7 @@ func (s *server) deleteConcert(w http.ResponseWriter, r *http.Request, gr *group
 
 func (s *server) restoreConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
 	if id, ok := s.pathID(w, r, gr); ok {
-		err := s.store.RestoreConcert(r.Context(), gr.Group.ID, id)
+		err := s.store.RestoreConcert(r.Context(), gr.Group.ID, id, s.today())
 		s.done(w, r, gr, err, fmt.Sprintf("%s?restored=%d#c%d", gr.Base, id, id))
 	}
 }

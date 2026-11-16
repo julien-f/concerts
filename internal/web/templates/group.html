@@ -27,11 +27,13 @@
 {{end}}
 {{with .Past}}
 {{- /* The heading stays outside <summary>, whose button role hides headings from screen readers. */}}
-<h2 class="month">Passés ({{len .}})</h2>
+<h2 class="month">Passés ({{$.PastTotal}})</h2>
 <details class="past"{{if $.PastOpen}} open{{end}}>
 <summary>Afficher les concerts passés</summary>
 <ol class="concerts" role="list">
 {{range .}}{{template "card" .}}{{end}}</ol>
+{{- /* Lands on the first card not shown so far. */}}
+{{with $.PastMore}}<a class="more" href="{{$.Base}}?past=all{{if $.Mine}}&amp;mine=1{{end}}#c{{.}}">Afficher les {{$.PastTotal}} concerts passés</a>{{end}}
 </details>
 {{end}}
 {{end}}

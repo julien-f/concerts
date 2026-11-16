@@ -31,7 +31,7 @@ func demo(ctx context.Context, st *store.Store, baseURL string) error {
 		{Artist: "Air", Date: day(-20), Time: "20:00", Venue: "Salle Pleyel"},
 		{Artist: "Justice", Date: day(-60), Venue: "Accor Arena"},
 	} {
-		id, err := st.CreateConcert(ctx, g.ID, ids[i%len(ids)], c)
+		id, err := st.CreateConcert(ctx, g.ID, ids[i%len(ids)], c, day(0))
 		if err != nil {
 			return err
 		}
@@ -46,6 +46,20 @@ func demo(ctx context.Context, st *store.Store, baseURL string) error {
 		{concerts[1], marc, store.Interested}, {concerts[3], lea, store.Ticket}, {concerts[3], sam, store.Ticket},
 	} {
 		if err := st.SetStatus(ctx, g.ID, s.concert, s.member, s.status); err != nil {
+			return err
+		}
+	}
+	// Older history, created after the concerts above (verify-ui relies on their ids): more past
+	// concerts than the list shows, so its link to all of them is checked too.
+	artists := []string{"Phoenix", "Feu! Chatterton", "Bon Iver", "Christine and the Queens", "Arctic Monkeys"}
+	venues := []string{"La Cigale", "Le Trianon", "Zénith Paris", "L'Olympia"}
+	for i := range 29 {
+		c := store.Concert{Artist: artists[i%len(artists)], Date: day(-90 - 14*i), Venue: venues[i%len(venues)]}
+		id, err := st.CreateConcert(ctx, g.ID, ids[i%len(ids)], c, day(0))
+		if err != nil {
+			return err
+		}
+		if err := st.SetStatus(ctx, g.ID, id, ids[(i+1)%len(ids)], store.Going); err != nil {
 			return err
 		}
 	}

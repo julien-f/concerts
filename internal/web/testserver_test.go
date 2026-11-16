@@ -3,6 +3,7 @@ package web
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"io"
 	"log/slog"
 	"net/http"
@@ -38,9 +39,10 @@ func (c *fakeClock) Advance(d time.Duration) {
 
 type testServer struct {
 	*httptest.Server
-	store *store.Store
-	clock *fakeClock
-	logs  *syncBuffer
+	store  *store.Store
+	dbPath string
+	clock  *fakeClock
+	logs   *syncBuffer
 }
 
 type syncBuffer struct {
@@ -60,6 +62,20 @@ func (b *syncBuffer) String() string {
 	return b.b.String()
 }
 
+// exec runs SQL on the test database: bulk inserts in one statement, where hundreds of
+// creates through the API would take a second.
+func (ts *testServer) exec(t *testing.T, query string, args ...any) {
+	t.Helper()
+	db, err := sql.Open("sqlite", ts.dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	if _, err := db.Exec(query, args...); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // newTestServer starts the real router on a fresh database with a fake clock.
 func newTestServer(t *testing.T) *testServer {
 	t.Helper()
@@ -70,7 +86,8 @@ func newTestServer(t *testing.T) *testServer {
 func newTestServerWith(t *testing.T, baseURL string) *testServer {
 	t.Helper()
 	clock := &fakeClock{t: time.Date(2026, 6, 1, 20, 0, 0, 0, time.UTC)}
-	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "test.db"), clock.Now)
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	st, err := store.Open(context.Background(), dbPath, clock.Now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +101,7 @@ func newTestServerWith(t *testing.T, baseURL string) *testServer {
 		srv.Close()
 		_ = st.Close()
 	})
-	return &testServer{Server: srv, store: st, clock: clock, logs: logs}
+	return &testServer{Server: srv, store: st, dbPath: dbPath, clock: clock, logs: logs}
 }
 
 // newGroup creates a group and returns its secret.

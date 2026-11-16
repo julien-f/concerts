@@ -6,8 +6,10 @@ import (
 	"errors"
 )
 
-// MaxConcerts bounds a group's live concerts, so a leaked link cannot flood the list;
-// rows, deleted ones included, stay under twice that, so create-then-delete cannot fill the disk.
+// MaxConcerts bounds a group's upcoming concerts, so a leaked link cannot flood the list while
+// past ones never lock a group; rows, past and deleted ones included, stay under twice that,
+// so the disk cannot fill. "Upcoming" means a date on or after today, a Paris YYYY-MM-DD date
+// that callers pass, so the store holds no time zone.
 const MaxConcerts = 500
 
 // Concert is a gig shared in a group. Optional fields are "" when unset.
@@ -63,34 +65,48 @@ func (s *Store) Concert(ctx context.Context, groupID, id int64) (Concert, error)
 	return c, err
 }
 
-// checkRoom returns ErrLimit if the group cannot take one more live concert; at the row cap,
-// it purges the oldest deleted concert instead of locking the group.
-func checkRoom(ctx context.Context, tx *sql.Tx, groupID int64) error {
-	var live, all int
-	if err := tx.QueryRowContext(ctx,
-		"SELECT count(*) FILTER (WHERE deleted_at IS NULL), count(*) FROM concerts WHERE group_id = ?",
-		groupID).Scan(&live, &all); err != nil {
+// upcoming counts the group's live concerts dated today or later.
+func upcoming(ctx context.Context, tx *sql.Tx, groupID int64, today string) (n int, err error) {
+	err = tx.QueryRowContext(ctx,
+		"SELECT count(*) FROM concerts WHERE group_id = ? AND deleted_at IS NULL AND date >= ?",
+		groupID, today).Scan(&n)
+	return n, err
+}
+
+// checkRoom returns ErrLimit if the group cannot take one more concert dated date; at the row
+// cap, it purges the oldest deleted concert, else the oldest past one, instead of locking the group.
+func checkRoom(ctx context.Context, tx *sql.Tx, groupID int64, date, today string) error {
+	if date >= today {
+		n, err := upcoming(ctx, tx, groupID, today)
+		if err != nil {
+			return err
+		}
+		if n >= MaxConcerts {
+			return ErrLimit
+		}
+	}
+	var all int
+	if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM concerts WHERE group_id = ?", groupID).Scan(&all); err != nil {
 		return err
 	}
-	if live >= MaxConcerts {
-		return ErrLimit
-	}
 	if all >= 2*MaxConcerts {
+		// Never an upcoming concert, even if another request already moved today forward.
 		_, err := tx.ExecContext(ctx, `DELETE FROM concerts WHERE id = (SELECT id FROM concerts
-			WHERE group_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at, id LIMIT 1)`, groupID)
+			WHERE group_id = ? AND (deleted_at IS NOT NULL OR date < ?)
+			ORDER BY deleted_at IS NULL, deleted_at, date, time, id LIMIT 1)`, groupID, today)
 		return err
 	}
 	return nil
 }
 
 // CreateConcert adds c to the group on behalf of memberID and returns its id, or ErrLimit.
-func (s *Store) CreateConcert(ctx context.Context, groupID, memberID int64, c Concert) (int64, error) {
+func (s *Store) CreateConcert(ctx context.Context, groupID, memberID int64, c Concert, today string) (int64, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
 	}
 	defer func() { _ = tx.Rollback() }()
-	if err := checkRoom(ctx, tx, groupID); err != nil {
+	if err := checkRoom(ctx, tx, groupID, c.Date, today); err != nil {
 		return 0, err
 	}
 	res, err := tx.ExecContext(ctx, `INSERT INTO concerts
@@ -107,16 +123,39 @@ func (s *Store) CreateConcert(ctx context.Context, groupID, memberID int64, c Co
 	return id, tx.Commit()
 }
 
-// UpdateConcert replaces the editable fields of the group's live concert id, or returns ErrNotFound.
-func (s *Store) UpdateConcert(ctx context.Context, groupID, id int64, c Concert) error {
-	res, err := s.db.ExecContext(ctx, `UPDATE concerts SET artist = ?, date = ?, time = nullif(?, ''),
+// UpdateConcert replaces the editable fields of the group's live concert id; ErrNotFound if
+// there is none, ErrLimit if moving it to the future would exceed the limit.
+func (s *Store) UpdateConcert(ctx context.Context, groupID, id int64, c Concert, today string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	res, err := tx.ExecContext(ctx, `UPDATE concerts SET artist = ?, date = ?, time = nullif(?, ''),
 		venue = ?, ticket_url = nullif(?, ''), on_sale_date = nullif(?, '')
 		WHERE id = ? AND group_id = ? AND deleted_at IS NULL`,
 		c.Artist, c.Date, c.Time, c.Venue, c.TicketURL, c.OnSaleDate, id, groupID)
 	if err != nil {
 		return err
 	}
-	return mustAffect(res)
+	if err := mustAffect(res); err != nil {
+		return err
+	}
+	return commitWithin(ctx, tx, groupID, today)
+}
+
+// commitWithin commits tx unless the group now has more upcoming concerts than the limit.
+// Counted after the write, which tx can still roll back: a past concert is not counted,
+// so only one moved into the future can cross the limit.
+func commitWithin(ctx context.Context, tx *sql.Tx, groupID int64, today string) error {
+	n, err := upcoming(ctx, tx, groupID, today)
+	if err != nil {
+		return err
+	}
+	if n > MaxConcerts {
+		return ErrLimit
+	}
+	return tx.Commit()
 }
 
 // DeleteConcert soft-deletes the group's live concert id, or returns ErrNotFound.
@@ -131,7 +170,7 @@ func (s *Store) DeleteConcert(ctx context.Context, groupID, id int64) error {
 }
 
 // RestoreConcert undoes DeleteConcert; ErrNotFound if the concert is not deleted, ErrLimit if the group is full.
-func (s *Store) RestoreConcert(ctx context.Context, groupID, id int64) error {
+func (s *Store) RestoreConcert(ctx context.Context, groupID, id int64, today string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -146,14 +185,5 @@ func (s *Store) RestoreConcert(ctx context.Context, groupID, id int64) error {
 	if err := mustAffect(res); err != nil {
 		return err
 	}
-	// Counted after the update, which this transaction can still roll back.
-	var live int
-	if err := tx.QueryRowContext(ctx,
-		"SELECT count(*) FROM concerts WHERE group_id = ? AND deleted_at IS NULL", groupID).Scan(&live); err != nil {
-		return err
-	}
-	if live > MaxConcerts {
-		return ErrLimit
-	}
-	return tx.Commit()
+	return commitWithin(ctx, tx, groupID, today)
 }
