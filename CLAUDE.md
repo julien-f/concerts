@@ -42,6 +42,6 @@ Design, threat model and roadmap: [docs/design.md](docs/design.md). Decisions: [
 
 - A heading inside `<summary>` is not announced as a heading (the summary's button role hides it), and neither axe nor vnu flags it: keep headings outside `<summary>`.
 
-- `make test` takes about 1 s longer after adding a test that re-runs the test binary as a child (e.g. under `RLIMIT_FSIZE`): every `-race` binary sleeps 1 s at exit (`atexit_sleep_ms`). Give the child `GORACE=atexit_sleep_ms=0`.
+- A plain `go test -race` run takes 1 s longer than its tests: every `-race` binary sleeps 1 s at exit (`atexit_sleep_ms`) so goroutines still running can report races. `make test` and the child in `backup_fail_test.go` set `GORACE=atexit_sleep_ms=0`; the cost: a race in a goroutine that outlives every test goes unreported (one a test waits for is still caught).
 
 - Test expects « Qui es-tu ? » but the body has it: French templates put U+202F (narrow no-break space) before `? : ;` and inside « »; write `\u202f` in test strings and Playwright selectors, or match the words only.
