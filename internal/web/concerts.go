@@ -109,23 +109,23 @@ func validTicketURL(s string) bool {
 }
 
 // pathID parses the {id} path value; it answers 404 and returns false if invalid.
-func pathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+func (s *server) pathID(w http.ResponseWriter, r *http.Request, gr *groupRequest) (int64, bool) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		notFound(w, r)
+		s.notFound(w, r, gr)
 	}
 	return id, err == nil
 }
 
 // concert loads the live concert named by the {id} path value; it answers 404 and returns false otherwise.
 func (s *server) concert(w http.ResponseWriter, r *http.Request, gr *groupRequest) (store.Concert, bool) {
-	id, ok := pathID(w, r)
+	id, ok := s.pathID(w, r, gr)
 	if !ok {
 		return store.Concert{}, false
 	}
 	c, err := s.store.Concert(r.Context(), gr.Group.ID, id)
 	if errors.Is(err, store.ErrNotFound) || c.Deleted {
-		notFound(w, r)
+		s.notFound(w, r, gr)
 		return c, false
 	}
 	if err != nil {
@@ -136,10 +136,10 @@ func (s *server) concert(w http.ResponseWriter, r *http.Request, gr *groupReques
 }
 
 // done ends a write: 404 for ErrNotFound, 500 for other errors, else a 303 to target.
-func (s *server) done(w http.ResponseWriter, r *http.Request, err error, target string) {
+func (s *server) done(w http.ResponseWriter, r *http.Request, gr *groupRequest, err error, target string) {
 	switch {
 	case errors.Is(err, store.ErrNotFound):
-		notFound(w, r)
+		s.notFound(w, r, gr)
 	case errors.Is(err, store.ErrLimit):
 		http.Error(w, fmt.Sprintf("Le groupe a atteint %d concerts : supprime les anciens d'abord.", store.MaxConcerts), http.StatusUnprocessableEntity)
 	case err != nil:
@@ -180,7 +180,7 @@ func (s *server) createConcert(w http.ResponseWriter, r *http.Request, gr *group
 		return
 	}
 	id, err := s.store.CreateConcert(r.Context(), gr.Group.ID, gr.Me.ID, c)
-	s.done(w, r, err, fmt.Sprintf("%s?added=%d", gr.Base, id))
+	s.done(w, r, gr, err, fmt.Sprintf("%s?added=%d", gr.Base, id))
 }
 
 type concertPage struct {
@@ -217,7 +217,7 @@ func (s *server) editConcert(w http.ResponseWriter, r *http.Request, gr *groupRe
 }
 
 func (s *server) updateConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
-	id, ok := pathID(w, r)
+	id, ok := s.pathID(w, r, gr)
 	if !ok || !parseForm(w, r) {
 		return
 	}
@@ -228,20 +228,20 @@ func (s *server) updateConcert(w http.ResponseWriter, r *http.Request, gr *group
 		return
 	}
 	err := s.store.UpdateConcert(r.Context(), gr.Group.ID, id, c)
-	s.done(w, r, err, fmt.Sprintf("%s/concerts/%d?saved", gr.Base, id))
+	s.done(w, r, gr, err, fmt.Sprintf("%s/concerts/%d?saved", gr.Base, id))
 }
 
 func (s *server) deleteConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
-	if id, ok := pathID(w, r); ok {
+	if id, ok := s.pathID(w, r, gr); ok {
 		err := s.store.DeleteConcert(r.Context(), gr.Group.ID, id)
-		s.done(w, r, err, fmt.Sprintf("%s?deleted=%d", gr.Base, id))
+		s.done(w, r, gr, err, fmt.Sprintf("%s?deleted=%d", gr.Base, id))
 	}
 }
 
 func (s *server) restoreConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
-	if id, ok := pathID(w, r); ok {
+	if id, ok := s.pathID(w, r, gr); ok {
 		err := s.store.RestoreConcert(r.Context(), gr.Group.ID, id)
-		s.done(w, r, err, fmt.Sprintf("%s?restored=%d#c%d", gr.Base, id, id))
+		s.done(w, r, gr, err, fmt.Sprintf("%s?restored=%d#c%d", gr.Base, id, id))
 	}
 }
 

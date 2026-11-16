@@ -31,7 +31,7 @@ func (s *server) inGroup(h groupHandler) http.HandlerFunc {
 		secret := r.PathValue("secret")
 		g, err := s.store.GroupBySecret(r.Context(), secret)
 		if errors.Is(err, store.ErrNotFound) {
-			notFound(w, r)
+			s.notFound(w, r, nil)
 			return
 		}
 		if err != nil {

@@ -77,6 +77,8 @@ const screens = [
       return submit(p, "text=Supprimer");
     },
   },
+  // The concert deleted above, as reached from a shared link: 404 page.
+  { name: "not-found", go: (p) => p.goto(`${groupURL}/concerts/1`) },
 ];
 
 mkdirSync(htmlDir, { recursive: true });
