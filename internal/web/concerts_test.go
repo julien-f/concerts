@@ -206,7 +206,7 @@ func TestOpenGraph(t *testing.T) {
 	}
 	assertContains(t, body,
 		`<meta property="og:title" content="Les &#34;Rita&#34; &lt;Mitsouko&gt;">`,
-		`<meta property="og:description" content="sam. 13 juin · 20`+" "+`h`+" "+`30 · Zénith">`,
+		"<meta property=\"og:description\" content=\"sam. 13 juin · 20\u00a0h\u00a030 · Zénith\">",
 		`<meta property="og:url" content="http://example.test`+g+`/concerts/1">`,
 		`<meta property="og:site_name" content="Concerts · g">`)
 	if _, home := b.get(t, g); strings.Contains(home, "og:title") {

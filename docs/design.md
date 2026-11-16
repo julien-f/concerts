@@ -32,7 +32,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 - **CSRF**: every state change is a POST behind `http.CrossOriginProtection` (lets GET through; trusts `Sec-Fetch-Site`, else compares `Origin` with `Host`, so the proxy must keep `Host`). The prefill GET triggers an outbound fetch but needs the secret and is rate-limited.
 - **Abuse with a leaked link**: at most 100 members and 500 live concerts per group (422 beyond); server read, write and idle timeouts; request bodies capped at 64 kB.
 - **SSRF** (prefill): the resolved IP of every connection, redirects included, must be public unicast (IPv6 within `2000::/3`, special-purpose ranges excluded) on port 80 or 443; no proxy, no keep-alive, 3 redirects, 8 s, 1 MB of `text/html`; fetch errors are logged with the host only (a pasted group link must not reach the logs); one fetch in flight and 10 a minute per group, 2 in flight overall.
-- **Accepted risks**: anyone with the link can join and act as any first name; members are friends, so impersonation is social, not technical. « Prévenir le groupe » (`wa.me`) and link previews in other messengers hand the link to the messaging provider's servers. Both are fixed by rotating the secret.
+- **Accepted risks**: anyone with the link can join and act as any first name; members are friends, so impersonation is social, not technical. « Prévenir le groupe » (`wa.me`) and link previews in other messengers hand the link to the messaging provider's servers, and with it the concert page, first names and answers included. Both are fixed by rotating the secret.
 
 ## User journeys
 
@@ -260,7 +260,7 @@ One slice per branch, merged with `--no-ff`. ✅ = shipped.
    - TEXT escaping of `\ ; , newline` (so a field cannot start a new property), folding at 75 octets on rune boundaries, CRLF everywhere; golden-file tests.
    - `text/calendar; charset=utf-8`, `attachment; filename="concert.ics"`, `Cache-Control: private, no-store`. Re-importing an edited concert does not update it on iOS (known limit).
 7. ✅ **Open Graph preview** of concert pages (in WhatsApp).
-   - The concert page needs no identity, so a previewer without cookie gets it; its `<head>` carries `og:title` (artist), `og:description` (« sam. 14 mars · 20 h · Salle »), `og:url` (absolute, from `CONCERTS_BASE_URL`), `og:site_name`, `og:locale`, and the same `description`. No `og:image`: a generic picture adds weight and nothing a friend needs.
+   - The concert page needs no identity, so a previewer without cookie gets it; its `<head>` carries `og:title` (artist), `og:description` (« sam. 14 mars · 20 h · Salle »), `og:url` (absolute, from `CONCERTS_BASE_URL`), `og:site_name`, `og:type`. No `og:image`: a generic picture adds weight and nothing a friend needs.
 
 Also in v1: `make deploy` / `make rollback` (see [Operations](#operations)).
 
