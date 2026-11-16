@@ -67,7 +67,7 @@ make rollback DEPLOY_HOST=admin@server   # previous binary and pre-deploy databa
 
 ### Backup
 
-`concerts backup <file>` writes a consistent snapshot while the app runs (`VACUUM INTO`); a failed one (full disk) leaves no file. Nightly, keeping 14 days:
+`concerts backup <file>` writes a consistent snapshot while the app runs (`VACUUM INTO`); one that fails (e.g. full disk) removes its partial file. Nightly, keeping 14 days:
 
 ```sh
 sudo cp deploy/concerts-backup.{service,timer} /etc/systemd/system/
