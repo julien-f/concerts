@@ -91,6 +91,7 @@ func TestConcertValidation(t *testing.T) {
 		{"ftp link", "ticket_url", "ftp://x.example/f"},
 		{"relative link", "ticket_url", "/billets"},
 		{"non-ASCII host", "ticket_url", "https://x.example\u202e/a"},
+		{"invalid UTF-8 link", "ticket_url", "https://x.example/\x80\x80"},
 		{"bad on-sale date", "on_sale_date", "demain"},
 	}
 	for _, tt := range tests {
