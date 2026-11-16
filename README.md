@@ -41,6 +41,18 @@ The pre-commit hook runs `make check`; enable it once per clone with `git config
 
 Migrations run at startup; the binary refuses to start on a database newer than itself.
 
+### Leaked link
+
+```sh
+c() { sudo -u concerts env CONCERTS_DB=/var/lib/concerts/concerts.db CONCERTS_BASE_URL=https://concerts.example.com concerts "$@"; }
+c list-groups               # find the group id
+c rotate-secret <id>        # prints the new link; the old one returns 404 at once, data is kept
+```
+
+- Share the new link only where the leaker cannot see it; everyone picks their first name again. What the leaker already saw stays disclosed.
+- Delete the intruder's concerts in the app first (« ajouté par » names them), then `c delete-member <id> "<first-name>"`.
+- Restoring a backup or `make rollback` brings the old secret back: run `rotate-secret` again afterwards.
+
 ### Update and roll back
 
 ```sh
