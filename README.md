@@ -29,10 +29,11 @@ The pre-commit hook runs `make check`; enable it once per clone with `git config
 1. `make build`, then copy `bin/concerts` to `/usr/local/bin/concerts` on the server (later updates: `make deploy`, below).
 2. `sudo useradd --system --no-create-home --shell /usr/sbin/nologin concerts`
 3. Copy `deploy/concerts.service` to `/etc/systemd/system/`, set `CONCERTS_BASE_URL`, then `sudo systemctl enable --now concerts`.
-4. Reverse proxy HTTPS to `127.0.0.1:8080`, e.g. Caddy:
+4. Reverse proxy HTTPS to `127.0.0.1:8080`, compressing responses (the app does not), e.g. Caddy:
    ```
    concerts.example.com {
        reverse_proxy 127.0.0.1:8080
+       encode zstd gzip
    }
    ```
    No proxy log may hold a `/g/…` path (it contains the group secret): no access log (Caddy writes none without a `log` directive; nginx needs `access_log off;` in this site's `server` block). Both still write the request path to their error log when the app is down (restart, deploy): keep that log readable by root only.
