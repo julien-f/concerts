@@ -1,16 +1,15 @@
 # Improvement log (temporary, deleted in the last commit)
 
-Cycles merged: 4. Consecutive audits without a kept finding: 0.
+Cycles merged: 5. Consecutive audits without a kept finding: 0.
 
 ## Remaining (ranked)
 
-1. README: leaked-link procedure (security, 2)
-2. `make deploy` re-run after a failed healthz overwrites pre-deploy.db and concerts.prev (deploy, 2)
-3. Warn at startup when CONCERTS_BASE_URL is http on a non-local host (data, 2)
-4. U+202F before « : » in Go-built French messages (UI, 2)
-5. Duplicate-name picker refills "Marc " as designed (UI, 2)
-6. Tests for the edit form GET and invalid edit (code, 2)
-7. Group-aware 404 page instead of plain text (UI, 2)
+1. `make deploy` re-run after a failed healthz overwrites pre-deploy.db and concerts.prev (deploy, 2)
+2. Warn at startup when CONCERTS_BASE_URL is http on a non-local host (data, 2)
+3. U+202F before « : » in Go-built French messages (UI, 2)
+4. Duplicate-name picker refills "Marc " as designed (UI, 2)
+5. Tests for the edit form GET and invalid edit (code, 2)
+6. Group-aware 404 page instead of plain text (UI, 2)
 
 ## Proposals (not delivered autonomously)
 
