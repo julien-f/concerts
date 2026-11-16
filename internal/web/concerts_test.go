@@ -49,6 +49,17 @@ func TestConcertLifecycle(t *testing.T) {
 	_, body = b.get(t, g+"/concerts/1")
 	assertContains(t, body, "<h1>Fontaines D.C.</h1>", `href="https://tickets.example/f?a=1&amp;b=2"`, "Mise en vente\u202f: ", "ven. 5 juin", "Modifier")
 
+	// The edit form, and its re-rendering after an invalid edit, post back to this concert.
+	_, body = b.get(t, g+"/concerts/1/edit")
+	assertContains(t, body, "<title>Modifier le concert", `action="`+g+`/concerts/1"`, `value="Fontaines D.C."`, `value="20:30"`,
+		`value="https://tickets.example/f?a=1&amp;b=2"`, `value="2026-06-05"`)
+	resp, body := b.post(t, g+"/concerts/1", concertValues(" ", "2026-06-13", "20:30", "Zénith Paris", "", ""))
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("invalid edit: status = %d, want 422", resp.StatusCode)
+	}
+	assertContains(t, body, "<title>Erreur – Modifier le concert", `action="`+g+`/concerts/1"`, `value="2026-06-13"`, `value="Zénith Paris"`,
+		`id="artist" name="artist" type="text" value="" required maxlength="100" aria-invalid="true" aria-describedby="artist-error" autofocus`)
+
 	_, body = b.postRedirect(t, g+"/concerts/1", concertValues("Fontaines D.C.", "2027-01-09", "9:05", "Olympia", "", ""))
 	assertContains(t, body, "<title>Concert modifié – ", "Modifications enregistrées", "<h1>Fontaines D.C.</h1>",
 		"sam. 9 janv. 2027 · 9\u00a0h\u00a005", `datetime="2027-01-09T09:05"`, "Olympia")

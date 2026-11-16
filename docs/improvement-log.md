@@ -1,15 +1,15 @@
 # Improvement log (temporary, deleted in the last commit)
 
-Cycles merged: 9. Consecutive audits without a kept finding: 0.
+Cycles merged: 10. Consecutive audits without a kept finding: 0.
 
 ## Remaining (ranked)
 
-1. Tests for the edit form GET and invalid edit (code, 2)
-2. Group-aware 404 page instead of plain text (UI, 2)
+(empty: second audit next)
 
 ## Proposals (not delivered autonomously)
 
 - Hook runs `make vuln` only when go.mod/go.sum change (offline commits; vuln is 95 % of make check): relaxes a hook check.
+- Group-aware 404 page (header + link back) for a deleted concert reached from a shared link, instead of plain « Page introuvable. » (web.go notFound): a new screen.
 
 ## Discarded
 
