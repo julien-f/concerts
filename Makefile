@@ -58,16 +58,19 @@ endif
 REMOTE_BIN := /usr/local/bin/concerts
 REMOTE_DB := /var/lib/concerts/concerts.db
 REMOTE_BACKUP := /var/lib/concerts/backups/pre-deploy.db
-# Present while the last deploy has not passed /healthz (rollback clears it too).
+# Written before a deploy's restart, removed once /healthz passes (deploy or rollback).
 REMOTE_FAILED := $(REMOTE_BACKUP).deploy-failed
+REMOTE_CURL := command -v curl >/dev/null || { echo "curl is required on the server" >&2; exit 1; }
 REMOTE_HEALTHZ := for i in $$(seq 20); do curl -fsS http://127.0.0.1:8080/healthz && sudo rm -f $(REMOTE_FAILED) && exit 0; sleep 1; done; echo "healthz failed: journalctl -u concerts" >&2; exit 1
 
 # The installed (old) binary takes the backup: the new one would first migrate the live database.
-# After a failed deploy, the installed binary is the broken one: the last good pair is kept.
+# After a failed deploy, the installed binary is the broken one: the last good pair is kept,
+# unless it now passes /healthz (the failure was elsewhere, e.g. a dropped ssh session).
 deploy: build
 	scp bin/concerts $(DEPLOY_HOST):concerts.new
-	ssh -t $(DEPLOY_HOST) 'set -e; \
-		if sudo test -e $(REMOTE_FAILED) && sudo test -f $(REMOTE_BACKUP) && [ -x $(REMOTE_BIN).prev ]; then \
+	ssh -t $(DEPLOY_HOST) 'set -e; $(REMOTE_CURL); \
+		if sudo test -e $(REMOTE_FAILED) && sudo test -f $(REMOTE_BACKUP) && [ -x $(REMOTE_BIN).prev ] \
+			&& ! curl -fs --max-time 5 http://127.0.0.1:8080/healthz >/dev/null; then \
 			echo "last deploy failed: keeping its pre-deploy snapshot and $(REMOTE_BIN).prev" >&2; \
 		elif [ -x $(REMOTE_BIN) ]; then \
 			sudo -u concerts mkdir -p $(dir $(REMOTE_BACKUP)); \
@@ -85,7 +88,7 @@ deploy: build
 # Restores the previous binary and the pre-deploy database; writes made since the deploy
 # stay in the moved-aside concerts.db.pre-rollback-* files.
 rollback:
-	ssh -t $(DEPLOY_HOST) 'set -e; \
+	ssh -t $(DEPLOY_HOST) 'set -e; $(REMOTE_CURL); \
 		test -x $(REMOTE_BIN).prev; \
 		sudo test -f $(REMOTE_BACKUP); \
 		sudo systemctl stop concerts; \
