@@ -3,6 +3,20 @@
 <p><a class="back" href="{{.Base}}{{with .ID}}/concerts/{{.}}{{end}}">← Annuler</a></p>
 <h1>{{if .ID}}Modifier le concert{{else}}Ajouter un concert{{end}}</h1>
 {{with .FormError}}<p class="error">{{.}}</p>{{else}}{{if .Notice}}<p class="error">Corrige les champs signalés.</p>{{end}}{{end}}
+{{if not .ID}}
+{{- /* Its own GET form, so Enter in the main form saves instead of prefilling. */}}
+<form method="get" action="{{.Base}}/concerts/new" class="prefill"
+ data-hx-get="{{.Base}}/concerts/new" data-hx-target="main" data-hx-select="main" data-hx-swap="outerHTML"
+ data-hx-disabled-elt="find button" data-hx-indicator="find .wait">
+<label for="url">Lire une page de billetterie <span class="hint">(facultatif)</span></label>
+<div class="row">
+<input id="url" name="url" type="url" value="{{.PrefillURL}}" maxlength="2000" inputmode="url">
+<button class="button">Pré-remplir</button>
+</div>
+<p class="wait htmx-indicator" aria-hidden="true">Lecture de la page…</p>
+{{with .PrefillMsg}}<p role="status" class="prefill-msg">{{.}}</p>{{end}}
+</form>
+{{end}}
 <form method="post" action="{{.Base}}/concerts{{with .ID}}/{{.}}{{end}}" class="stack">
 {{range .Fields}}{{$f := .}}
 <label for="{{.Name}}">{{.Label}}{{if .Optional}} <span class="hint">(facultatif)</span>{{end}}</label>

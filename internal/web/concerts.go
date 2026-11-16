@@ -24,9 +24,11 @@ type field struct {
 // concertForm is the add (ID 0) and edit page.
 type concertForm struct {
 	*groupRequest
-	ID        int64
-	Fields    []field
-	FormError string // error not tied to a field
+	ID         int64
+	Fields     []field
+	FormError  string // error not tied to a field
+	PrefillURL string // ticketing page last read (add form only)
+	PrefillMsg string // outcome of that read
 }
 
 func newConcertForm(gr *groupRequest, c store.Concert, errs map[string]string) *concertForm {
@@ -144,8 +146,18 @@ func (s *server) done(w http.ResponseWriter, r *http.Request, err error, target 
 	}
 }
 
+// newConcert is the add form; with ?url= it first reads that ticketing page.
 func (s *server) newConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
-	s.render(w, r, http.StatusOK, "form", newConcertForm(gr, store.Concert{}, nil))
+	u := strings.TrimSpace(r.URL.Query().Get("url"))
+	if u == "" {
+		s.render(w, r, http.StatusOK, "form", newConcertForm(gr, store.Concert{}, nil))
+		return
+	}
+	c, msg := s.prefill(r, gr, u)
+	f := newConcertForm(gr, c, nil)
+	f.PrefillURL, f.PrefillMsg = u, msg
+	f.Fields[0].Autofocus = true // htmx honours autofocus in swapped content
+	s.render(w, r, http.StatusOK, "form", f)
 }
 
 func (s *server) createConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {

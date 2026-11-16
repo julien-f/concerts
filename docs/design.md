@@ -246,10 +246,15 @@ One slice per branch, merged with `--no-ff`. ✅ = shipped.
    - A concert moves to « Passés » (collapsible section) the day after its date.
    - Date format « sam. 14 mars · 20 h », Europe/Paris time zone.
    - « Today » is the Europe/Paris date of the injected clock; a concert dated today is still upcoming. The card is one partial for both sections; past cards get no status buttons (on the concert page either).
-5. **Prefill from a ticketing URL** (Open Graph and JSON-LD `MusicEvent`).
+5. ✅ **Prefill from a ticketing URL** (Open Graph and JSON-LD `MusicEvent`).
    - Manual entry if fetching fails.
    - SSRF protection per ADR 0004.
    - Limit: one fetch in flight per group, 10 per minute.
+   - `internal/prefill`: `Parse` (tokenizer, no tree: meta tags, `<title>`, every `ld+json` block) and an SSRF-safe client; tested on fictional fixtures shaped like Dice, Olympia, Zénith, Fnac and Accor Arena pages (most other French ticketing sites block plain clients: 401/403/429 or a challenge page, so manual entry is the common path).
+   - JSON-LD: first `MusicEvent`, else any `*Event`/`Festival` (also in arrays, `@graph`, `ItemList`); artist = first performer, else event name; `startDate` with or without offset, converted to Paris; venue = location name; on-sale = earliest future `validFrom`/`availabilityStarts` in offers (a past one is a listing date). Fallback artist: og:title (`property` or `name`), twitter:title, `<title>`, cut at ` | `, ` - `, ` @ `…; never a date from a title.
+   - Client: `Dialer.Control` allows only public unicast IPs (after `Unmap`; no private, loopback, link-local, CGNAT, NAT64, 6to4, Teredo, benchmark, reserved) on ports 80/443; no proxy; 3 redirects max, http(s) only; 8 s total; `text/html` only; 1 MB read. The user sees one generic message, never the dial error.
+   - Values go through the form's own validation; invalid ones are dropped. A second fetch while one runs, beyond 10 per minute per group, or beyond 2 in flight in total, gets « Trop de lectures en cours » and the manual form.
+   - `GET …/concerts/new?url=` (a separate GET form above the main one; htmx swaps `<main>`).
 6. **« Ajouter à mon agenda »**: a single concert's `.ics`, no subscription, so the secret never reaches a calendar provider.
 7. **Open Graph preview** of concert pages (in WhatsApp).
 

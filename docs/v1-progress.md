@@ -30,6 +30,7 @@ Re-read at the start of each slice and after each context compaction.
 | 2 concerts | done | — | 1500 Go lines, binary 13.4 MB (+0.5 MB, mostly `time/tzdata`), page 20.0 kB, `make check` 3.4 s |
 | 3 statuses | done | — | 1740 Go lines, binary 13.4 MB, page 21.0 kB, `make check` 3.7 s |
 | 4 main-screen | done | — | 1803 Go lines, binary 13.4 MB, page 21.2 kB, `make check` 6.3 s (cold) |
+| 5 prefill | review | 3 reviews, then merge | 2308 Go lines, binary 14.0 MB (+0.6 MB, x/net/html and the client), page 21.3 kB, `make check` 3.0 s |
 
 ### Discarded review findings
 

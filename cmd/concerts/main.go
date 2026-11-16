@@ -16,6 +16,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"concerts/internal/prefill"
 	"concerts/internal/store"
 	"concerts/internal/web"
 )
@@ -147,7 +148,7 @@ func deleteMember(ctx context.Context, st *store.Store, groupID, name string) er
 }
 
 func serve(ctx context.Context, log *slog.Logger, st *store.Store, addr, baseURL string) error {
-	h, err := web.New(st, log, baseURL, time.Now)
+	h, err := web.New(st, log, web.Config{BaseURL: baseURL, Now: time.Now, Fetch: prefill.NewClient()})
 	if err != nil {
 		return err
 	}
