@@ -28,12 +28,12 @@ store
 - [x] Sentinel errors together in `store.go`; `ErrLimit` comment covers concerts; `MaxConcerts` comment « at most twice ».
 
 web
-- [ ] `refreshConcert` restates the 8 form fields: walk the form built from the page instead.
-- [ ] `publicPage`/`concertPage` compute URL, Map, Listen twice: one helper.
-- [ ] Year-if-not-current written twice (`frDate`, `ticketDate`).
-- [ ] `cleanName` `maxRunes` never varies; `card.Base` unused.
-- [ ] `showConcert` only redirects: rename `redirectToConcertPage`.
-- [ ] Stale comments: « three buttons » (`statuses.go:25`), `done` and ErrLimit.
+- [x] `refreshConcert` restates the 8 form fields: walk the form built from the page instead.
+- [x] `publicPage`/`concertPage` compute URL, Map, Listen twice: one helper.
+- [x] Year-if-not-current written twice (`frDate`, `ticketDate`).
+- [x] `cleanName` `maxRunes` never varies; `card.Base` unused.
+- [x] `showConcert` only redirects: rename `redirectToConcertPage`.
+- [x] Stale comments: « three buttons » (`statuses.go:25`), `done` and ErrLimit.
 
 templates + CSS
 - [ ] Dead `.htmx-indicator` rules; unused `class="edit"` in history.

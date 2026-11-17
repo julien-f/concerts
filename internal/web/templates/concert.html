@@ -1,10 +1,6 @@
 {{define "title"}}{{.Artist}} · {{.Group.Name}}{{end}}
 {{- /* Read by link previews (WhatsApp), which come without identity. */}}
-{{define "meta"}}{{template "ogCommon" .}}<meta property="og:title" content="{{.Artist}}">
-<meta property="og:description" content="{{when .Concert}} · {{.Venue}}">
-<meta property="og:url" content="{{.URL}}">
-<link rel="canonical" href="{{.URL}}">
-<script src="{{static "share.js"}}" defer></script>
+{{define "meta"}}{{template "ogCommon" .}}{{template "concertMeta" .}}<script src="{{static "share.js"}}" defer></script>
 {{end}}
 {{define "content"}}
 <p><a class="back" href="{{.Base}}#c{{.ID}}">← Tous les concerts</a></p>
@@ -15,17 +11,9 @@
 <article class="ticket">
 {{template "ticketHead" .}}
 <div class="facts">
-<p>{{.Venue}}</p>
-{{with .Map}}<p>{{$.Address}}<br><a href="{{.}}" rel="noopener noreferrer">Voir sur la carte<span class="visually-hidden"> OpenStreetMap</span></a></p>{{end}}
-{{with .Price}}<p>Prix : {{.}}</p>{{end}}
-{{with .OnSaleDate}}<p>Mise en vente : <time datetime="{{.}}">{{frdate .}}</time></p>{{end}}
-{{template "agendaLink" .}}
-{{with .AddedBy}}<p class="meta">ajouté par {{.}}</p>{{end}}
+{{template "concertFacts" .}}{{with .AddedBy}}<p class="meta">ajouté par {{.}}</p>{{end}}
 {{if .LastRevID}}<p class="meta">modifié{{with .EditedBy}} par {{.}}{{end}} · <a href="{{.Base}}/concerts/{{.ID}}/history">Voir l'historique</a></p>{{end}}
-{{- /* Folded: on a phone the answer buttons stay on screen. No heading in <summary>. */}}
-{{with .Description}}<details class="about"><summary>En savoir plus</summary>
-<p>{{.}}</p></details>{{end}}
-</div>
+{{template "about" .}}</div>
 <div class="side">
 <p class="actions">
 {{with .TicketURL}}<a class="button" href="{{.}}" rel="noopener noreferrer">Billetterie</a>{{end}}

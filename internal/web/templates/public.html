@@ -1,24 +1,13 @@
 {{define "title"}}{{.Artist}} · Concerts{{end}}
 {{- /* Anyone holding the link sees this: nothing about the group but a count. */}}
-{{define "meta"}}{{template "ogCommon" .}}<meta property="og:title" content="{{.Artist}}">
-<meta property="og:description" content="{{when .Concert}} · {{.Venue}}">
-<meta property="og:url" content="{{.URL}}">
-<link rel="canonical" href="{{.URL}}">
-{{end}}
+{{define "meta"}}{{template "ogCommon" .}}{{template "concertMeta" .}}{{end}}
 {{define "brand"}}<span class="brand">Concerts</span>{{end}}
 {{define "content"}}
 <article class="ticket">
 {{template "ticketHead" .}}
 <div class="facts">
-<p>{{.Venue}}</p>
-{{with .Map}}<p>{{$.Address}}<br><a href="{{.}}" rel="noopener noreferrer">Voir sur la carte<span class="visually-hidden"> OpenStreetMap</span></a></p>{{end}}
-{{with .Price}}<p>Prix : {{.}}</p>{{end}}
-{{with .OnSaleDate}}<p>Mise en vente : <time datetime="{{.}}">{{frdate .}}</time></p>{{end}}
-{{template "agendaLink" .}}
-{{with .Going}}<p class="meta">{{.}} {{if eq . 1}}personne du groupe y va{{else}}personnes du groupe y vont{{end}}</p>{{end}}
-{{with .Description}}<details class="about"><summary>En savoir plus</summary>
-<p>{{.}}</p></details>{{end}}
-</div>
+{{template "concertFacts" .}}{{with .Going}}<p class="meta">{{.}} {{if eq . 1}}personne du groupe y va{{else}}personnes du groupe y vont{{end}}</p>{{end}}
+{{template "about" .}}</div>
 {{with .TicketURL}}<div class="side">
 <p class="actions"><a class="button" href="{{.}}" rel="noopener noreferrer">Billetterie</a></p>
 </div>{{end}}

@@ -69,3 +69,20 @@ readers get the full date. */}}
 {{- /* stubLabel is a stub's date, drawn for the eyes, on the card and the concert page's head. */}}
 {{define "stubLabel"}}<span class="stub-label" aria-hidden="true"><span>{{.Weekday}}</span><b>{{.Day}}</b><span>{{.Month}}</span>
 {{- with .Year}}<span>{{.}}</span>{{end}}{{with .Time}}<span class="hour">{{.}}</span>{{end}}</span>{{end}}
+
+{{- /* concertMeta, concertFacts and about: what the concert page and the public card share. */}}
+{{define "concertMeta"}}<meta property="og:title" content="{{.Artist}}">
+<meta property="og:description" content="{{when .Concert}} · {{.Venue}}">
+<meta property="og:url" content="{{.URL}}">
+<link rel="canonical" href="{{.URL}}">
+{{end}}
+{{define "concertFacts"}}<p>{{.Venue}}</p>
+{{with .Map}}<p>{{$.Address}}<br><a href="{{.}}" rel="noopener noreferrer">Voir sur la carte<span class="visually-hidden"> OpenStreetMap</span></a></p>{{end}}
+{{with .Price}}<p>Prix : {{.}}</p>{{end}}
+{{with .OnSaleDate}}<p>Mise en vente : <time datetime="{{.}}">{{frdate .}}</time></p>{{end}}
+{{template "agendaLink" .}}
+{{end}}
+{{- /* Folded: on a phone the answer buttons stay on screen. No heading in <summary>. */}}
+{{define "about"}}{{with .Description}}<details class="about"><summary>En savoir plus</summary>
+<p>{{.}}</p></details>{{end}}
+{{end}}
