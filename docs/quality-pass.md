@@ -61,8 +61,8 @@ tests
 - [x] Missing tests: 500 page and `/healthz` 503, stale `?added=` banner, `demo` in-process (non-numeric `{rev}` was already covered).
 
 docs
-- [ ] design.md: `token` missing from the data model; `Concert` does not filter deleted; `inGroup` ignores (not drops) a stale cookie; logout and old URL need no identity; « Prévenir le groupe » → « Partager »; icon list; palette names; « only orange button » for members; delete banner « Annuler la suppression »; facts stated twice (row cap, year rule, `next`, group cookie, pre-commit hook).
-- [ ] CLAUDE.md: « logged per slice » for `make measure` names no log; GORACE pitfall names one file of two.
+- [x] design.md: `token` missing from the data model; `Concert` does not filter deleted; `inGroup` ignores (not drops) a stale cookie; logout and old URL need no identity; « Prévenir le groupe » → « Partager »; icon list; palette names; « only orange button » for members; delete banner « Annuler la suppression »; facts stated twice (row cap, year rule, `next`, group cookie, pre-commit hook).
+- [x] CLAUDE.md: « logged per slice » for `make measure` names no log; GORACE pitfall names one file of two.
 
 ## Set aside for the user
 
@@ -82,4 +82,4 @@ docs
 
 ## State
 
-Zones done up to deploy + scripts. Next: tests zone, then docs, then /simplify + /code-review on the whole diff, then a second inventory round.
+Zones done up to deploy + scripts. Next: /simplify + /code-review on the whole diff, then a second inventory round.

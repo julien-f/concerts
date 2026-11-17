@@ -34,7 +34,7 @@ Design, threat model and later work: [docs/design.md](docs/design.md). Operation
 
 - `make fmt` after editing Go files. `make run`, `make test` (`go test -race ./...`), `make lint`, `make vuln` (needs network), `make check` (lint + vuln + test; the pre-commit hook runs it when `go.mod`/`go.sum` are staged, else lint + test; `make deploy` runs vuln), `make build`.
 - Single test: `go test -race -run TestName ./internal/web`.
-- `make demo`: fresh `demo.db` with sample data, then serves it. `make verify-ui`: axe-core, vnu and page weight on every demo screen; run before merging a UI change ([ADR 0006](docs/decisions/0006-scripted-ui-verification.md)). `make measure-scroll [REF=main]`: scroll fps of `style.css` at `REF` vs the working tree, on a phone on the same network; for CSS that may be costly to paint (masks, shadows, filters). `make measure`: Go lines, binary size and `make check` duration, logged per slice.
+- `make demo`: fresh `demo.db` with sample data, then serves it. `make verify-ui`: axe-core, vnu and page weight on every demo screen; run before merging a UI change ([ADR 0006](docs/decisions/0006-scripted-ui-verification.md)). `make measure-scroll [REF=main]`: scroll fps of `style.css` at `REF` vs the working tree, on a phone on the same network; for CSS that may be costly to paint (masks, shadows, filters). `make measure`: Go lines, binary size and `make check` duration, for a merge commit's body.
 
 ## Pitfalls
 
@@ -42,6 +42,6 @@ Design, threat model and later work: [docs/design.md](docs/design.md). Operation
 
 - A heading inside `<summary>` is not announced as a heading (the summary's button role hides it), and neither axe nor vnu flags it: keep headings outside `<summary>`.
 
-- A plain `go test -race` run takes 1 s longer than its tests: every `-race` binary sleeps 1 s at exit (`atexit_sleep_ms`) so goroutines still running can report races. `make test` and the child in `backup_fail_test.go` set `GORACE=atexit_sleep_ms=0`; the cost: a race in a goroutine that outlives every test goes unreported (one a test waits for is still caught).
+- A plain `go test -race` run takes 1 s longer than its tests: every `-race` binary sleeps 1 s at exit (`atexit_sleep_ms`) so goroutines still running can report races. `make test` and the children in `backup_fail_test.go` and `cmd/concerts/main_test.go` set `GORACE=atexit_sleep_ms=0`; the cost: a race in a goroutine that outlives every test goes unreported (one a test waits for is still caught).
 
 - Test expects « Qui es-tu ? » but the body has it: French templates put U+202F (narrow no-break space) before `? : ;` and inside « »; write `\u202f` in test strings and Playwright selectors, or match the words only.

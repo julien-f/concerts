@@ -27,16 +27,16 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 - **Storage**: only the SHA-256 of the secret, under a unique index; lookup by hash. A database leak does not reveal working links.
 - **Leaks through the browser**: `Referrer-Policy: no-referrer`; `X-Robots-Tag: noindex`; group pages send `Cache-Control: private, no-cache`.
 - **Leaks through the server**: request logs record the matched route pattern (`GET /g/{secret}/concerts/{id}`, `GET /c/{token}`), never the raw path, so no spelling (`//g/…`, `/./g/…`) can leak the secret; no IP addresses. The reverse proxy writes no access log for the site. Its error log does record the path when the app cannot answer: not on a deploy (requests wait in the socket), but during a rollback, a restore, a crash loop or an install; it goes to the journal, readable by root and, depending on the distro, the `adm`, `wheel` or `systemd-journal` groups.
-- **Leaks through features**: the `.ics` holds no page URL; preview images are static files, outside `/g/`; the prefill fetcher sends no cookie or `Referer`; the « Voir sur la carte » link sends only venue and address to OpenStreetMap; « Écouter » sends only the artist to YouTube; absolute URLs come from `CONCERTS_BASE_URL` (required by `serve`), never from `Host`.
+- **Leaks through features**: the `.ics` holds no page URL; preview images are static files, outside `/g/`; the prefill fetcher sends no cookie or `Referer`; the « Voir sur la carte » link sends only venue and address to OpenStreetMap; « Écouter » sends only the artist to YouTube; absolute URLs come from `CONCERTS_BASE_URL` (`http(s)://host` only, checked by every command that prints a link), never from `Host`.
 - **Identity cookie**: `HttpOnly`, `SameSite=Lax`, `Path=/g/<secret>`, `Secure` when the base URL is https (`serve` logs a warning for a plain-http one outside localhost), `Max-Age` 400 days. It holds the member id, checked against the group on every request.
-- **Public concert link** ([ADR 0009](decisions/0009-public-concert-link.md)): a concert page's address is `/c/<token>`, so what members copy or share (address bar, share sheet, « Prévenir le groupe ») never holds the secret.
+- **Public concert link** ([ADR 0009](decisions/0009-public-concert-link.md)): a concert page's address is `/c/<token>`, so what members copy or share (address bar, share sheet, « Partager ») never holds the secret.
   - Token: 12 random bytes in hex (96 bits), per concert, stored in clear (it must be rendered into links); a database leak exposes only public cards. It never rotates: deleting the concert is the only revocation.
   - Without a valid group cookie, the page is the public card: concert facts and a count of members going, no group name, first names or link into the group. Unknown and deleted tokens give the same plain 404, cookie or not; the response varies on `Cookie`.
   - Group cookie `g<group id>`: `<secret>.<member id>`, `Path=/c`, other attributes as the identity cookie; refreshed by every GET under `/g/<secret>`. It is a bearer credential like the link; the proxy logs no cookies. On `/c` it is parsed strictly, resolved like the link and must name the concert's group, else the card. The member page it unlocks holds the secret in its links and forms, never in its address.
   - Links sent before this slice carry the secret: rotate once after deploying it.
 - **CSRF**: every state change is a POST behind `http.CrossOriginProtection` (lets GET through; trusts `Sec-Fetch-Site`, else compares `Origin` with `Host`, so the proxy must keep `Host`). The prefill GET triggers an outbound fetch but needs the secret and is rate-limited.
 - **Abuse with a leaked link**: per-group caps (see Data model) bound what it can store. At the row cap a create purges old concerts, so a leaked link can flush the undo history and the past, as deleting everything then creating and deleting already could; likewise 20 edits flush a concert's edit history. Backups are the remedy. Server read, write and idle timeouts; request bodies capped at 64 kB.
-- **SSRF** (prefill): the resolved IP of every connection, redirects included, must be public unicast (IPv6 within `2000::/3`, special-purpose ranges excluded) on port 80 or 443; no proxy, no keep-alive, 3 redirects, 8 s, 1 MB of `text/html`; visible text is kept only for a host with a site rule (exact match on the final host, after redirects), at most 5,000 nodes; fetch errors are logged with the host only (a pasted group link must not reach the logs); one fetch in flight and 10 a minute per group, 2 in flight overall.
+- **SSRF** (prefill): the resolved IP of every connection, redirects included, must be public unicast (IPv6 within `2000::/3`, special-purpose ranges excluded) on port 80 or 443; no proxy, no keep-alive, 3 redirects, 8 s, 1 MB of `text/html` or XHTML; visible text is kept only for a host with a site rule (exact match on the final host, after redirects), at most 5,000 nodes; fetch errors are logged with the host only (a pasted group link must not reach the logs); one fetch in flight and 10 a minute per group, 2 in flight overall.
 - **Accepted risks**: anyone with the link can join and act as any first name; members are friends, so impersonation is social, not technical. Link previews in other messengers hand the link to the messaging provider (Telegram, Discord, Slack fetch it from their servers): for the group link, the picker and its first names, fixed by rotating the secret; for a concert link, only the public card. Anyone given a concert link sees the card for as long as the concert exists.
 
 ## User journeys
@@ -142,7 +142,7 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 └──────────────────────────────┘
 ```
 
-Without identity: statuses shown, buttons and edit/delete replaced by « Choisis ton prénom pour répondre » (picker with `next`, accepted only as `/concerts/<id>`). The year is shown when it differs from the current one.
+Without identity: statuses shown, buttons and edit/delete replaced by « Choisis ton prénom pour répondre » (picker with `next`, accepted only as `/concerts/<id>`), then the page's filled accent button.
 
 ### Public card (`/c/<token>`, without the group cookie)
 
@@ -186,21 +186,21 @@ Without identity: statuses shown, buttons and edit/delete replaced by « Choisis
 ```
 
 - The ticket link field of the main form carries the prefilled URL, so Enter in any field saves instead of prefilling.
-- Errors: listed above the form and tied to each field (`aria-describedby`, `aria-invalid`); the first invalid field gets `autofocus`.
+- Errors: listed above the form and tied to each field (`aria-describedby`, `aria-invalid`); the first invalid field gets `autofocus`; fields come back as typed, rejected characters included.
 
 ## Visual direction
 
 - **Motif: the ticket stub**, chosen over a gig-poster direction (phase 0 mockup, removed once applied in slice 2): denser, warmer, the stub naturally carries the date. Implemented in `internal/web/static/style.css`.
 - Card = stub (weekday, day, month in `ui-monospace`) + dashed perforation + body; half-circle notches cut into the card.
 - Stub pattern, festive without images but soft, since a list stacks many: faint fine rings, stripes, dots or scallops on a pale tint in one of 12 `oklch` hues, both picked from a hash of the artist (`stubStyle`), unmasked (fading them with `mask-image` cut scrolling from 51 to 36 fps on a Galaxy S10 in Firefox), desaturated on past concerts; the perforation stays visible over the tint; the concert page's ticket opens on a head of the same pattern, holding a larger stub and the title, cut by a perforation with notches; the title there sits on the pattern, which axe does not check, so the tint stays pale (dark in dark mode). Classes `hue-N pat-N`, since the CSP forbids `style=""`. The date sits on an opaque paper label: axe skips text over gradients, so the label is what keeps its contrast checked.
-- Palette: paper `#f4efe6` / card `#fffdf8` / ink `#1f1a17` / brick accent `#b4361d`; dark: `#17140f` / `#24201a` / `#f1ebe1` / `#ff8a65`. AA contrast checked by axe.
+- Palette: background `#f4efe6` / paper `#fffdf8` (cards, date labels) / ink `#1f1a17` / brick accent `#b4361d`; dark: `#17140f` / `#24201a` / `#f1ebe1` / `#ff8a65`. AA contrast checked by axe.
 - A filled accent button marks a screen's main action (« Billetterie », « Ajouter un concert », form submits); banner buttons (« Partager », « Annuler ») are secondary.
 - Month headings: small monospace caps in the accent color.
 - Pressed status = filled ink button + icon + `aria-pressed`; never color alone.
 - `system-ui` fonts, fields ≥ 16 px, targets ≥ 44 px on touch screens (36 px answer buttons without any touch input), `:focus-visible` outline, `prefers-reduced-motion` respected.
 - « Ajouter un concert »: one link right after the filters in the DOM (so the keyboard reaches it before the cards). Below 48 rem a fixed bar on the main screen only, above the cards (each a stacking context), padded by `env(safe-area-inset-bottom)`; `scroll-padding-bottom` and list padding keep focused and last cards visible. From 48 rem a plain button on the right of the filters.
 - From 48 rem: tickets in one row (info left, answer buttons right, status lines on one wrapping line), so about twice as many concerts per screen; concert page in two columns (facts | actions and statuses); concert form in pairs (Date | Heure, Salle | Adresse, Mise en vente | Prix; Artiste, Lien and Description full width), « Enregistrer » right-aligned. One column, not a grid of cards: dates keep reading top to bottom.
-- Icons: inline Lucide SVG (`star`, `check`), `aria-hidden`; never emoji.
+- Icons: inline Lucide SVG (`star`, `check`, `play`, `share`, `calendar`), `aria-hidden`; never emoji.
 - App icon and preview images: the `ticket` stub filled brick, perforation in paper colour (`icon.svg`; PNGs rendered from `scripts/*.svg` by `scripts/og-image.mjs`).
 
 ## Data model
@@ -211,7 +211,7 @@ Timestamps (`created_at`…) are UTC RFC 3339. Concert date and time are Europe/
 groups   (id PK, name, secret_hash BLOB UNIQUE, created_at)
 members  (id PK, group_id → groups ON DELETE CASCADE, name, name_key,
           created_at, UNIQUE (group_id, name_key))
-concerts (id PK, group_id → groups ON DELETE CASCADE,
+concerts (id PK, token UNIQUE, group_id → groups ON DELETE CASCADE,
           artist, date 'YYYY-MM-DD', time 'HH:MM' NULL, venue,
           address NULL, ticket_url NULL, on_sale_date 'YYYY-MM-DD' NULL,
           price NULL, description NULL,
@@ -232,12 +232,12 @@ concert_revisions (id PK, concert_id → concerts ON DELETE CASCADE,
 
 - `name` is stored with spaces trimmed and collapsed; `name_key` = `strings.ToLower(name)`, the one rule for "same name" and for sorting (byte order: « Élodie » sorts after « Zoé », accepted). No accent folding or Unicode normalisation (would need `x/text`): « Elodie » and « Élodie » are two names.
 - Main page = 2 queries per group (live concerts with creator name; their statuses with member names), assembled in Go: no N+1.
-- The identity cookie holds the member id; `inGroup` (web) resolves the secret, sets `Cache-Control` and drops a cookie naming a member of another group or a deleted one.
-- One accessor `Concert(groupID, id)` filters `group_id` and `deleted_at IS NULL` for every route but restore, which updates only a deleted row of the group; anything else is 404. Status writes also check the member belongs to the group.
+- The identity cookie holds the member id; `inGroup` (web) resolves the secret, sets `Cache-Control` and ignores a cookie naming a member of another group or a deleted one (no identity).
+- One accessor `Concert(groupID, id)` filters `group_id` and returns a deleted concert flagged `Deleted`: every route answers 404 for it but restore, which updates only a deleted row of the group, and the deleted banner. Status writes also check the member belongs to the group.
 - Required: artist, date, venue. Optional: time, address, ticket link, on-sale date (a link is often not known yet), price, description. At most 100 members and 500 upcoming concerts per group (422 beyond; edits and restores included; past ones never lock a group) and 1000 rows with past and deleted ones, so the disk cannot fill: at 1000 rows, a create purges the oldest deleted concert, else the oldest past one, with its statuses and revisions. At most 20 revisions per concert, older ones pruned on each edit: worst case ≈ 1000 × 20 × 11 kB (a 2000-rune description is up to 8 kB) ≈ 220 MB per group, bounded since only the operator creates groups. « Today » (Paris) is passed to the store by web.
 - An edit that changes something first copies the current values into a revision, in one transaction (`INSERT … SELECT` with NULL-safe `IS NOT`, so a no-op records nothing). Revision lookups join the concert, checking group and liveness in the same statement.
 - Validation (`parseForm`, also applied to prefilled values): text trimmed, 1–100 runes (name 1–30), valid UTF-8, no invisible characters (control, format, variation selectors, default-ignorable, braille blank), first names starting with a letter or digit; dates `YYYY-MM-DD`, time `HH:MM`; ticket URL absolute `http`/`https`, ≤ 2000 bytes; price free text ≤ 30 runes; description ≤ 2000 runes, line feeds kept (blank-line runs folded into one).
-- Prefill of price and description: schema.org `offers` give a euro range (« 29–32 € », currency inherited, absent = euros, 0 and ≥ 10,000 skipped); the event's `description` gets entities decoded, invisible characters stripped (the form would reject the whole text) and words glued by stripped markup separated (« SNIPERGroupe », « énergie.KENZ »); one longer than 2000 runes is cut at a line or sentence end with « … ». Open Graph descriptions are never used (Retour de Scène serves its menu there); Retour de Scène's rule reads the price and artist blocks between « Billetterie » and « Lieu ».
+- Prefill of price and description: schema.org `offers` give a euro range (« 29–32 € », currency inherited, absent = euros, 0 and ≥ 10,000 skipped); the event's `description` gets entities decoded, other blanks (tabs, braille blank) turned into spaces and invisible characters stripped (the form would reject the whole text; a site rule's description too) and words glued by stripped markup separated (« SNIPERGroupe », « énergie.KENZ »); one longer than 2000 runes is cut at a line or sentence end with « … ». Open Graph descriptions are never used (Retour de Scène serves its menu there); Retour de Scène's rule reads the price and artist blocks between « Billetterie » and « Lieu ».
 - Writes use `_txlock=immediate` and `busy_timeout`; status writes are upserts (idempotent). `synchronous(NORMAL)` may lose the last commits on power loss: accepted.
 
 ## Routes
@@ -249,7 +249,7 @@ All under `/g/{secret}` (written `…`) but the first two and the last two; unkn
 | GET | `/healthz` | DB ping | text |
 | GET | `/static/{name}` | hashed static file | file |
 | GET | `…` | picker (no identity, optional `next`; the group link's preview) or main list; `?mine=1` filter, `?past=all` every past concert, `?added=<id>` / `?restored=<id>` / `?deleted=<id>` banner | page |
-| POST | `…/me` | pick `member_id` or create `name`; sets cookie | 303 `next` (a path inside the group) or `…`; 422 picker |
+| POST | `…/me` | pick `member_id` or create `name`; sets cookie | 303 `next` (a concert path) or `…`; 422 picker |
 | POST | `…/logout` | « Ce n'est pas moi »: clears cookie | 303 `…` |
 | GET | `…/concerts/new` | add form; `?url=` pre-fills from the ticket page | page; htmx swaps the form (`hx-select`) |
 | POST | `…/concerts` | create; `anyway=1` skips the duplicate check | 303 `…?added=<id>`; 422 form (invalid or duplicate) |
@@ -265,8 +265,8 @@ All under `/g/{secret}` (written `…`) but the first two and the last two; unkn
 | GET | `/c/{token}` | concert page with the group cookie (`?saved`, `?reverted` banners), else public card | page; 404 plain |
 | GET | `/c/{token}/agenda.ics` | one-event calendar, public | `text/calendar` |
 
-- Every GET under `…` refreshes the group cookie `g<group id>` (`Path=/c`).
-- Routes needing an identity (all but the picker, `/me`, the concert page and history) redirect to `…` (303) without a valid member cookie.
+- Every GET under `…` refreshes the group cookie (threat model, public concert link).
+- Routes needing an identity (all but the picker, `/me`, logout, the old concert URL, the concert page and history) redirect to `…` (303) without a valid member cookie.
 - htmx requests get `HX-Redirect` instead of a 303 (htmx would swap the target page into the fragment) and `HX-Refresh` with a 404 (htmx swaps no 4xx).
 - Errors: 404 for unknown concert or a concert of another group: inside a group, a page « Concert introuvable » with the group header and « ← Tous les concerts » (htmx gets `HX-Refresh`, then that page); an unknown secret (rotated, truncated or never issued) gets the same plain « Page introuvable. », which reveals nothing, plus a hint to ask whoever runs the group (not the members: a rotation cuts off the leaker); other unmatched paths get Go's default 404; 500 is a generic page, details only in logs. Pages render into a buffer first, so a template error never sends a truncated 200.
 
@@ -278,8 +278,7 @@ All under `/g/{secret}` (written `…`) but the first two and the last two; unkn
 - **Secret rotation**: the old link 404s; the cookie path changes with the secret, so everyone re-picks their name from the list; data is untouched. Concert links keep working: the old group cookie no longer resolves, so they show the public card until the new link is opened.
 - **Concert without time**: card and page show the date only; `.ics` becomes an all-day event; sorting puts it before timed concerts the same day.
 - **Past concerts**: a concert moves to « Passés » the day after its date (Europe/Paris), newest first.
-- **Delete and undo**: delete sets `deleted_at`; the main page banner offers « Annuler la suppression » (POST restore). Deleted concerts are hidden everywhere; their pages, edits and status writes 404 (stale tab); statuses kept for undo, until the 1000-row cap purges the oldest deleted ones.
-- **Group at the cap** (1000 rows, no deleted concert left): each add silently purges the oldest past concert and its answers.
+- **Delete and undo**: delete sets `deleted_at`; the main page banner offers « Annuler la suppression » (POST restore). Deleted concerts are hidden everywhere; their pages, edits and status writes 404 (stale tab); statuses kept for undo, until the row cap purges them (Data model).
 - **Deleted member**: their statuses go (cascade); their concerts stay, shown without « ajouté par ».
 - **Ticket URL**: only `http`/`https`; rendered with `rel="noopener noreferrer"`.
 - **Edit history**: going back to a revision is an ordinary edit with its values, so it is recorded and can be undone; they go through today's validation first (a value accepted then but refused now → 422, nothing written). Concurrent edits: last write wins, each recorded. A deleted member's edits stay, as « Ancien membre ». The history page is readable without identity (like the concert page), its buttons are not.
