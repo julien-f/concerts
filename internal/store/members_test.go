@@ -97,6 +97,40 @@ func TestMembers(t *testing.T) {
 	}
 }
 
+func TestRenameMember(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s := openTest(t)
+	g, _ := s.CreateGroup(ctx, "g", "s1")
+	other, _ := s.CreateGroup(ctx, "other", "s2")
+	lea, _ := s.CreateMember(ctx, g.ID, "lea")
+	_, _ = s.CreateMember(ctx, g.ID, "Zoé")
+	elsewhere, _ := s.CreateMember(ctx, other.ID, "lea")
+
+	for _, tc := range []struct {
+		from, to string
+		want     error
+	}{
+		{"LEA", "Léa", nil}, // looked up case-insensitively; keeps the id, hence the answers
+		{"léa", "LÉA", nil}, // a case-only change is not a duplicate of itself
+		{"Léa", "zoé", ErrDuplicate},
+		{"Marc", "Max", ErrNotFound},
+	} {
+		if err := s.RenameMember(ctx, g.ID, tc.from, tc.to); !errors.Is(err, tc.want) {
+			t.Errorf("RenameMember(%q, %q) err = %v, want %v", tc.from, tc.to, err, tc.want)
+		}
+	}
+	if m, _ := s.Member(ctx, g.ID, lea.ID); m.Name != "LÉA" {
+		t.Errorf("renamed member = %q, want LÉA", m.Name)
+	}
+	if _, err := s.CreateMember(ctx, g.ID, "léa"); !errors.Is(err, ErrDuplicate) {
+		t.Errorf("CreateMember(léa) after rename: err = %v, want ErrDuplicate (name_key updated)", err)
+	}
+	if m, _ := s.Member(ctx, other.ID, elsewhere.ID); m.Name != "lea" {
+		t.Errorf("member of another group renamed to %q", m.Name)
+	}
+}
+
 func TestGroupsAndRotateSecret(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

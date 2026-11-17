@@ -26,6 +26,7 @@ const usage = `usage:
   concerts list-groups
   concerts rotate-secret <group-id>              replace the link (the old one stops working) and print it
   concerts delete-member <group-id> <first-name>
+  concerts rename-member <group-id> <first-name> <new-first-name>   keeps their answers and concerts
   concerts backup <file>                         write a consistent snapshot of the database; <file> must not exist
   concerts demo                                  fill an empty database with a demo group (development)
 
@@ -72,6 +73,8 @@ func run(args []string, log *slog.Logger) error {
 		cmd = func(st *store.Store) error { return rotateSecret(ctx, st, baseURL, args[1]) }
 	case len(args) == 3 && args[0] == "delete-member":
 		cmd = func(st *store.Store) error { return deleteMember(ctx, st, args[1], args[2]) }
+	case len(args) == 4 && args[0] == "rename-member":
+		cmd = func(st *store.Store) error { return renameMember(ctx, st, args[1], args[2], args[3]) }
 	case len(args) == 2 && args[0] == "backup":
 		cmd = func(st *store.Store) error { return st.Backup(ctx, args[1]) }
 	case len(args) == 1 && args[0] == "demo":
@@ -144,6 +147,21 @@ func deleteMember(ctx context.Context, st *store.Store, groupID, name string) er
 		return err
 	}
 	if err := st.DeleteMember(ctx, id, name); err != nil {
+		return fmt.Errorf("member %q of group %d: %w", name, id, err)
+	}
+	return nil
+}
+
+func renameMember(ctx context.Context, st *store.Store, groupID, name, newName string) error {
+	id, err := parseGroupID(groupID)
+	if err != nil {
+		return err
+	}
+	clean, ok := web.CleanName(newName)
+	if !ok {
+		return fmt.Errorf("new first name %q: the picker would refuse it (length, first character, invisible characters)", newName)
+	}
+	if err := st.RenameMember(ctx, id, name, clean); err != nil {
 		return fmt.Errorf("member %q of group %d: %w", name, id, err)
 	}
 	return nil

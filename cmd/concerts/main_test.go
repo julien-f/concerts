@@ -10,9 +10,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
+	"time"
+
+	"concerts/internal/store"
 )
 
 // TestServeSocketActivation passes a Unix listener as fd 3 to a child serve, as systemd does.
@@ -103,6 +107,28 @@ func testServeSocket(t *testing.T, listenPID string, pidNS bool) {
 	}
 	if !strings.Contains(out.String(), "addr="+sock) {
 		t.Errorf("child did not log the inherited socket:\n%s", &out)
+	}
+}
+
+func TestRenameMember(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	st, err := store.Open(ctx, filepath.Join(t.TempDir(), "c.db"), time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	g, _ := st.CreateGroup(ctx, "g", "s")
+	m, _ := st.CreateMember(ctx, g.ID, "Lea")
+
+	if err := renameMember(ctx, st, strconv.FormatInt(g.ID, 10), "lea", "\u200bLéa"); err == nil {
+		t.Error("invisible character accepted")
+	}
+	if err := renameMember(ctx, st, strconv.FormatInt(g.ID, 10), "lea", "  Léa   B. "); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := st.Member(ctx, g.ID, m.ID); got.Name != "Léa B." {
+		t.Errorf("name = %q, want the cleaned %q", got.Name, "Léa B.")
 	}
 }
 

@@ -89,3 +89,31 @@ func (s *Store) DeleteMember(ctx context.Context, groupID int64, name string) er
 	}
 	return mustAffect(res)
 }
+
+// RenameMember renames the group's member called name (case-insensitively) to newName, keeping
+// their answers. It returns ErrNotFound, or ErrDuplicate if another member already has newName.
+func (s *Store) RenameMember(ctx context.Context, groupID int64, name, newName string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var n int
+	if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM members WHERE group_id = ? AND name_key = ? AND name_key <> ?",
+		groupID, nameKey(newName), nameKey(name)).Scan(&n); err != nil {
+		return err
+	}
+	if n > 0 {
+		return ErrDuplicate
+	}
+	res, err := tx.ExecContext(ctx, "UPDATE members SET name = ?, name_key = ? WHERE group_id = ? AND name_key = ?",
+		newName, nameKey(newName), groupID, nameKey(name))
+	if err != nil {
+		return err
+	}
+	if err := mustAffect(res); err != nil {
+		return err
+	}
+	return tx.Commit()
+}

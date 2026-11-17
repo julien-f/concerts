@@ -16,6 +16,9 @@ const (
 	maxNameRunes = 30
 )
 
+// CleanName applies the picker's first-name rules, for the operator's rename-member.
+func CleanName(v string) (string, bool) { return cleanName(v, maxNameRunes) }
+
 // groupRequest is what every /g/{secret} handler gets: the group, its base path
 // and the member the identity cookie names (nil if none or stale).
 type groupRequest struct {
