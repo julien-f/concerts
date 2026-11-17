@@ -268,6 +268,8 @@ func TestParseEdgeCases(t *testing.T) {
 			Result{Artist: "A", Date: "2027-07-04", Time: "21:00"}},
 		{"offset without seconds, as ISO 8601 allows", `<script type="application/ld+json">{"@type":"MusicEvent","name":"A","startDate":"2027-07-04T19:00+02:00"}</script>`,
 			Result{Artist: "A", Date: "2027-07-04", Time: "19:00"}},
+		{"invisible characters dropped from one-line fields", `<script type="application/ld+json">{"@type":"MusicEvent","name":"Fon\u00adtaines","location":{"name":"Salle\u200b\tX"}}</script>`,
+			Result{Artist: "Fontaines", Venue: "Salle X"}},
 		{"date only, no time", `<script type="application/ld+json">{"@type":"Festival","name":"F","startDate":"2027-07-04","location":"Plein air"}</script>`,
 			Result{Artist: "F", Date: "2027-07-04", Venue: "Plein air"}},
 		{"MusicEvent preferred, in @graph", `<script type="APPLICATION/LD+JSON" id="x">{"@graph":[{"@type":"Event","name":"Other"},{"@type":["Thing","MusicEvent"],"name":"Music"}]}</script>`,

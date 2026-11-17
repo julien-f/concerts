@@ -420,9 +420,9 @@ func nameOf(v any) string {
 	return str(v)
 }
 
-// clean trims spaces (no-break ones too) and makes text valid UTF-8.
+// clean makes text valid UTF-8 and plain, then trims spaces (no-break ones too).
 func clean(s string) string {
-	return strings.TrimFunc(strings.ToValidUTF8(s, ""), unicode.IsSpace)
+	return strings.TrimFunc(plain(strings.ToValidUTF8(s, "")), unicode.IsSpace)
 }
 
 var dateLayouts = []string{time.RFC3339Nano, "2006-01-02T15:04Z07:00", "2006-01-02T15:04:05", "2006-01-02T15:04", time.DateOnly}
