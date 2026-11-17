@@ -11,13 +11,13 @@ func TestStatuses(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s := openTest(t)
-	g, _ := s.CreateGroup(ctx, "g", "s1")
-	other, _ := s.CreateGroup(ctx, "other", "s2")
-	zoe, _ := s.CreateMember(ctx, g.ID, "Zoé")
-	lea, _ := s.CreateMember(ctx, g.ID, "Léa")
-	intrus, _ := s.CreateMember(ctx, other.ID, "Intrus")
-	c1, _ := s.CreateConcert(ctx, g.ID, lea.ID, Concert{Artist: "A", Date: "2027-01-01", Venue: "V"}, testToday)
-	c2, _ := s.CreateConcert(ctx, g.ID, lea.ID, Concert{Artist: "B", Date: "2027-01-02", Venue: "V"}, testToday)
+	g := mustGroup(t, s, "g", "s1")
+	other := mustGroup(t, s, "other", "s2")
+	zoe := mustMember(t, s, g.ID, "Zoé")
+	lea := mustMember(t, s, g.ID, "Léa")
+	intrus := mustMember(t, s, other.ID, "Intrus")
+	c1 := mustConcert(t, s, g.ID, lea.ID, Concert{Artist: "A", Date: "2027-01-01", Venue: "V"}, testToday)
+	c2 := mustConcert(t, s, g.ID, lea.ID, Concert{Artist: "B", Date: "2027-01-02", Venue: "V"}, testToday)
 
 	for _, st := range []struct {
 		concert, member int64

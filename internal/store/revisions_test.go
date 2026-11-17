@@ -10,10 +10,10 @@ func TestRevisions(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s := openTest(t)
-	g, _ := s.CreateGroup(ctx, "g", "s1")
-	other, _ := s.CreateGroup(ctx, "other", "s2")
-	lea, _ := s.CreateMember(ctx, g.ID, "Léa")
-	tom, _ := s.CreateMember(ctx, g.ID, "Tom")
+	g := mustGroup(t, s, "g", "s1")
+	other := mustGroup(t, s, "other", "s2")
+	lea := mustMember(t, s, g.ID, "Léa")
+	tom := mustMember(t, s, g.ID, "Tom")
 	orig := Concert{Artist: "A", Date: "2027-03-14", Venue: "V"}
 	id, err := s.CreateConcert(ctx, g.ID, lea.ID, orig, testToday)
 	if err != nil {
@@ -71,7 +71,7 @@ func TestRevisions(t *testing.T) {
 	}
 
 	// Another group, another concert or an unknown id finds nothing.
-	otherID, _ := s.CreateConcert(ctx, other.ID, lea.ID, orig, testToday)
+	otherID := mustConcert(t, s, other.ID, lea.ID, orig, testToday)
 	if _, err := s.Revision(ctx, other.ID, id, first); !errors.Is(err, ErrNotFound) {
 		t.Errorf("revision from another group: %v", err)
 	}

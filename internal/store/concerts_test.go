@@ -11,9 +11,9 @@ func TestConcerts(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s := openTest(t)
-	g, _ := s.CreateGroup(ctx, "g", "s1")
-	other, _ := s.CreateGroup(ctx, "other", "s2")
-	lea, _ := s.CreateMember(ctx, g.ID, "Léa")
+	g := mustGroup(t, s, "g", "s1")
+	other := mustGroup(t, s, "other", "s2")
+	lea := mustMember(t, s, g.ID, "Léa")
 
 	add := func(c Concert) int64 {
 		t.Helper()
@@ -149,8 +149,8 @@ func TestConcertLimit(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s := openTest(t)
-	g, _ := s.CreateGroup(ctx, "g", "s")
-	m, _ := s.CreateMember(ctx, g.ID, "Léa")
+	g := mustGroup(t, s, "g", "s")
+	m := mustMember(t, s, g.ID, "Léa")
 	const past, later = "2026-05-31", "2026-07-01"
 	create := func(date string) (int64, error) {
 		return s.CreateConcert(ctx, g.ID, m.ID, Concert{Artist: "A", Date: date, Venue: "V"}, testToday)
@@ -268,9 +268,9 @@ func TestSameConcert(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s := openTest(t)
-	g, _ := s.CreateGroup(ctx, "g", "s1")
-	other, _ := s.CreateGroup(ctx, "other", "s2")
-	lea, _ := s.CreateMember(ctx, g.ID, "Léa")
+	g := mustGroup(t, s, "g", "s1")
+	other := mustGroup(t, s, "other", "s2")
+	lea := mustMember(t, s, g.ID, "Léa")
 	add := func(groupID int64, artist, date string) int64 {
 		t.Helper()
 		id, err := s.CreateConcert(ctx, groupID, lea.ID, Concert{Artist: artist, Date: date, Venue: "V"}, testToday)
