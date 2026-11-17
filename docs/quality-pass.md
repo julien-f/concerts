@@ -86,8 +86,9 @@ docs
 
 - Bugs fixed: verify-ui weighed the picker, not the list (24884 B now, 22909 reported before); « Rien trouvé » checked before validation; invalid edit of a deleted concert gave a 422 form; base URL without host name / bad port (Go and check_url); JSON-LD offset without a colon.
 - Tidy: no-op form margins and stale CSS comment; prose = clean; plain/Invisible comments; TestNewClientChecksDial; store « nothing listed » checks; AddedBy comment; tests for history dates and the word cut; stale doc lines.
+- Its reviews: edit loads the concert only for an invalid form; prefill result compared without the link; word kept when the cut ends it; hours-only offset; ports 1–65535 and « no host name » (Go and check_url); verify-ui weighs in its own context.
 - Kept below the bar: UpdateConcert/CreateMember returning values with errors (callers check err first); form.html's two repeated lines; render/fragment's shared buffering; pickerPage.MaxRunes.
 
 ## State
 
-Round 2 done; its /code-review high and simplify (92bff8e..HEAD) running. Next: apply them, then a third inventory round; stop when a round finds nothing worth a commit; then make check, verify-ui, measure, the user question (set-aside items), the merge commit body.
+Round 2 and its reviews done. Next: round 3 inventory (same zones, bar: bugs or clear maintainability wins); stop when a round finds nothing worth a commit; then make check, verify-ui, measure, the user question (set-aside items), the merge commit body.
