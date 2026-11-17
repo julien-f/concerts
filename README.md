@@ -30,14 +30,14 @@ A system user `<name>` (default `concerts`; the examples below use it) holds eve
 
 ### Install (root, once and after any change to `deploy/`)
 
-Requires on the server: systemd (257+ for every directive; older ones skip `PrivatePIDs=`), sudo, curl, and a reverse proxy (Caddy shown) whose process can join a group.
+Requires on the server: systemd (257+ for every directive; older ones skip `PrivatePIDs=`), sudo, curl, and a reverse proxy (Caddy shown) running as its own user.
 
 ```sh
-make install ADMIN_HOST=admin@server PROXY_GROUP=caddy BASE_URL=https://concerts.example.com DEPLOY_KEY=~/.ssh/id_ed25519.pub   # NAME=concerts by default
+make install ADMIN_HOST=admin@server PROXY_USER=caddy BASE_URL=https://concerts.example.com DEPLOY_KEY=~/.ssh/id_ed25519.pub   # NAME=concerts by default
 ```
 
 - `ADMIN_HOST` is an account with sudo. The script runs from a fresh `mktemp -d` and is idempotent: rerun it to apply changed units, a new base URL or a new deploy key.
-- `PROXY_GROUP` owns the socket (`0660`): the proxy's process must be in it, as primary or supplementary group (restart the proxy after adding it).
+- `PROXY_USER`, the user the proxy runs as, owns the socket (`0600`): no group to create or join.
 - It refuses a name already used by a user or unit it did not install, so it never takes over an existing account or system unit; uninstall refuses the same way.
 - It creates the user and its home, installs the deploy key (with `restrict`: no forwarding, no pty), the units rendered from `deploy/` (`<name>.socket` and the backup timer enabled) and `/etc/sudoers.d/<name>` (only the `systemctl` and `journalctl` lines `bin/admin` runs).
 - It never touches the proxy: it prints the site block (`deploy/site.caddy`) to add by hand before the first deploy. No access log for that site: paths hold group secrets. With Caddy, check that no other `log` covers this host: `caddy adapt --config <Caddyfile> | jq '.apps.http.servers[].logs'`. Keep the original `Host` header (Caddy does by default): cross-origin protection compares it with `Origin`.

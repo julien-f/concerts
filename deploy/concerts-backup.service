@@ -1,4 +1,4 @@
-# Installed by concerts install.sh, which replaces the NAME and PROXY_GROUP placeholders.
+# Installed by concerts install.sh, which replaces the NAME and PROXY_USER placeholders.
 [Unit]
 Description=@NAME@ database backup
 

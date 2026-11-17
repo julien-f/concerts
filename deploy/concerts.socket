@@ -1,12 +1,12 @@
-# Installed by concerts install.sh, which replaces the NAME and PROXY_GROUP placeholders.
+# Installed by concerts install.sh, which replaces the NAME and PROXY_USER placeholders.
 [Unit]
 Description=@NAME@ web app socket
 
 [Socket]
 ListenStream=/run/@NAME@.sock
-# Only the reverse proxy may connect.
-SocketGroup=@PROXY_GROUP@
-SocketMode=0660
+# Only the reverse proxy (and root) may connect.
+SocketUser=@PROXY_USER@
+SocketMode=0600
 
 [Install]
 WantedBy=sockets.target

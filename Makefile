@@ -60,7 +60,7 @@ endif
 endif
 ifneq ($(filter install uninstall,$(MAKECMDGOALS)),)
 ifeq ($(ADMIN_HOST),)
-$(error ADMIN_HOST is required, e.g. make install ADMIN_HOST=admin@concerts.example.com PROXY_GROUP=caddy BASE_URL=https://concerts.example.com DEPLOY_KEY=~/.ssh/id_ed25519.pub)
+$(error ADMIN_HOST is required, e.g. make install ADMIN_HOST=admin@concerts.example.com PROXY_USER=caddy BASE_URL=https://concerts.example.com DEPLOY_KEY=~/.ssh/id_ed25519.pub)
 endif
 endif
 
@@ -69,16 +69,16 @@ endif
 # could create first) and runs $(2) there under sudo. ssh -n: the first ssh would otherwise
 # swallow stdin, e.g. the answer piped to uninstall's confirmation.
 define as_root
-sh -c '. deploy/lib.sh; check_name NAME "$$1"; [ -z "$$2" ] || check_name PROXY_GROUP "$$2"; [ -z "$$3" ] || check_url "$$3"' \
-	make '$(NAME)' '$(PROXY_GROUP)' '$(BASE_URL)' && \
+sh -c '. deploy/lib.sh; check_name NAME "$$1"; [ -z "$$2" ] || check_name PROXY_USER "$$2"; [ -z "$$3" ] || check_url "$$3"' \
+	make '$(NAME)' '$(PROXY_USER)' '$(BASE_URL)' && \
 d=$$(ssh -n $(ADMIN_HOST) mktemp -d) && \
 scp -q deploy/* $(1) $(ADMIN_HOST):"$$d/" && \
 ssh -t $(ADMIN_HOST) "sudo sh $$d/$(2); s=\$$?; rm -r $$d; exit \$$s"
 endef
 
 install:
-	@test -n "$(PROXY_GROUP)" -a -n "$(BASE_URL)" -a -f $(DEPLOY_KEY) || { echo "PROXY_GROUP, BASE_URL and DEPLOY_KEY (a public key file) are required" >&2; exit 1; }
-	$(call as_root,$(DEPLOY_KEY),install.sh $(NAME) $(PROXY_GROUP) $(BASE_URL) $$d/$(notdir $(DEPLOY_KEY)))
+	@test -n "$(PROXY_USER)" -a -n "$(BASE_URL)" -a -f $(DEPLOY_KEY) || { echo "PROXY_USER, BASE_URL and DEPLOY_KEY (a public key file) are required" >&2; exit 1; }
+	$(call as_root,$(DEPLOY_KEY),install.sh $(NAME) $(PROXY_USER) $(BASE_URL) $$d/$(notdir $(DEPLOY_KEY)))
 
 uninstall:
 	$(call as_root,,uninstall.sh $(NAME))

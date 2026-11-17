@@ -1,26 +1,26 @@
 #!/bin/sh
 # Installs or updates the service; run as root by make install, rerun after any change to deploy/.
-# Usage: install.sh <name> <proxy-group> <base-url> <deploy-public-key-file>
+# Usage: install.sh <name> <proxy-user> <base-url> <deploy-public-key-file>
 # Never writes inside a directory the service user owns: it could have planted symlinks there.
 set -eu
 umask 022
 cd "$(dirname "$0")"
 . ./lib.sh
 
-[ $# = 4 ] || die "usage: install.sh <name> <proxy-group> <base-url> <deploy-public-key-file>"
+[ $# = 4 ] || die "usage: install.sh <name> <proxy-user> <base-url> <deploy-public-key-file>"
 NAME=$1
-PROXY_GROUP=$2
+PROXY_USER=$2
 base_url=${3%/}
 key=$4
 H=/home/$NAME
 
 [ "$(id -u)" = 0 ] || die "run as root"
 check_name name "$NAME"
-check_name proxy-group "$PROXY_GROUP"
+check_name proxy-user "$PROXY_USER"
 check_url "$base_url"
-[ "$NAME" != "$PROXY_GROUP" ] || die "the name and the proxy group must differ"
-grp=$(getent group "$PROXY_GROUP") || die "no group $PROXY_GROUP"
-[ "$(echo "$grp" | cut -d: -f3)" != 0 ] || die "the proxy group cannot be root's"
+[ "$NAME" != "$PROXY_USER" ] || die "the name and the proxy user must differ"
+uid=$(id -u "$PROXY_USER" 2>/dev/null) || die "no user $PROXY_USER"
+[ "$uid" != 0 ] || die "the proxy user cannot be root"
 host=${base_url#https://}
 host=${host%%/*}
 grep -Eq '^(ssh-|ecdsa-|sk-)' "$key" || die "$key: not an SSH public key"
@@ -40,7 +40,7 @@ fi
 
 # Units first: they carry the marker, so a run interrupted after this point can be rerun.
 for s in $UNITS; do
-	sed -e "s/@NAME@/$NAME/g" -e "s/@PROXY_GROUP@/$PROXY_GROUP/g" "concerts$s" >"/etc/systemd/system/$NAME$s.new"
+	sed -e "s/@NAME@/$NAME/g" -e "s/@PROXY_USER@/$PROXY_USER/g" "concerts$s" >"/etc/systemd/system/$NAME$s.new"
 	chmod 0644 "/etc/systemd/system/$NAME$s.new"
 	mv "/etc/systemd/system/$NAME$s.new" "/etc/systemd/system/$NAME$s"
 done
@@ -98,8 +98,8 @@ systemctl enable --now "$NAME.socket" "$NAME-backup.timer"
 # The proxy's configuration is the operator's: print the site block, never edit it.
 cat <<EOF
 installed $NAME. Add this site to the reverse proxy before the first deploy (Caddy shown; no access log,
-paths hold group secrets; keep the original Host header). The proxy process must be in group
-$PROXY_GROUP (primary or supplementary; restart it after adding the group) to open /run/$NAME.sock.
+paths hold group secrets; keep the original Host header). Only the proxy's user, $PROXY_USER,
+can open /run/$NAME.sock.
 
 EOF
 sed -e "s/@HOST@/$host/" -e "s/@NAME@/$NAME/" site.caddy

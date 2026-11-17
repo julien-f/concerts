@@ -2,7 +2,7 @@
 # before they reach a remote shell.
 
 # First line of every unit install.sh writes: what is not marked belongs to someone else.
-MARKER='# Installed by concerts install.sh, which replaces the NAME and PROXY_GROUP placeholders.'
+MARKER='# Installed by concerts install.sh, which replaces the NAME and PROXY_USER placeholders.'
 UNITS='.socket .service -backup.service -backup.timer'
 
 die() {
