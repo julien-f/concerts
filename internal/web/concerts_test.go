@@ -305,18 +305,19 @@ func TestConcertAccess(t *testing.T) {
 		method string
 		path   string
 		status int
+		to     string // Location of a 303, if checked: a successful write redirects too
 	}{
-		{"anonymous add form", anon, "GET", g + "/concerts/new", http.StatusSeeOther},
-		{"anonymous create", anon, "POST", g + "/concerts", http.StatusSeeOther},
-		{"anonymous edit", anon, "GET", g + "/concerts/1/edit", http.StatusSeeOther},
-		{"anonymous delete", anon, "POST", g + "/concerts/1/delete", http.StatusSeeOther},
-		{"anonymous concert page", anon, "GET", g + "/concerts/1", http.StatusSeeOther}, // to the public link
-		{"other group's concert", intruder, "GET", "/g/" + other + "/concerts/1", http.StatusNotFound},
-		{"other group's delete", intruder, "POST", "/g/" + other + "/concerts/1/delete", http.StatusNotFound},
-		{"other group's restore", intruder, "POST", "/g/" + other + "/concerts/1/restore", http.StatusNotFound},
-		{"unknown concert", b, "GET", g + "/concerts/99", http.StatusNotFound},
-		{"non-numeric id", b, "GET", g + "/concerts/abc", http.StatusNotFound},
-		{"unknown secret", b, "GET", "/g/" + NewSecret() + "/concerts/1", http.StatusNotFound},
+		{"anonymous add form", anon, "GET", g + "/concerts/new", http.StatusSeeOther, g},
+		{"anonymous create", anon, "POST", g + "/concerts", http.StatusSeeOther, g},
+		{"anonymous edit", anon, "GET", g + "/concerts/1/edit", http.StatusSeeOther, g},
+		{"anonymous delete", anon, "POST", g + "/concerts/1/delete", http.StatusSeeOther, g},
+		{"anonymous concert page", anon, "GET", g + "/concerts/1", http.StatusSeeOther, ts.concertURL(t, secret, 1)},
+		{"other group's concert", intruder, "GET", "/g/" + other + "/concerts/1", http.StatusNotFound, ""},
+		{"other group's delete", intruder, "POST", "/g/" + other + "/concerts/1/delete", http.StatusNotFound, ""},
+		{"other group's restore", intruder, "POST", "/g/" + other + "/concerts/1/restore", http.StatusNotFound, ""},
+		{"unknown concert", b, "GET", g + "/concerts/99", http.StatusNotFound, ""},
+		{"non-numeric id", b, "GET", g + "/concerts/abc", http.StatusNotFound, ""},
+		{"unknown secret", b, "GET", "/g/" + NewSecret() + "/concerts/1", http.StatusNotFound, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -329,6 +330,9 @@ func TestConcertAccess(t *testing.T) {
 			}
 			if resp.StatusCode != tt.status {
 				t.Fatalf("status = %d, want %d", resp.StatusCode, tt.status)
+			}
+			if got := resp.Header.Get("Location"); tt.to != "" && got != tt.to {
+				t.Errorf("Location = %q, want %q", got, tt.to)
 			}
 		})
 	}
