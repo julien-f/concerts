@@ -197,4 +197,7 @@ func TestFitParagraphsWordCut(t *testing.T) {
 				string([]rune(got)[max(0, utf8.RuneCountInString(got)-8):]), utf8.RuneCountInString(tt.want), string([]rune(tt.want)[utf8.RuneCountInString(tt.want)-8:]))
 		}
 	}
+	if got := fitParagraphs("aaaa bbbb\ncc", 10); got != "aaaa bbbb…" { // a line feed ends a word too
+		t.Errorf("fitParagraphs before a line feed = %q, want %q", got, "aaaa bbbb…")
+	}
 }
