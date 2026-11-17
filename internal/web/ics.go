@@ -58,7 +58,11 @@ func ics(groupID int64, c store.Concert, stamp time.Time) string {
 			"DTSTART;VALUE=DATE:"+day.Format("20060102"),
 			"DTEND;VALUE=DATE:"+day.AddDate(0, 0, 1).Format("20060102")) // exclusive end
 	}
-	lines = append(lines, "SUMMARY:"+icsEscape.Replace(c.Artist), "LOCATION:"+icsEscape.Replace(c.Venue))
+	location := c.Venue
+	if c.Address != "" {
+		location += ", " + c.Address
+	}
+	lines = append(lines, "SUMMARY:"+icsEscape.Replace(c.Artist), "LOCATION:"+icsEscape.Replace(location))
 	if c.TicketURL != "" {
 		lines = append(lines, "DESCRIPTION:"+icsEscape.Replace("Billets : "+c.TicketURL))
 	}

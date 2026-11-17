@@ -90,6 +90,27 @@ func TestConcertLifecycle(t *testing.T) {
 	}
 }
 
+func TestConcertAddress(t *testing.T) {
+	t.Parallel()
+	ts := newTestServer(t)
+	b, secret := ts.member(t, "Léa")
+	g := "/g/" + secret
+
+	form := concertValues("Zaz", "2026-06-13", "", "L'Olympia", "", "")
+	form.Set("address", " 28 bd des Capucines & co, Paris ")
+	b.postRedirect(t, g+"/concerts", form)
+	_, body := b.get(t, g+"/concerts/1")
+	assertContains(t, body, "<p>28 bd des Capucines &amp; co, Paris<br>",
+		`href="https://www.openstreetmap.org/search?query=L%27Olympia%2C&#43;28&#43;bd&#43;des&#43;Capucines&#43;%26&#43;co%2C&#43;Paris"`)
+	_, body = b.get(t, g+"/concerts/1/edit")
+	assertContains(t, body, `id="address" name="address" type="text" value="28 bd des Capucines &amp; co, Paris" maxlength="100" autocomplete="off"`)
+
+	b.postRedirect(t, g+"/concerts/1", concertValues("Zaz", "2026-06-13", "", "L'Olympia", "", ""))
+	if _, body = b.get(t, g+"/concerts/1"); strings.Contains(body, "openstreetmap") {
+		t.Errorf("map link shown without an address")
+	}
+}
+
 func TestConcertValidation(t *testing.T) {
 	t.Parallel()
 	ts := newTestServer(t)
@@ -106,6 +127,8 @@ func TestConcertValidation(t *testing.T) {
 		{"relative link", "ticket_url", "/billets"},
 		{"non-ASCII host", "ticket_url", "https://x.example\u202e/a"},
 		{"invalid UTF-8 link", "ticket_url", "https://x.example/\x80\x80"},
+		{"address too long", "address", strings.Repeat("a", 101)},
+		{"invisible character in address", "address", "1 rue X\u200b"},
 		{"bad on-sale date", "on_sale_date", "demain"},
 	}
 	for _, tt := range tests {

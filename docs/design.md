@@ -27,7 +27,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 - **Storage**: only the SHA-256 of the secret, under a unique index; lookup by hash. A database leak does not reveal working links.
 - **Leaks through the browser**: `Referrer-Policy: no-referrer`; `X-Robots-Tag: noindex`; group pages send `Cache-Control: private, no-cache`.
 - **Leaks through the server**: request logs record the matched route pattern (`GET /g/{secret}/concerts/{id}`), never the raw path, so no spelling (`//g/…`, `/./g/…`) can leak the secret; no IP addresses. The reverse proxy writes no access log for the site. Its error log does record the path when the app cannot answer: not on a deploy (requests wait in the socket), but during a rollback, a restore, a crash loop or an install; it goes to the journal, readable by root and, depending on the distro, the `adm`, `wheel` or `systemd-journal` groups.
-- **Leaks through features**: the `.ics` holds no page URL; the prefill fetcher sends no cookie or `Referer`; absolute URLs come from `CONCERTS_BASE_URL` (required by `serve`), never from `Host`.
+- **Leaks through features**: the `.ics` holds no page URL; the prefill fetcher sends no cookie or `Referer`; the « Voir sur la carte » link sends only venue and address to OpenStreetMap; absolute URLs come from `CONCERTS_BASE_URL` (required by `serve`), never from `Host`.
 - **Identity cookie**: `HttpOnly`, `SameSite=Lax`, `Path=/g/<secret>`, `Secure` when the base URL is https (`serve` logs a warning for a plain-http one outside localhost), `Max-Age` 400 days. It holds the member id, checked against the group on every request.
 - **CSRF**: every state change is a POST behind `http.CrossOriginProtection` (lets GET through; trusts `Sec-Fetch-Site`, else compares `Origin` with `Host`, so the proxy must keep `Host`). The prefill GET triggers an outbound fetch but needs the secret and is rate-limited.
 - **Abuse with a leaked link**: per-group caps (see Data model) bound what it can store. At the row cap a create purges old concerts, so a leaked link can flush the undo history and the past, as deleting everything then creating and deleting already could; backups are the remedy. Server read, write and idle timeouts; request bodies capped at 64 kB.
@@ -138,6 +138,7 @@ Without identity: statuses shown, buttons and edit/delete replaced by « Choisis
 │ Artiste*      [____________] │  autofocus after prefill
 │ Date*  [jj/mm/aaaa] Heure [--:--]│
 │ Salle*        [____________] │
+│ Adresse       [____________] │  autocomplete=off
 │ Mise en vente [jj/mm/aaaa]   │
 │ [        Enregistrer        ]│
 └──────────────────────────────┘
@@ -167,7 +168,7 @@ members  (id PK, group_id → groups ON DELETE CASCADE, name, name_key,
           created_at, UNIQUE (group_id, name_key))
 concerts (id PK, group_id → groups ON DELETE CASCADE,
           artist, date 'YYYY-MM-DD', time 'HH:MM' NULL, venue,
-          ticket_url NULL, on_sale_date 'YYYY-MM-DD' NULL,
+          address NULL, ticket_url NULL, on_sale_date 'YYYY-MM-DD' NULL,
           created_by → members ON DELETE SET NULL, created_at,
           deleted_at NULL)
           INDEX (group_id, date)
@@ -181,7 +182,7 @@ statuses (concert_id → concerts ON DELETE CASCADE,
 - Main page = 2 queries per group (live concerts with creator name; their statuses with member names), assembled in Go: no N+1.
 - The identity cookie holds the member id; `inGroup` (web) resolves the secret, sets `Cache-Control` and drops a cookie naming a member of another group or a deleted one.
 - One accessor `Concert(groupID, id)` filters `group_id` and `deleted_at IS NULL` for every route but restore, which updates only a deleted row of the group; anything else is 404. Status writes also check the member belongs to the group.
-- Required: artist, date, venue. Optional: time, ticket link, on-sale date (a link is often not known yet). At most 100 members and 500 upcoming concerts per group (422 beyond; edits and restores included; past ones never lock a group) and 1000 rows with past and deleted ones, so the disk cannot fill: at 1000 rows, a create purges the oldest deleted concert, else the oldest past one, with its statuses. « Today » (Paris) is passed to the store by web.
+- Required: artist, date, venue. Optional: time, address, ticket link, on-sale date (a link is often not known yet). At most 100 members and 500 upcoming concerts per group (422 beyond; edits and restores included; past ones never lock a group) and 1000 rows with past and deleted ones, so the disk cannot fill: at 1000 rows, a create purges the oldest deleted concert, else the oldest past one, with its statuses. « Today » (Paris) is passed to the store by web.
 - Validation (`parseForm`, also applied to prefilled values): text trimmed, 1–100 runes (name 1–30), valid UTF-8, no invisible characters (control, format, variation selectors, default-ignorable, braille blank), first names starting with a letter or digit; dates `YYYY-MM-DD`, time `HH:MM`; ticket URL absolute `http`/`https`, ≤ 2000 bytes.
 - Writes use `_txlock=immediate` and `busy_timeout`; status writes are upserts (idempotent). `synchronous(NORMAL)` may lose the last commits on power loss: accepted.
 
@@ -230,18 +231,18 @@ One slice per branch, merged with `--no-ff`. All shipped (v1).
 
 0. Skeleton: groups, `new-group`, `/g/<secret>`, `/healthz`.
 1. **Members and identity**: first names as « C'est moi » buttons plus a « Ton prénom » field; a taken name offers « C'est moi » or an initial; « Ce n'est pas moi » on every page; `list-groups`, `rotate-secret <group-id>` (prints the new link; everyone picks their name again), `delete-member <group-id> <first-name>`.
-2. **Concerts**: artist, date, optional time, venue, optional http(s) ticket link, optional on-sale date; editable; soft delete with « Annuler la suppression »; « ajouté par X »; « Prévenir le groupe » (`wa.me`, [ADR 0007](decisions/0007-plain-whatsapp-link.md)) right after adding.
+2. **Concerts**: artist, date, optional time, venue, optional address (concert page only, with « Voir sur la carte »: an OpenStreetMap search for « venue, address »), optional http(s) ticket link, optional on-sale date; editable; soft delete with « Annuler la suppression »; « ajouté par X »; « Prévenir le groupe » (`wa.me`, [ADR 0007](decisions/0007-plain-whatsapp-link.md)) right after adding.
 3. **Statuses**: interested / going / ticket bought; tapping the active one clears it.
    - One status block (names per status, my three buttons) shared by card and concert page; htmx swaps that block only, and buttons keep stable ids so focus survives.
    - The active button submits an empty status, so every POST states the target state: a double tap is harmless.
 4. **Single main screen**: upcoming concerts grouped by month; « Mes concerts » filters the same list; « Passés » (collapsed, newest first, no buttons) from the day after the date; « sam. 14 mars · 20 h », Europe/Paris. « Today » is the Paris date of the injected clock.
 5. **Prefill from a ticketing URL** (`internal/prefill`), manual entry on failure.
    - `Parse` uses the tokenizer (meta tags, `<title>`, every `ld+json` block); fixtures shaped like Dice, Olympia, Zénith, Fnac and Accor Arena pages. Most other French ticketing sites block plain clients (401/403/429 or a challenge), so manual entry is the common path.
-   - JSON-LD: first `MusicEvent`, else any `*Event`/`Festival`, wherever nested; artist = first performer, else event name; `startDate` converted to Paris; venue = location name; on-sale = earliest `validFrom`/`availabilityStarts` from today on. Fallback artist: og:title (`property` or `name`), twitter:title, `<title>`, cut at ` | `, ` - `, ` @ `…; never a date from a title.
+   - JSON-LD: first `MusicEvent`, else any `*Event`/`Festival`, wherever nested; artist = first performer, else event name; `startDate` converted to Paris; venue = location name; address = `location.address`, a string or a PostalAddress as « street, postcode city » (country left out, city not repeated if the street holds it, dropped if equal to the venue); on-sale = earliest `validFrom`/`availabilityStarts` from today on. Fallback artist: og:title (`property` or `name`), twitter:title, `<title>`, cut at ` | `, ` - `, ` @ `…; never a date from a title.
    - Client and limits: see the threat model (SSRF). Fetched values go through the form's validation; invalid ones are dropped. The user sees one generic message, never the error.
    - `GET …/concerts/new?url=`: a separate GET form above the main one (Enter in the main form saves); htmx swaps `<main>` and pushes the URL. The outcome is tied to the focused field (`aria-describedby`); « Lecture de la page… » sits in a live region present before the request.
 6. **« Ajouter à mon agenda »**: one concert's `.ics`, no feed, so the secret never reaches a calendar provider.
-   - Hand-written RFC 5545: no METHOD (Outlook would see an invitation); UID `concert-<group>-<id>` (no host, RFC 7986); timed concerts in UTC with a 3 h end (no VTIMEZONE), date-only ones `VALUE=DATE` with an exclusive next-day end; SUMMARY, LOCATION, DESCRIPTION « Billets : <link> » only.
+   - Hand-written RFC 5545: no METHOD (Outlook would see an invitation); UID `concert-<group>-<id>` (no host, RFC 7986); timed concerts in UTC with a 3 h end (no VTIMEZONE), date-only ones `VALUE=DATE` with an exclusive next-day end; SUMMARY, LOCATION (« venue, address »), DESCRIPTION « Billets : <link> » only.
    - TEXT escaping (a field cannot start a property line), folding at 75 octets on rune boundaries, CRLF; golden files. `attachment; filename="concert.ics"`, `private, no-store`. An edited concert re-imported on iOS is not updated (known limit).
 7. **Open Graph preview** of concert pages: no identity needed, so a previewer gets `og:title` (artist), `og:description` (date · venue), `og:url` (from `CONCERTS_BASE_URL`), `og:site_name`, `og:type`. No `og:image`: weight for no information.
 
