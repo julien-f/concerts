@@ -3,6 +3,7 @@ package prefill
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"io"
 	"maps"
@@ -25,18 +26,66 @@ type page struct {
 	meta   map[string]string // og:title, twitter:title… (first value wins)
 	title  string
 	ldJSON [][]byte
+	texts  []text // visible text, only for hosts with a site rule
 }
 
-// scan collects meta tags, <title> and JSON-LD blocks with the tokenizer: no tree, no scripts run.
-func scan(r io.Reader) page {
+// text is a visible text node; class is the innermost open element's, cleared by any end tag.
+type text struct {
+	s, class string
+	heading  bool
+}
+
+// maxTexts bounds the memory a page of tiny text nodes can take.
+const maxTexts = 5000
+
+// voidTags never get an end tag, so they must not replace the open element's class.
+var voidTags = []string{"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
+
+// scan collects meta tags, <title>, JSON-LD blocks and, withTexts, visible text, with the tokenizer: no tree, no scripts run.
+func scan(r io.Reader, withTexts bool) page {
 	p := page{meta: map[string]string{}}
 	z := html.NewTokenizer(r)
+	var class string
+	var headings, hidden int // open h1–h6; open svg or template, whose text is not shown as is
+	depth := func(tag string) *int {
+		switch tag {
+		case "h1", "h2", "h3", "h4", "h5", "h6":
+			return &headings
+		case "svg", "template":
+			return &hidden
+		}
+		return nil
+	}
 	for {
-		switch z.Next() {
+		switch tt := z.Next(); tt {
 		case html.ErrorToken:
 			return p
+		case html.TextToken:
+			if !withTexts || hidden > 0 || len(p.texts) >= maxTexts {
+				continue
+			}
+			if s := clean(string(z.Text())); s != "" {
+				p.texts = append(p.texts, text{s: s, class: class, heading: headings > 0})
+			}
+		case html.EndTagToken:
+			class = ""
+			name, _ := z.TagName()
+			if d := depth(string(name)); d != nil {
+				*d = max(*d-1, 0)
+			}
 		case html.StartTagToken, html.SelfClosingTagToken:
 			t := z.Token()
+			if !slices.Contains(voidTags, t.Data) { // HTML ignores the slash of <span/>: it opens the element
+				class = ""
+				for _, a := range t.Attr {
+					if a.Key == "class" {
+						class = a.Val
+					}
+				}
+				if d := depth(t.Data); d != nil && tt == html.StartTagToken { // <svg/> does close itself
+					*d++
+				}
+			}
 			switch t.Data {
 			case "meta":
 				var key, content string
@@ -56,26 +105,37 @@ func scan(r io.Reader) page {
 					p.title = string(z.Text())
 				}
 			case "script":
-				for _, a := range t.Attr {
-					if a.Key == "type" && strings.EqualFold(strings.TrimSpace(a.Val), "application/ld+json") && z.Next() == html.TextToken {
-						p.ldJSON = append(p.ldJSON, bytes.Clone(z.Text()))
-					}
+				ld := slices.ContainsFunc(t.Attr, func(a html.Attribute) bool {
+					return a.Key == "type" && strings.EqualFold(strings.TrimSpace(a.Val), "application/ld+json")
+				})
+				if z.Next() == html.TextToken && ld {
+					p.ldJSON = append(p.ldJSON, bytes.Clone(z.Text()))
 				}
+				class = "" // the token read may have been the end tag
+			case "style", "noscript", "textarea", "iframe", "noembed", "noframes", "xmp":
+				z.Next() // raw text: the tokenizer returns the content, markup included, as one text token
+				class = ""
 			}
 		}
 	}
 }
 
-// Parse extracts a Result from an HTML document. now's location is the app's
-// time zone (Europe/Paris); on-sale dates before now are dropped.
-func Parse(r io.Reader, now time.Time) Result {
-	p := scan(r)
+// Parse extracts a Result from a page of host; now is in Europe/Paris and drops past on-sale dates.
+func Parse(r io.Reader, host string, now time.Time) Result {
+	rule := siteRule(host)
+	p := scan(r, rule != nil)
 	var res Result
 	if ev := findEvent(p.ldJSON); ev != nil {
 		res = fromEvent(ev, now)
 	}
 	if res.Artist == "" {
 		res.Artist = titleArtist(p)
+	}
+	// A date from JSON-LD means an event was found: do not mix in another source.
+	if rule != nil && res.Date == "" {
+		site := rule(p.texts)
+		res.Date, res.Time = site.Date, cmp.Or(res.Time, site.Time)
+		res.Venue, res.Address = cmp.Or(res.Venue, site.Venue), cmp.Or(res.Address, site.Address)
 	}
 	return res
 }

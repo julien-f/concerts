@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// maxPage caps what is read of a page; metadata sits in the <head>.
+// maxPage caps what is read of a page, body included (site rules read visible text).
 const maxPage = 1 << 20
 
 func prefixes(ss ...string) []netip.Prefix {
@@ -133,5 +133,5 @@ func fetch(ctx context.Context, client *http.Client, url string, now time.Time) 
 	if mt, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type")); mt != "text/html" && mt != "application/xhtml+xml" {
 		return Result{}, fmt.Errorf("content type %q", mt)
 	}
-	return Parse(io.LimitReader(resp.Body, maxPage), now), nil
+	return Parse(io.LimitReader(resp.Body, maxPage), resp.Request.URL.Hostname(), now), nil
 }

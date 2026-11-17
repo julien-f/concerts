@@ -44,7 +44,7 @@ func TestPrefill(t *testing.T) {
 	}{
 		{"dice", site.URL + "/dice.html", []string{"Vérifie les champs pré-remplis", `value="Les Hiboux"`, `value="2026-11-27"`,
 			`value="20:00"`, `value="Salle Exemple"`, `id="address" name="address" type="text" value="Paris"`, `id="ticket_url" name="ticket_url" type="url" value="` + site.URL + `/dice.html"`, "autofocus"}},
-		{"blocked site", site.URL + "/blocked", []string{"Impossible de lire cette page\u202f: remplis", `name="ticket_url" type="url" value="` + site.URL + `/blocked"`}},
+		{"blocked site", site.URL + "/blocked", []string{"Impossible de lire cette page\u202f: essaie le lien de la salle ou de l", "ou remplis \u00e0 la main.", `name="ticket_url" type="url" value="` + site.URL + `/blocked"`}},
 		{"og:title only", site.URL + "/accor.html", []string{`value="Duo Fictif"`}},
 		{"nothing found", site.URL + "/empty", []string{"Rien trouvé sur cette page\u202f: remplis", `aria-describedby="prefill-msg" autofocus`}},
 		{"hostile values dropped", site.URL + "/hostile", []string{`id="artist" name="artist" type="text" value=""`, `id="venue" name="venue" type="text" value=""`, `id="address" name="address" type="text" value=""`, `value="2026-07-01"`}},
@@ -94,7 +94,7 @@ func TestRefreshConcert(t *testing.T) {
 		{"nothing to fill", full, []string{
 			"Rien de plus sur la billetterie.", `aria-describedby="prefill-msg" autofocus>Relire la billetterie`}},
 		{"unreadable page", concertValues("Mine", "2027-01-25", "", "V", site.URL+"/blocked", ""), []string{
-			"Impossible de lire cette page : remplis", `aria-describedby="prefill-msg" autofocus>Relire la billetterie`}},
+			"Impossible de lire cette page : essaie le lien de la salle", `aria-describedby="prefill-msg" autofocus>Relire la billetterie`}},
 		{"no ticket link", concertValues("", "", "", "V", "", ""), []string{
 			`id="ticket_url-error" class="error">Indique d&#39;abord le lien de billetterie.`}},
 	}
