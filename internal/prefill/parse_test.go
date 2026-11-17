@@ -77,7 +77,7 @@ func TestProse(t *testing.T) {
 		{"Un&amp;deux\r\ntrois", "Un&deux\ntrois"},
 		{"Ex\u00ademple\u200b", "Exemple"},
 		{"Un\tduo\u00a0ici", "Un duo ici"},
-		{"Un duo\u2800ici", "Un duoici"},
+		{"Un duo\u2800ici", "Un duo ici"},
 	}
 	for _, tt := range tests {
 		if got := prose(tt.in); got != tt.want {
@@ -199,6 +199,9 @@ func TestParseSiteRules(t *testing.T) {
 				return `<a>Billetterie</a><p>Prix libre</p><h1>X</h1><p>Un  <a>Suivre</a>  duo.</p><h3>Lieu</h3>`
 			},
 			Result{Description: "Prix libre\n\nX\nUn duo."}},
+		{"invisible characters dropped from the description, as from JSON-LD's", "www.retourdescene.net",
+			func(*testing.T) string { return "<a>Billetterie</a><p>Ex\u00ademple\u200b\tici</p><h3>Lieu</h3>" },
+			Result{Description: "Exemple ici"}},
 		{"price with spaces and cents", "www.retourdescene.net",
 			func(*testing.T) string { return "<a>Billetterie</a><p>12,50 € / 15 €</p><h3>Lieu</h3>" },
 			Result{Price: "12,50–15 €"}},

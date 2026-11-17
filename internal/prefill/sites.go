@@ -139,7 +139,7 @@ func retourDeSceneAbout(texts []text) (price, description string) {
 		b.WriteString(t.s)
 		newLine = false
 	}
-	return price, b.String()
+	return price, plain(b.String())
 }
 
 // section returns the texts between the heading named name and the next heading.
