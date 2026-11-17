@@ -119,24 +119,3 @@ func TestRevisions(t *testing.T) {
 		t.Fatalf("kept %d revisions, ids %d…%d; want the %d newest ending at %d", len(rs), rs[len(rs)-1].ID, rs[0].ID, maxRevisions, last)
 	}
 }
-
-func TestRevisionsAtLimit(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	s := openTest(t)
-	g, _ := s.CreateGroup(ctx, "g", "s")
-	m, _ := s.CreateMember(ctx, g.ID, "Léa")
-	pastID, _ := s.CreateConcert(ctx, g.ID, m.ID, Concert{Artist: "A", Date: "2026-05-31", Venue: "V"}, testToday)
-	for range MaxConcerts {
-		if _, err := s.CreateConcert(ctx, g.ID, m.ID, Concert{Artist: "A", Date: testToday, Venue: "V"}, testToday); err != nil {
-			t.Fatal(err)
-		}
-	}
-	// A refused edit leaves no revision behind.
-	if _, err := s.UpdateConcert(ctx, g.ID, m.ID, pastID, Concert{Artist: "A", Date: testToday, Venue: "V"}, testToday); !errors.Is(err, ErrLimit) {
-		t.Fatalf("edit into the future at the limit: %v", err)
-	}
-	if rs, _ := s.Revisions(ctx, g.ID, pastID); len(rs) != 0 {
-		t.Fatalf("refused edit recorded %d revisions", len(rs))
-	}
-}

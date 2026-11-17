@@ -218,6 +218,9 @@ func TestConcertLimit(t *testing.T) {
 	if c, _ := s.Concert(ctx, g.ID, pastID); c.Date != past {
 		t.Fatalf("a refused edit still changed the date to %s", c.Date)
 	}
+	if rs, err := s.Revisions(ctx, g.ID, pastID); err != nil || len(rs) != 0 {
+		t.Fatalf("a refused edit recorded %d revisions (%v)", len(rs), err)
+	}
 	if err := update(upcoming, testToday); err != nil {
 		t.Fatalf("edit an upcoming concert at the limit: %v", err)
 	}
