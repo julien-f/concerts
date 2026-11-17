@@ -132,12 +132,12 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 │ 📅 Ajouter à mon agenda      │  .ics, a link like the map's
 │ ajouté par Léa               │
 │ modifié par Tom · Voir l'his…│  if edited
-│ ▸ En savoir plus             │  description if set: <details>,
-│                              │  folded so the buttons stay
-│                              │  on screen; pre-line
 │ [Billetterie ↗] [Partager]   │  the only orange button, if
 │                              │  set; share sheet (ADR 0010)
 │ statuses + my 3 buttons      │  same block as the card
+│ ▸ En savoir plus             │  description if set: <details>,
+│                              │  folded; one <p> per line, full
+│                              │  width from 48 rem
 │ [Modifier]   [Supprimer]     │
 └──────────────────────────────┘
 ```

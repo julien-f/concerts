@@ -22,9 +22,6 @@
 {{template "agendaLink" .}}
 {{with .AddedBy}}<p class="meta">ajouté par {{.}}</p>{{end}}
 {{if .LastRevID}}<p class="meta">modifié{{with .EditedBy}} par {{.}}{{end}} · <a href="{{.Base}}/concerts/{{.ID}}/history">Voir l'historique</a></p>{{end}}
-{{- /* Folded: on a phone the answer buttons stay on screen. No heading in <summary>. */}}
-{{with .Description}}<details class="about"><summary>En savoir plus</summary>
-<p>{{.}}</p></details>{{end}}
 </div>
 <div class="side">
 <p class="actions">
@@ -33,6 +30,7 @@
 </p>
 {{template "statuses" .Statuses}}
 </div>
+{{template "about" .Description}}
 </article>
 {{if .Me}}
 <div class="actions">

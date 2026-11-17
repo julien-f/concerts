@@ -96,6 +96,7 @@ func New(st *store.Store, log *slog.Logger, cfg Config) (http.Handler, error) {
 		"frdate":     s.frDate,
 		"frtime":     frTime,
 		"datetime":   datetime,
+		"lines":      lines,
 	})
 	if err != nil {
 		return nil, err

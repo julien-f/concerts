@@ -16,12 +16,11 @@
 {{with .OnSaleDate}}<p>Mise en vente : <time datetime="{{.}}">{{frdate .}}</time></p>{{end}}
 {{template "agendaLink" .}}
 {{with .Going}}<p class="meta">{{.}} {{if eq . 1}}personne du groupe y va{{else}}personnes du groupe y vont{{end}}</p>{{end}}
-{{with .Description}}<details class="about"><summary>En savoir plus</summary>
-<p>{{.}}</p></details>{{end}}
 </div>
 {{with .TicketURL}}<div class="side">
 <p class="actions"><a class="button" href="{{.}}" rel="noopener noreferrer">Billetterie</a></p>
 </div>{{end}}
+{{template "about" .Description}}
 </article>
 <p class="meta">Tu fais partie du groupe ? Ouvre une fois le lien du groupe dans WhatsApp, puis reviens sur cette page.</p>
 {{end}}

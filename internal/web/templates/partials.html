@@ -69,3 +69,9 @@ readers get the full date. */}}
 {{- /* stubLabel is a stub's date, drawn for the eyes, on the card and the concert page's head. */}}
 {{define "stubLabel"}}<span class="stub-label" aria-hidden="true"><span>{{.Weekday}}</span><b>{{.Day}}</b><span>{{.Month}}</span>
 {{- with .Year}}<span>{{.}}</span>{{end}}{{with .Time}}<span class="hour">{{.}}</span>{{end}}</span>{{end}}
+
+{{- /* Last in the ticket, full width; folded so a long text does not push the page down. No heading in <summary>.
+     One paragraph per line: ticketing sites separate theirs with a single line feed. */}}
+{{define "about"}}{{with .}}<details class="about"><summary>En savoir plus</summary>
+{{range lines .}}<p>{{.}}</p>
+{{end}}</details>{{end}}{{end}}
