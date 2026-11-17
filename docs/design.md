@@ -133,12 +133,12 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 │ 📅 Ajouter à mon agenda      │  .ics, a link like the map's
 │ ajouté par Léa               │
 │ modifié par Tom · Voir l'his…│  if edited
-│ ▸ En savoir plus             │  description if set: <details>,
-│                              │  folded so the buttons stay
-│                              │  on screen; pre-line
 │ [Billetterie ↗] [Partager]   │  the only orange button, if
 │                              │  set; share sheet (ADR 0010)
 │ statuses + my 2 buttons      │  same block as the card
+│ ▸ En savoir plus             │  description if set: <details>,
+│                              │  folded; one <p> per line, full
+│                              │  width from 48 rem
 │ [Modifier]   [Supprimer]     │
 └──────────────────────────────┘
 ```
@@ -337,3 +337,5 @@ Off-server backups and failure alerts, nothing set up yet. Leads:
 - A periodic restore test (`PRAGMA integrity_check`, `list-groups`) and an alert when the newest snapshot is over 36 h old.
 
 A « Je cherche un billet » status, if the group asks for it: it flags the exception (a sold-out concert, a resale), which members have a reason to set, unlike the dropped « J'ai mon billet ».
+
+Carpooling, if the group asks for it: once « J'y vais » is set, an optional « Je propose / Je cherche un covoiturage » on the concert page only (`statuses.carpool CHECK IN ('offer','seek') NULL`), shown as a mark by the first name; no seats or departure city, the arranging stays on WhatsApp.

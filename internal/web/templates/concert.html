@@ -13,7 +13,7 @@
 <div class="facts">
 {{template "concertFacts" .}}{{with .AddedBy}}<p class="meta">ajouté par {{.}}</p>{{end}}
 {{if .LastRevID}}<p class="meta">modifié{{with .EditedBy}} par {{.}}{{end}} · <a href="{{.Base}}/concerts/{{.ID}}/history">Voir l'historique</a></p>{{end}}
-{{template "about" .}}</div>
+</div>
 <div class="side">
 <p class="actions">
 {{with .TicketURL}}<a class="button" href="{{.}}" rel="noopener noreferrer">Billetterie</a>{{end}}
@@ -21,6 +21,7 @@
 </p>
 {{template "statuses" .Statuses}}
 </div>
+{{template "about" .Description}}
 </article>
 {{if .Me}}
 <div class="actions">

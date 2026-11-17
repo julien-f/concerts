@@ -2,6 +2,7 @@ package web
 
 import (
 	"net/http"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -45,6 +46,11 @@ func paragraphs(v string) string {
 		}
 	}
 	return strings.TrimRight(strings.Join(lines, "\n"), "\n")
+}
+
+// lines splits a text cleaned by paragraphs into its non-blank lines, one HTML paragraph each.
+func lines(v string) []string {
+	return slices.DeleteFunc(strings.Split(v, "\n"), func(l string) bool { return l == "" })
 }
 
 // valid returns v and whether it is valid UTF-8 of 1 to maxRunes runes without

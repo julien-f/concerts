@@ -127,17 +127,18 @@ func TestConcertDescriptionPrice(t *testing.T) {
 
 	form := concertValues("Zaz", "2026-06-13", "", "L'Olympia", "", "")
 	form.Set("price", " 29–32 € ")
-	form.Set("description", "Première <b>ligne</b>\r\n\r\n\r\nDeux & trois\r\n")
+	form.Set("description", "Première <b>ligne</b>\r\n\r\n\r\nDeux & trois\r\n  Quatre \r\n")
 	b.postRedirect(t, g+"/concerts", form)
 
 	_, body := b.get(t, g)
 	assertContains(t, body, `L&#39;Olympia <span class="price">· 29–32 €</span>`)
 	_, body = b.follow(t, g+"/concerts/1")
 	assertContains(t, body, "<p>Prix : 29–32 €</p>",
-		"<details class=\"about\"><summary>En savoir plus</summary>\n<p>Première &lt;b&gt;ligne&lt;/b&gt;\n\nDeux &amp; trois</p></details>")
+		// One paragraph per line: sites separate theirs with a single line feed.
+		"<details class=\"about\"><summary>En savoir plus</summary>\n<p>Première &lt;b&gt;ligne&lt;/b&gt;</p>\n<p>Deux &amp; trois</p>\n<p>Quatre</p>\n</details>")
 	_, body = b.get(t, g+"/concerts/1/edit")
 	assertContains(t, body, `id="price" name="price" type="text" value="29–32 €" maxlength="30"`,
-		"<textarea id=\"description\" name=\"description\" rows=\"6\" maxlength=\"2000\">Première &lt;b&gt;ligne&lt;/b&gt;\n\nDeux &amp; trois</textarea>")
+		"<textarea id=\"description\" name=\"description\" rows=\"6\" maxlength=\"2000\">Première &lt;b&gt;ligne&lt;/b&gt;\n\nDeux &amp; trois\nQuatre</textarea>")
 
 	b.postRedirect(t, g+"/concerts/1", concertValues("Zaz", "2026-06-13", "", "L'Olympia", "", ""))
 	for path, absent := range map[string]string{g: `class="price"`, g + "/concerts/1": "Prix :"} {

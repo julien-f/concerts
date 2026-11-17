@@ -7,10 +7,11 @@
 {{template "ticketHead" .}}
 <div class="facts">
 {{template "concertFacts" .}}{{with .Going}}<p class="meta">{{.}} {{if eq . 1}}personne du groupe y va{{else}}personnes du groupe y vont{{end}}</p>{{end}}
-{{template "about" .}}</div>
+</div>
 {{with .TicketURL}}<div class="side">
 <p class="actions"><a class="button" href="{{.}}" rel="noopener noreferrer">Billetterie</a></p>
 </div>{{end}}
+{{template "about" .Description}}
 </article>
 <p class="meta">Tu fais partie du groupe ? Ouvre une fois le lien du groupe dans WhatsApp, puis reviens sur cette page.</p>
 {{end}}
