@@ -16,7 +16,7 @@ Design, threat model and roadmap: [docs/design.md](docs/design.md). Decisions: [
 - `internal/store/`: SQLite, migrations (`migrations/NNNN_*.sql`, applied at startup), hand-written SQL.
 - `internal/web/`: handlers, templates (parsed at startup), static files.
 - `internal/prefill/`: ticketing-page parser (fixtures in `testdata/`) and SSRF-safe client.
-- `deploy/`: systemd units. `docs/`: design and ADRs. `scripts/`: dev tooling (`verify-ui`).
+- `deploy/`: systemd units, Caddy site, `install.sh`/`uninstall.sh` (root) and `admin` (run on the server as the service user). `docs/`: design and ADRs. `scripts/`: dev tooling (`verify-ui`).
 - No interface without a second implementation, no speculative layers.
 
 ## Conventions

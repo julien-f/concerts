@@ -11,7 +11,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 - A web app opened through one secret link per group: `/g/<secret>`.
 - No account: on the first visit, a member picks their first name, which the app remembers (cookie).
 - Anyone holding the link belongs to the group; if the link leaks, the secret is rotated.
-- Go, single binary under systemd on a personal server, behind an HTTPS reverse proxy.
+- Go, single binary under systemd on a shared personal server, run by a dedicated user from its home, behind Caddy over a Unix socket ([ADR 0008](decisions/0008-deployment-under-a-home-user.md)).
 - Local repository, no CI: the pre-commit hook is the safeguard: lint and tests, plus govulncheck when `go.mod`/`go.sum` are staged. `make deploy` runs govulncheck first, so a vulnerability published since, or newly reached by a code change, still blocks a deploy.
 - UI in French (`lang="fr"`); code, docs and commits in English.
 
@@ -26,7 +26,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 - **Secret**: 16 bytes from `crypto/rand` (128 bits), base64url without padding; guessing is infeasible.
 - **Storage**: only the SHA-256 of the secret, under a unique index; lookup by hash. A database leak does not reveal working links.
 - **Leaks through the browser**: `Referrer-Policy: no-referrer`; `X-Robots-Tag: noindex`; group pages send `Cache-Control: private, no-cache`.
-- **Leaks through the server**: request logs record the matched route pattern (`GET /g/{secret}/concerts/{id}`), never the raw path, so no spelling (`//g/…`, `/./g/…`) can leak the secret; no IP addresses. The reverse proxy's access logs must redact `/g/` or be disabled.
+- **Leaks through the server**: request logs record the matched route pattern (`GET /g/{secret}/concerts/{id}`), never the raw path, so no spelling (`//g/…`, `/./g/…`) can leak the secret; no IP addresses. The reverse proxy writes no access log for the site. Its error log does record the path when the app cannot answer: not on a deploy (requests wait in the socket), but during a rollback, a restore, a crash loop or an install; it goes to the journal, readable by root and, depending on the distro, the `adm`, `wheel` or `systemd-journal` groups.
 - **Leaks through features**: the `.ics` holds no page URL; the prefill fetcher sends no cookie or `Referer`; absolute URLs come from `CONCERTS_BASE_URL` (required by `serve`), never from `Host`.
 - **Identity cookie**: `HttpOnly`, `SameSite=Lax`, `Path=/g/<secret>`, `Secure` when the base URL is https (`serve` logs a warning for a plain-http one outside localhost), `Max-Age` 400 days. It holds the member id, checked against the group on every request.
 - **CSRF**: every state change is a POST behind `http.CrossOriginProtection` (lets GET through; trusts `Sec-Fetch-Site`, else compares `Origin` with `Host`, so the proxy must keep `Host`). The prefill GET triggers an outbound fetch but needs the secret and is rate-limited.
@@ -42,7 +42,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 4. **Plan**: filter « Mes concerts »; open a concert → « Ajouter à mon agenda » downloads its `.ics`; « Billetterie » opens the ticket link.
 5. **Fix**: open a concert → « Modifier » or « Supprimer » → banner « Concert supprimé » with « Annuler la suppression ».
 6. **Shared phone**: « Ce n'est pas moi » in every page header → picker again.
-7. **Operator** (SSH): `new-group`, `list-groups`, `rotate-secret`, `delete-member`, `backup`; `make deploy`, `make rollback`.
+7. **Operator**: `ssh concerts@server 'bin/admin …'` for `new-group`, `list-groups`, `rotate-secret`, `delete-member`, `restore`, `logs`; `make deploy`, `make rollback`; root only for `make install`/`uninstall`.
 
 ## Screens
 
@@ -242,4 +242,10 @@ One slice per branch, merged with `--no-ff`. All shipped (v1).
    - TEXT escaping (a field cannot start a property line), folding at 75 octets on rune boundaries, CRLF; golden files. `attachment; filename="concert.ics"`, `private, no-store`. An edited concert re-imported on iOS is not updated (known limit).
 7. **Open Graph preview** of concert pages: no identity needed, so a previewer gets `og:title` (artist), `og:description` (date · venue), `og:url` (from `CONCERTS_BASE_URL`), `og:site_name`, `og:type`. No `og:image`: weight for no information.
 
-Also in v1: `make deploy` / `make rollback` ([README](../README.md#update-and-roll-back)).
+Also in v1: `make install`, `make deploy`, `make rollback` ([README](../README.md#deploy)).
+
+Later: off-server backups, nothing set up yet. Leads:
+- First check whether the server is already backed up (host snapshots, a whole-server backup) and covers `/home/concerts/backups`, not the live database.
+- Best fit: another machine pulls nightly with `rsync` and a key limited to `rrsync -ro /home/concerts/backups`; the server holds no credential, so a compromise cannot delete the copies. Retention on the puller: about 14 daily, 8 weekly, 12 monthly.
+- Without an always-on machine: restic to BorgBase or a storage box in append-only mode, pruned from a trusted machine.
+- A periodic restore test (`PRAGMA integrity_check`, `list-groups`) and an alert when the newest snapshot is over 36 h old.

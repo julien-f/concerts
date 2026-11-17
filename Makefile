@@ -5,7 +5,7 @@ GOVULNCHECK_VERSION := v1.9.0
 ADDR ?= :8080
 DEMO_DB ?= demo.db
 
-.PHONY: run test lint fmt vuln check build demo verify-ui measure deploy rollback
+.PHONY: run test lint fmt vuln check build demo verify-ui measure install uninstall deploy rollback
 
 run:
 	CONCERTS_BASE_URL=http://localhost:8080 go run ./cmd/concerts serve
@@ -49,56 +49,41 @@ $(GOLANGCI_LINT):
 	GOBIN=$(CURDIR)/bin go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 	mv bin/golangci-lint $@
 
-# Deployment over SSH to the server set up as in README.md (sudo there). No default host,
-# so a deploy never goes to a machine by accident.
+# Deployment: README.md "Deploy". No default host, so nothing goes to a machine by accident.
+# install/uninstall run deploy/*.sh as root (ADMIN_HOST: an account with sudo);
+# deploy/rollback log in as the service user (DEPLOY_HOST=concerts@<server>) and need no root.
 ifneq ($(filter deploy rollback,$(MAKECMDGOALS)),)
 ifeq ($(DEPLOY_HOST),)
-$(error DEPLOY_HOST is required, e.g. make deploy DEPLOY_HOST=admin@concerts.example.com)
+$(error DEPLOY_HOST is required, e.g. make deploy DEPLOY_HOST=concerts@concerts.example.com)
 endif
 endif
-REMOTE_BIN := /usr/local/bin/concerts
-REMOTE_DB := /var/lib/concerts/concerts.db
-REMOTE_BACKUP := /var/lib/concerts/backups/pre-deploy.db
-# Written before a deploy's restart, removed once /healthz passes (deploy or rollback).
-REMOTE_FAILED := $(REMOTE_BACKUP).deploy-failed
-REMOTE_CURL := command -v curl >/dev/null || { echo "curl is required on the server" >&2; exit 1; }
-REMOTE_HEALTHZ := for i in $$(seq 20); do curl -fsS http://127.0.0.1:8080/healthz && sudo rm -f $(REMOTE_FAILED) && exit 0; sleep 1; done; echo "healthz failed: journalctl -u concerts" >&2; exit 1
+ifneq ($(filter install uninstall,$(MAKECMDGOALS)),)
+ifeq ($(ADMIN_HOST),)
+$(error ADMIN_HOST is required, e.g. make install ADMIN_HOST=admin@concerts.example.com BASE_URL=https://concerts.example.com DEPLOY_KEY=~/.ssh/id_ed25519.pub)
+endif
+endif
 
-# The installed (old) binary takes the backup: the new one would first migrate the live database.
-# After a failed deploy, the installed binary is the broken one: the last good pair is kept,
-# unless it now passes /healthz (the failure was elsewhere, e.g. a dropped ssh session).
+# Copies deploy/ and $(1) to a fresh mktemp dir (root must not run files from a path another
+# local user could create first), then runs $(2) there under sudo. ssh -n: the first ssh would
+# otherwise swallow stdin, e.g. the answer piped to uninstall's confirmation.
+define as_root
+d=$$(ssh -n $(ADMIN_HOST) mktemp -d) && \
+scp -q deploy/* $(1) $(ADMIN_HOST):"$$d/" && \
+ssh -t $(ADMIN_HOST) "sudo sh $$d/$(2); s=\$$?; rm -r $$d; exit \$$s"
+endef
+
+install:
+	@test -n "$(BASE_URL)" -a -f $(DEPLOY_KEY) || { echo "BASE_URL and DEPLOY_KEY (a public key file) are required" >&2; exit 1; }
+	$(call as_root,$(DEPLOY_KEY),install.sh '$(BASE_URL)' $$d/$(notdir $(DEPLOY_KEY)))
+
+uninstall:
+	$(call as_root,,uninstall.sh)
+
+# Uploaded into bin/ itself: same filesystem for an atomic rename, and bin/'s SELinux label.
 deploy: vuln build
-	scp bin/concerts $(DEPLOY_HOST):concerts.new
-	ssh -t $(DEPLOY_HOST) 'set -e; $(REMOTE_CURL); \
-		if sudo test -e $(REMOTE_FAILED) && sudo test -s $(REMOTE_BACKUP) && [ -x $(REMOTE_BIN).prev ] \
-			&& ! curl -fs --max-time 5 http://127.0.0.1:8080/healthz >/dev/null; then \
-			echo "last deploy failed: keeping its pre-deploy snapshot and $(REMOTE_BIN).prev" >&2; \
-		elif [ -x $(REMOTE_BIN) ]; then \
-			sudo -u concerts mkdir -p $(dir $(REMOTE_BACKUP)); \
-			sudo -u concerts rm -f $(REMOTE_BACKUP).new; \
-			sudo -u concerts env CONCERTS_DB=$(REMOTE_DB) $(REMOTE_BIN) backup $(REMOTE_BACKUP).new; \
-			sudo -u concerts mv $(REMOTE_BACKUP).new $(REMOTE_BACKUP); \
-			sudo cp -p $(REMOTE_BIN) $(REMOTE_BIN).prev; \
-			sudo touch $(REMOTE_FAILED); \
-		fi; \
-		sudo install -m 755 concerts.new $(REMOTE_BIN).new; \
-		rm concerts.new; \
-		sudo mv $(REMOTE_BIN).new $(REMOTE_BIN); \
-		sudo systemctl restart concerts; \
-		$(REMOTE_HEALTHZ)'
+	scp -q bin/concerts $(DEPLOY_HOST):bin/concerts.new
+	scp -q deploy/admin $(DEPLOY_HOST):bin/admin.new
+	ssh $(DEPLOY_HOST) 'chmod 700 bin/admin.new bin/concerts.new && mv bin/admin.new bin/admin && bin/admin deploy'
 
-# Restores the previous binary and the pre-deploy database; writes made since the deploy
-# stay in the moved-aside concerts.db.pre-rollback-<time>{,-wal,-shm}, which SQLite opens as one database.
 rollback:
-	ssh -t $(DEPLOY_HOST) 'set -e; $(REMOTE_CURL); \
-		test -x $(REMOTE_BIN).prev; \
-		sudo test -s $(REMOTE_BACKUP); \
-		sudo systemctl stop concerts; \
-		ts=$$(date +%Y%m%dT%H%M%S); \
-		for s in "" -wal -shm; do \
-			if sudo test -e $(REMOTE_DB)$$s; then sudo mv $(REMOTE_DB)$$s $(REMOTE_DB).pre-rollback-$$ts$$s; fi; \
-		done; \
-		sudo install -o concerts -g concerts -m 600 $(REMOTE_BACKUP) $(REMOTE_DB); \
-		sudo cp -p $(REMOTE_BIN).prev $(REMOTE_BIN); \
-		sudo systemctl start concerts; \
-		$(REMOTE_HEALTHZ)'
+	ssh $(DEPLOY_HOST) bin/admin rollback
