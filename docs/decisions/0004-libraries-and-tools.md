@@ -18,7 +18,7 @@ Adopted (the slice is when the tool first gets used):
 | `golang.org/x/net/html` + `encoding/json` | slice 5 | Open Graph and JSON-LD prefill, plus per-site rules on visible text, tested on saved HTML fixtures. |
 | SSRF-safe client (stdlib) | slice 5 | `net.Dialer.Control` rejects non-global and private IPs. http/https only, capped redirects, body and time limits. |
 | Hand-written `.ics` | slice 6 | CRLF, escaping, 75-octet folding, stable UID, golden-file test. |
-| ~~Web Share API with `wa.me` fallback~~ | slice 7 | Superseded by [ADR 0007](0007-plain-whatsapp-link.md): a plain `wa.me` link. |
+| ~~Web Share API with `wa.me` fallback~~ | slice 7 | Superseded by [ADR 0007](0007-plain-whatsapp-link.md): a plain `wa.me` link; brought back by [ADR 0010](0010-share-sheet.md). |
 
 Front-end practices:
 - Hand-written CSS using native features (`:focus-visible`, `prefers-reduced-motion`, `color-scheme`, view transitions).

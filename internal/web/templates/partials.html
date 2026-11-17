@@ -1,7 +1,26 @@
 {{define "icons"}}<svg class="sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
 <symbol id="i-interested" viewBox="0 0 24 24"><path d="M11.5 2.3a.5.5 0 0 1 .9 0l2.3 4.7a2 2 0 0 0 1.5 1.1l5.2.8a.5.5 0 0 1 .3.9l-3.8 3.7a2 2 0 0 0-.6 1.8l.9 5.2a.5.5 0 0 1-.8.6l-4.6-2.5a2 2 0 0 0-1.9 0l-4.6 2.5a.5.5 0 0 1-.8-.6l.9-5.2a2 2 0 0 0-.6-1.8L2.3 9.8a.5.5 0 0 1 .3-.9l5.2-.8a2 2 0 0 0 1.5-1.1z"/></symbol>
 <symbol id="i-going" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15a1 1 0 0 0 1.5.9l12-7.5a1 1 0 0 0 0-1.8l-12-7.5A1 1 0 0 0 7 4.5z"/></symbol>
+<symbol id="i-share" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></symbol>
+<symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M12 13v5M9.5 15.5h5"/></symbol>
 </svg>{{end}}
+
+{{- /* ticketHead opens a concert page's ticket (member or public): date stub and title on the
+artist's pattern, then one « Écouter » pill per artist. The stub is drawn for the eyes; screen
+readers get the full date. */}}
+{{define "ticketHead"}}<header class="head {{stubStyle .Artist}}">
+{{with ticketDate .Concert}}<p class="date"><time datetime="{{datetime $.Concert}}"><span class="label" aria-hidden="true"><span>{{.Weekday}}</span><b>{{.Day}}</b><span>{{.Month}}</span>
+{{- with .Year}}<span>{{.}}</span>{{end}}{{with .Time}}<span class="hour">{{.}}</span>{{end}}</span><span class="visually-hidden">{{when $.Concert}}</span></time></p>{{end}}
+<h1>{{.Artist}}</h1>
+</header>
+<p class="listen">
+{{- range .Listen}}<a href="{{.URL}}" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>{{with .Name}}<span class="visually-hidden">Écouter </span>{{.}}{{else}}Écouter{{end}}<span class="visually-hidden"> sur YouTube</span></a>
+{{end}}</p>
+{{- end}}
+
+{{- /* agendaLink sits among a concert page's facts, like « Voir sur la carte ». */}}
+{{define "agendaLink"}}<p><a class="with-icon" href="/c/{{.Token}}/agenda.ics"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg>Ajouter à mon agenda</a></p>{{end}}
 
 {{- /* statuses is a statusBlock; htmx replaces the whole div after an answer. */}}
 {{define "statuses"}}<div class="statuses">
@@ -44,3 +63,6 @@
 <meta property="og:image:alt" content="Un ticket de concert">
 <meta name="twitter:card" content="summary_large_image">
 {{end}}
+
+{{- /* shareButton is « Partager », on the concert page and the « Concert ajouté » banner; the page loads share.js. */}}
+{{define "shareButton"}}<a class="button secondary" href="{{.WhatsApp}}" rel="noreferrer" data-share-text="{{.Text}}" data-share-url="{{.URL}}"><svg class="icon" aria-hidden="true"><use href="#i-share"/></svg>Partager</a>{{end}}

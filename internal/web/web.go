@@ -87,14 +87,15 @@ func New(st *store.Store, log *slog.Logger, cfg Config) (http.Handler, error) {
 		secure: u.Scheme == "https", baseURL: strings.TrimSuffix(cfg.BaseURL, "/"), now: cfg.Now,
 		fetch: cfg.Fetch, fetches: newFetchLimiter()}
 	s.pages, err = parsePages(template.FuncMap{
-		"static":    static.url,
-		"abs":       s.abs,
-		"stub":      stubOf,
-		"stubStyle": stubStyle,
-		"when":      s.when,
-		"frdate":    s.frDate,
-		"frtime":    frTime,
-		"datetime":  datetime,
+		"static":     static.url,
+		"abs":        s.abs,
+		"stub":       stubOf,
+		"stubStyle":  stubStyle,
+		"ticketDate": s.ticketDate,
+		"when":       s.when,
+		"frdate":     s.frDate,
+		"frtime":     frTime,
+		"datetime":   datetime,
 	})
 	if err != nil {
 		return nil, err

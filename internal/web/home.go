@@ -32,8 +32,8 @@ type homePage struct {
 	PastTotal int
 	PastMore  int64          // first past concert not rendered (link to all of them), 0 if none
 	PastOpen  bool           // ?past=all, or a banner targets a past concert: all of them, section open
-	Added     *store.Concert // banner « Concert ajouté » with « Prévenir le groupe »
-	Share     string
+	Added     *store.Concert // banner « Concert ajouté » with « Partager »
+	Share     shareLink
 	Restored  *store.Concert // banner « Concert rétabli »
 	Deleted   *store.Concert // banner « Concert supprimé » with « Annuler la suppression »
 }
@@ -100,7 +100,7 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 		return nil
 	}
 	if p.Added = find("added"); p.Added != nil {
-		p.Share, p.Notice = s.shareURL(*p.Added), "Concert ajouté"
+		p.Share, p.Notice = s.shareLink(*p.Added), "Concert ajouté"
 	}
 	if p.Restored = find("restored"); p.Restored != nil {
 		p.Notice = "Concert rétabli"

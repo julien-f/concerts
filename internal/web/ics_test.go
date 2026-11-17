@@ -104,7 +104,7 @@ func TestAgendaRoute(t *testing.T) {
 
 	c := ts.concertURL(t, secret, 1)
 	_, page := b.follow(t, g+"/concerts/1")
-	assertContains(t, page, `href="`+c+`/agenda.ics">Ajouter à mon agenda`)
+	assertContains(t, page, `href="`+c+`/agenda.ics"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg>Ajouter à mon agenda`)
 
 	// Public, like the card: it shows nothing more.
 	resp, body := ts.browser(t).get(t, c+"/agenda.ics")

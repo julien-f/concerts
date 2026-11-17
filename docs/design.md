@@ -42,7 +42,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 ## User journeys
 
 1. **Join**: tap the link in WhatsApp → picker screen → tap « C'est moi » on one's name, or type a new first name → main screen. Later visits skip the picker (cookie). Opening a concert link after the group link but without identity, the concert page shows « Choisis ton prénom pour répondre », and the picker returns to that concert (`next`).
-2. **Add**: tap « Ajouter un concert » (fixed at the bottom on a phone, beside the filters on a computer) → paste a ticket URL, tap « Pré-remplir » → check or type the fields → « Enregistrer » → main screen with a banner « Concert ajouté » and « Prévenir le groupe » (opens WhatsApp with artist, date and the concert link).
+2. **Add**: tap « Ajouter un concert » (fixed at the bottom on a phone, beside the filters on a computer) → paste a ticket URL, tap « Pré-remplir » → check or type the fields → « Enregistrer » → main screen with a banner « Concert ajouté » and « Partager » (the share sheet, else WhatsApp, with artist, date and the concert link; [ADR 0010](decisions/0010-share-sheet.md)).
 3. **Respond**: on a card, tap « Ça m'intéresse » or « J'y vais »; tapping the active one clears it. The status block updates in place (htmx) or after a full reload (no JS).
 4. **Plan**: filter « Mes concerts »; open a concert → « Écouter » searches the artist on YouTube (one « Écouter <artiste> » per artist of a line-up written with a spaced « + » or « / », the separator prefill joins the performers with); « Ajouter à mon agenda » downloads its `.ics`; « Billetterie » opens the ticket link.
 5. **Fix**: open a concert → « Modifier » (banner with « Annuler ») or « Supprimer » (banner « Concert supprimé » with « Annuler la suppression »). A bad edit noticed later: « Voir l'historique » → « Revenir avant cette modification ».
@@ -85,8 +85,8 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 ┌──────────────────────────────┐
 │ Les copains   Léa · Ce n'est │
 │ du concert          pas moi  │
-│ ✓ Concert ajouté [Prévenir le│  banner after add / delete
-│   groupe]  (or [Annuler])    │
+│ ✓ Concert ajouté [Partager]  │  banner after add / delete
+│   (or [Annuler])             │
 │ (Tous) ( Mes concerts )      │  filter links, aria-current
 │ MARS 2027                    │  h2 per month (h1 = group)
 │ ┌────┬─────────────────────┐ │
@@ -117,19 +117,26 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 ```
 ┌──────────────────────────────┐
 │ ← Tous les concerts          │
-│ Fontaines D.C.               │  h1
-│ sam. 14 mars · 20 h          │
+│┌─────┐                       │  head: the artist's pattern;
+││ SAM │ Fontaines D.C.        │  date stub (year if not this
+││ 14  │                       │  one, time if set) on a paper
+││MARS │                       │  label, h1
+││20 h │                       │
+│└─────┘                       │
+│- - - - - - - - - - - - - - - │  perforation, notches
+│ (▶ Écouter)                  │  pills: one per artist, named
+│                              │  when several; YouTube search
 │ Zénith Paris                 │
 │ Prix : 29–32 €               │  if set
 │ Mise en vente : ven. 3 oct.  │  if set
+│ 📅 Ajouter à mon agenda      │  .ics, a link like the map's
 │ ajouté par Léa               │
 │ modifié par Tom · Voir l'his…│  if edited
 │ ▸ En savoir plus             │  description if set: <details>,
 │                              │  folded so the buttons stay
 │                              │  on screen; pre-line
-│ [Billetterie ↗] [Écouter]    │  ticket link if set; YouTube
-│ [Agenda]                     │  search for the artist; .ics
-│ [Prévenir le groupe]         │
+│ [Billetterie ↗] [Partager]   │  the only orange button, if
+│                              │  set; share sheet (ADR 0010)
 │ statuses + my 3 buttons      │  same block as the card
 │ [Modifier]   [Supprimer]     │
 └──────────────────────────────┘
@@ -142,12 +149,12 @@ Without identity: statuses shown, buttons and edit/delete replaced by « Choisis
 ```
 ┌──────────────────────────────┐
 │ Concerts                     │  no group name
-│ Fontaines D.C.               │  h1
-│ sam. 14 mars · 20 h          │
+│ head and pills               │  same as the member page
 │ Zénith Paris                 │
 │ Mise en vente : ven. 3 oct.  │  if set
+│ 📅 Ajouter à mon agenda      │
 │ 3 personnes du groupe y vont │  « J'y vais », if any
-│ [Billetterie ↗] [Agenda]     │
+│ [Billetterie ↗]              │
 │ Tu fais partie du groupe ? … │  open the group link once
 └──────────────────────────────┘
 ```
@@ -185,7 +192,7 @@ Without identity: statuses shown, buttons and edit/delete replaced by « Choisis
 
 - **Motif: the ticket stub**, chosen over a gig-poster direction (phase 0 mockup, removed once applied in slice 2): denser, warmer, the stub naturally carries the date. Implemented in `internal/web/static/style.css`.
 - Card = stub (weekday, day, month in `ui-monospace`) + dashed perforation + body; half-circle notches cut into the card.
-- Stub pattern, festive without images but soft, since a list stacks many: faint fine rings, stripes, dots or scallops on a pale tint in one of 12 `oklch` hues, both picked from a hash of the artist (`stubStyle`), unmasked (fading them with `mask-image` cut scrolling from 51 to 36 fps on a Galaxy S10 in Firefox), desaturated on past concerts; the perforation stays visible over the tint; the concert page's ticket opens on a band of the same pattern. Classes `hue-N pat-N`, since the CSP forbids `style=""`. The date sits on an opaque paper label: axe skips text over gradients, so the label is what keeps its contrast checked.
+- Stub pattern, festive without images but soft, since a list stacks many: faint fine rings, stripes, dots or scallops on a pale tint in one of 12 `oklch` hues, both picked from a hash of the artist (`stubStyle`), unmasked (fading them with `mask-image` cut scrolling from 51 to 36 fps on a Galaxy S10 in Firefox), desaturated on past concerts; the perforation stays visible over the tint; the concert page's ticket opens on a head of the same pattern, holding a larger stub and the title, cut by a perforation with notches; the title there sits on the pattern, which axe does not check, so the tint stays pale (dark in dark mode). Classes `hue-N pat-N`, since the CSP forbids `style=""`. The date sits on an opaque paper label: axe skips text over gradients, so the label is what keeps its contrast checked.
 - Palette: paper `#f4efe6` / card `#fffdf8` / ink `#1f1a17` / brick accent `#b4361d`; dark: `#17140f` / `#24201a` / `#f1ebe1` / `#ff8a65`. AA contrast checked by axe.
 - Month headings: small monospace caps in the accent color.
 - Pressed status = filled ink button + icon + `aria-pressed`; never color alone.
@@ -284,7 +291,7 @@ One slice per branch, merged with `--no-ff`. All shipped (v1).
 
 0. Skeleton: groups, `new-group`, `/g/<secret>`, `/healthz`.
 1. **Members and identity**: first names as « C'est moi » buttons plus a « Ton prénom » field; a taken name offers « C'est moi » or an initial; « Ce n'est pas moi » on every page; `list-groups`, `rotate-secret <group-id>` (prints the new link; everyone picks their name again), `delete-member <group-id> <first-name>`, `rename-member <group-id> <first-name> <new-first-name>`.
-2. **Concerts**: artist, date, optional time, venue, optional address (concert page only, with « Voir sur la carte »: an OpenStreetMap search for « venue, address »), optional http(s) ticket link, optional on-sale date; editable; soft delete with « Annuler la suppression »; « ajouté par X » on the concert page; « Prévenir le groupe » (`wa.me`, [ADR 0007](decisions/0007-plain-whatsapp-link.md)) right after adding.
+2. **Concerts**: artist, date, optional time, venue, optional address (concert page only, with « Voir sur la carte »: an OpenStreetMap search for « venue, address »), optional http(s) ticket link, optional on-sale date; editable; soft delete with « Annuler la suppression »; « ajouté par X » on the concert page; « Prévenir le groupe » (`wa.me`, [ADR 0007](decisions/0007-plain-whatsapp-link.md)) right after adding, since slice 11 « Partager » ([ADR 0010](decisions/0010-share-sheet.md)).
 3. **Statuses**: interested / going; tapping the active one clears it. A third one, « J'ai mon billet », was merged into « J'y vais » after v1 (migration 0007): members rarely came back to set it once they had bought.
    - One status block (names per status, my buttons) shared by card and concert page; htmx swaps that block only, and buttons keep stable ids so focus survives.
    - The active button submits an empty status, so every POST states the target state: a double tap is harmless.
@@ -315,6 +322,7 @@ One slice per branch, merged with `--no-ff`. All shipped (v1).
 10. **Public concert link** ([ADR 0009](decisions/0009-public-concert-link.md)): members share what they see, so the concert page moved to a secret-free `/c/<token>` (see the threat model) instead of adding a share button.
    - Old concert URLs, the picker's `next` and post-edit redirects reach it through a 303. Cards, `og:url`, `<link rel="canonical">` (Chrome on Android shares it), « Prévenir le groupe », the history page and `.ics` link to it directly.
    - Out of scope: secret-free list and forms (their addresses still hold the secret), revoking one concert's link.
+11. **Lighter concert page**: one orange button (« Billetterie »); the date and title move into the patterned head; « Écouter » becomes one pill per artist, « Ajouter à mon agenda » a link among the facts, « Prévenir le groupe », here and in the « Concert ajouté » banner, a secondary « Partager » opening the share sheet ([ADR 0010](decisions/0010-share-sheet.md)).
 
 Also in v1: `make install`, `make deploy`, `make rollback` ([operations.md](operations.md)).
 

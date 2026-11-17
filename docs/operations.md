@@ -34,7 +34,7 @@ To send with the link (in a code block here so the narrow no-break spaces paste 
 Notre appli concerts : <lien>
 Touche ton prénom ou tape-le, pas besoin de compte.
 Ce lien est la clé : ne le transfère pas hors du groupe, même dans une autre messagerie (elle lit le lien pour en faire un aperçu). Avec lui, n'importe qui peut répondre sous ton prénom.
-Tout le monde peut ajouter, modifier ou supprimer un concert. Pas de notif : pense à « Prévenir le groupe ».
+Tout le monde peut ajouter, modifier ou supprimer un concert. Pas de notif : pense à « Partager ».
 Nouveau téléphone ou navigateur : rouvre le lien et touche ton prénom.
 Lien partagé par erreur, prénom à corriger ou à retirer : écris à <opérateur>.
 ```
