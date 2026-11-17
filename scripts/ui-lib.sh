@@ -25,6 +25,8 @@ ensure_tools() {
 start_demo() {
 	work=$(mktemp -d)
 	trap 'stop_demo; rm -rf "$work"' EXIT
+	# Built first: a cold build (about 11 s) would eat the wait below.
+	make -C "$repo" --no-print-directory build >/dev/null
 	# Own process group, so stop_demo also stops the server make started.
 	setsid sh -c 'echo $$ >"$0"; exec make -C "$1" --no-print-directory demo DEMO_DB="$2" ADDR=127.0.0.1:0' \
 		"$work/demo.pid" "$repo" "$work/demo.db" >"$work/server.log" 2>&1 &
