@@ -34,6 +34,7 @@ func TestJoin(t *testing.T) {
 		{"duplicate at the length limit gets no space", url.Values{"name": {long}}, http.StatusUnprocessableEntity,
 			[]string{`value="` + long + `"`}},
 		{"empty", url.Values{"name": {"   "}}, http.StatusUnprocessableEntity, []string{"de 1 à 30 caractères"}},
+		{"punctuation first", url.Values{"name": {"-Marc"}}, http.StatusUnprocessableEntity, []string{"commençant par une lettre ou un chiffre"}},
 		{"too long", url.Values{"name": {strings.Repeat("é", 31)}}, http.StatusUnprocessableEntity, []string{"de 1 à 30 caractères"}},
 		{"zero-width character", url.Values{"name": {"Ma\u200brc"}}, http.StatusUnprocessableEntity, []string{"de 1 à 30 caractères"}},
 		{"bidi override", url.Values{"name": {"\u202eMarc"}}, http.StatusUnprocessableEntity, []string{"de 1 à 30 caractères"}},

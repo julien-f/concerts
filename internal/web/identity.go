@@ -191,7 +191,7 @@ func (s *server) join(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 	p := &pickerPage{groupRequest: gr, Next: next, Name: r.PostForm.Get("name")}
 	name, ok := CleanName(p.Name)
 	if !ok {
-		p.Error = fmt.Sprintf("Indique un prénom de 1 à %d caractères, commençant par une lettre.", maxNameRunes)
+		p.Error = fmt.Sprintf("Indique un prénom de 1 à %d caractères, commençant par une lettre ou un chiffre.", maxNameRunes)
 		s.picker(w, r, http.StatusUnprocessableEntity, p)
 		return
 	}
