@@ -14,6 +14,8 @@ const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
 // Each screen gets the page and returns the navigation response to check, or null
 // for an in-page change (htmx swap), whose DOM is then checked as is.
 // Screens run in order and share cookies, so later ones can rely on earlier steps.
+// The member's cookies, saved before « public » drops them, for the page weight.
+let memberState;
 const submit = (p, selector) => Promise.all([p.waitForNavigation(), p.click(selector)]).then(([r]) => r);
 const screens = [
   { name: "picker", go: (p) => p.goto(groupURL) },
@@ -142,6 +144,7 @@ const screens = [
     go: async (p) => {
       await p.goto(groupURL);
       const href = await p.getAttribute(".card h3 a", "href");
+      memberState = await p.context().storageState();
       await p.context().clearCookies();
       return p.goto(new URL(href, groupURL).href);
     },
@@ -196,7 +199,7 @@ for (const s of screens) {
 }
 
 // Page weight: everything the group page loads with an empty cache, each body gzip -9'd.
-const fresh = await browser.newContext({ storageState: await context.storageState() });
+const fresh = await browser.newContext({ storageState: memberState });
 const weightPage = await fresh.newPage();
 const sizes = {};
 const pending = [];
@@ -207,6 +210,10 @@ weightPage.on("response", (r) => {
 });
 await weightPage.goto(groupURL, { waitUntil: "networkidle" });
 await Promise.all(pending);
+if (!(await weightPage.content()).includes("Ajouter un concert")) {
+  console.log("page weight: not the group's list (no member cookie?)");
+  process.exit(1);
+}
 // Headless Chromium skips favicons; fetch the declared icons explicitly.
 for (const href of await weightPage.$$eval("link[rel=icon]", (ls) => ls.map((l) => l.href))) {
   sizes[href] = gzipSync(await (await weightPage.request.get(href)).body(), { level: 9 }).length;
