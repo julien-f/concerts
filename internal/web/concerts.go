@@ -121,15 +121,14 @@ func validDate(s string) bool {
 	return err == nil && d.Year() >= 2000 && d.Year() < 2100
 }
 
-// validTicketURL accepts only absolute http(s) links with an ASCII host, so no
-// javascript: or data: URL, and no look-alike host, is ever rendered.
+// validTicketURL accepts only absolute http(s) links with an ASCII host and no user part,
+// so no javascript: or data: URL, and no look-alike host (« fnac.com@evil.example »), is ever rendered.
 func validTicketURL(s string) bool {
 	if len(s) > maxURLBytes || !utf8.ValidString(s) || strings.ContainsFunc(s, func(r rune) bool { return r <= ' ' || r == 0x7f }) {
 		return false
 	}
 	u, err := url.Parse(s)
-	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Hostname() != "" &&
-		!strings.ContainsFunc(u.Host, func(r rune) bool { return r > '~' })
+	return err == nil && httpURL(u) && !strings.ContainsFunc(u.Host, func(r rune) bool { return r > '~' })
 }
 
 // pathID parses the {id} path value; it answers 404 and returns false if invalid.
