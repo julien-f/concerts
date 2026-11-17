@@ -27,12 +27,12 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 - **Storage**: only the SHA-256 of the secret, under a unique index; lookup by hash. A database leak does not reveal working links.
 - **Leaks through the browser**: `Referrer-Policy: no-referrer`; `X-Robots-Tag: noindex`; group pages send `Cache-Control: private, no-cache`.
 - **Leaks through the server**: request logs record the matched route pattern (`GET /g/{secret}/concerts/{id}`), never the raw path, so no spelling (`//g/…`, `/./g/…`) can leak the secret; no IP addresses. The reverse proxy writes no access log for the site. Its error log does record the path when the app cannot answer: not on a deploy (requests wait in the socket), but during a rollback, a restore, a crash loop or an install; it goes to the journal, readable by root and, depending on the distro, the `adm`, `wheel` or `systemd-journal` groups.
-- **Leaks through features**: the `.ics` holds no page URL; the prefill fetcher sends no cookie or `Referer`; the « Voir sur la carte » link sends only venue and address to OpenStreetMap; absolute URLs come from `CONCERTS_BASE_URL` (required by `serve`), never from `Host`.
+- **Leaks through features**: the `.ics` holds no page URL; preview images are static files, outside `/g/`; the prefill fetcher sends no cookie or `Referer`; the « Voir sur la carte » link sends only venue and address to OpenStreetMap; absolute URLs come from `CONCERTS_BASE_URL` (required by `serve`), never from `Host`.
 - **Identity cookie**: `HttpOnly`, `SameSite=Lax`, `Path=/g/<secret>`, `Secure` when the base URL is https (`serve` logs a warning for a plain-http one outside localhost), `Max-Age` 400 days. It holds the member id, checked against the group on every request.
 - **CSRF**: every state change is a POST behind `http.CrossOriginProtection` (lets GET through; trusts `Sec-Fetch-Site`, else compares `Origin` with `Host`, so the proxy must keep `Host`). The prefill GET triggers an outbound fetch but needs the secret and is rate-limited.
 - **Abuse with a leaked link**: per-group caps (see Data model) bound what it can store. At the row cap a create purges old concerts, so a leaked link can flush the undo history and the past, as deleting everything then creating and deleting already could; backups are the remedy. Server read, write and idle timeouts; request bodies capped at 64 kB.
 - **SSRF** (prefill): the resolved IP of every connection, redirects included, must be public unicast (IPv6 within `2000::/3`, special-purpose ranges excluded) on port 80 or 443; no proxy, no keep-alive, 3 redirects, 8 s, 1 MB of `text/html`; fetch errors are logged with the host only (a pasted group link must not reach the logs); one fetch in flight and 10 a minute per group, 2 in flight overall.
-- **Accepted risks**: anyone with the link can join and act as any first name; members are friends, so impersonation is social, not technical. « Prévenir le groupe » (`wa.me`) and link previews in other messengers hand the link to the messaging provider's servers, and with it the concert page, first names and answers included. Both are fixed by rotating the secret.
+- **Accepted risks**: anyone with the link can join and act as any first name; members are friends, so impersonation is social, not technical. « Prévenir le groupe » (`wa.me`) and link previews in other messengers hand the link to the messaging provider (Telegram, Discord, Slack fetch it from their servers), and with it the picker or concert page, first names and answers included. Both are fixed by rotating the secret.
 
 ## User journeys
 
@@ -157,6 +157,7 @@ Without identity: statuses shown, buttons and edit/delete replaced by « Choisis
 - `system-ui` fonts, fields ≥ 16 px, targets ≥ 44 px, `:focus-visible` outline, `prefers-reduced-motion` respected.
 - Fixed « Ajouter » bar on the main screen only, padded by `env(safe-area-inset-bottom)`; `scroll-padding-bottom` and list padding keep focused and last cards visible.
 - Icons: inline Lucide SVG (`star`, `check`, `ticket`), `aria-hidden`; never emoji.
+- App icon and preview images: the `ticket` stub filled brick, perforation in paper colour (`icon.svg`; PNGs rendered from `scripts/*.svg` by `scripts/og-image.mjs`).
 
 ## Data model
 
@@ -194,12 +195,12 @@ All under `/g/{secret}` (written `…`); unknown secret → 404. Every POST: `Cr
 |---|---|---|---|
 | GET | `/healthz` | DB ping | text |
 | GET | `/static/{name}` | hashed static file | file |
-| GET | `…` | picker (no identity, optional `next`) or main list; `?mine=1` filter, `?past=all` every past concert, `?added=<id>` / `?restored=<id>` / `?deleted=<id>` banner | page |
+| GET | `…` | picker (no identity, optional `next`; the group link's preview) or main list; `?mine=1` filter, `?past=all` every past concert, `?added=<id>` / `?restored=<id>` / `?deleted=<id>` banner | page |
 | POST | `…/me` | pick `member_id` or create `name`; sets cookie | 303 `next` (a path inside the group) or `…`; 422 picker |
 | POST | `…/logout` | « Ce n'est pas moi »: clears cookie | 303 `…` |
 | GET | `…/concerts/new` | add form; `?url=` pre-fills from the ticket page | page; htmx swaps the form (`hx-select`) |
 | POST | `…/concerts` | create | 303 `…?added=<id>`; 422 form |
-| GET | `…/concerts/{id}` | concert page, Open Graph tags | page |
+| GET | `…/concerts/{id}` | concert page | page |
 | GET | `…/concerts/{id}/edit` | edit form | page |
 | POST | `…/concerts/{id}` | update | 303 `…/concerts/{id}?saved`; 422 form |
 | POST | `…/concerts/{id}/delete` | soft delete | 303 `…?deleted=<id>` |
@@ -244,7 +245,10 @@ One slice per branch, merged with `--no-ff`. All shipped (v1).
 6. **« Ajouter à mon agenda »**: one concert's `.ics`, no feed, so the secret never reaches a calendar provider.
    - Hand-written RFC 5545: no METHOD (Outlook would see an invitation); UID `concert-<group>-<id>` (no host, RFC 7986); timed concerts in UTC with a 3 h end (no VTIMEZONE), date-only ones `VALUE=DATE` with an exclusive next-day end; SUMMARY, LOCATION (« venue, address »), DESCRIPTION « Billets : <link> » only.
    - TEXT escaping (a field cannot start a property line), folding at 75 octets on rune boundaries, CRLF; golden files. `attachment; filename="concert.ics"`, `private, no-store`. An edited concert re-imported on iOS is not updated (known limit).
-7. **Open Graph preview** of concert pages: no identity needed, so a previewer gets `og:title` (artist), `og:description` (date · venue), `og:url` (from `CONCERTS_BASE_URL`), `og:site_name`, `og:type`. No `og:image`: weight for no information.
+7. **Link previews** (WhatsApp, Signal, iMessage, Telegram…): the previewer (the sender's phone for WhatsApp, Signal and iMessage, the provider's servers for the others) never has the identity cookie, so it gets the picker for the group link and the concert page for a concert link, never the list.
+   - Concert page: `og:title` (artist), `og:description` (date · venue); picker: `og:title` (group name) and a generic `og:description`, no first name. Both: `og:url` (from `CONCERTS_BASE_URL`), `og:site_name`, `og:type`, `twitter:card` (Discord's large layout), shared in partial `ogCommon`.
+   - One static `og:image` for every page (1200×630, no text, stub in the central square that WhatsApp's thumbnail keeps) and a 180×180 `apple-touch-icon` (iMessage and Signal fall back to it; no SVG support). A per-concert image would need a font and a new dependency to repeat `og:title`.
+   - Previewers need the https base URL and must not be blocked: never add a disallow-all `robots.txt`. A preview travels with the message, so a change never reaches links already sent.
 
 Also in v1: `make install`, `make deploy`, `make rollback` ([operations.md](operations.md)).
 

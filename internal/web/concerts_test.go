@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -229,25 +230,55 @@ func TestPickerReturnsToConcert(t *testing.T) {
 	}
 }
 
-// TestOpenGraph: a link previewer, without identity, gets the concert's preview tags, escaped.
+// TestOpenGraph: a link previewer never has the identity cookie, so the group link gives it
+// the picker and a concert link the concert page; both carry preview tags, escaped.
 func TestOpenGraph(t *testing.T) {
 	t.Parallel()
 	ts := newTestServer(t)
 	b, secret := ts.member(t, "Léa")
 	g := "/g/" + secret
 	b.postRedirect(t, g+"/concerts", concertValues(`Les "Rita" <Mitsouko>`, "2026-06-13", "20:30", "Zénith", "", ""))
-
-	resp, body := ts.browser(t).get(t, g+"/concerts/1")
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("status = %d", resp.StatusCode)
+	common := []string{
+		`<meta property="og:site_name" content="Concerts · g">`,
+		`<meta property="og:image:width" content="1200">`,
+		`<meta name="twitter:card" content="summary_large_image">`,
 	}
-	assertContains(t, body,
-		`<meta property="og:title" content="Les &#34;Rita&#34; &lt;Mitsouko&gt;">`,
-		"<meta property=\"og:description\" content=\"sam. 13 juin · 20\u00a0h\u00a030 · Zénith\">",
-		`<meta property="og:url" content="http://example.test`+g+`/concerts/1">`,
-		`<meta property="og:site_name" content="Concerts · g">`)
-	if _, home := b.get(t, g); strings.Contains(home, "og:title") {
-		t.Errorf("the list page carries concert preview tags")
+	image := regexp.MustCompile(`<meta property="og:image" content="http://example\.test/static/og\.[0-9a-f]{16}\.png">`)
+	previewer := ts.browser(t)
+
+	for _, tt := range []struct {
+		name string
+		get  func() (*http.Response, string)
+		want []string
+	}{
+		{"concert page", func() (*http.Response, string) { return previewer.get(t, g+"/concerts/1") }, []string{
+			`<meta property="og:title" content="Les &#34;Rita&#34; &lt;Mitsouko&gt;">`,
+			"<meta property=\"og:description\" content=\"sam. 13 juin · 20\u00a0h\u00a030 · Zénith\">",
+			`<meta property="og:url" content="http://example.test` + g + `/concerts/1">`,
+		}},
+		{"group link", func() (*http.Response, string) { return previewer.get(t, g) }, []string{
+			`<meta property="og:title" content="g">`,
+			"<meta property=\"og:description\" content=\"Qui va à quel concert\u202f? Ouvre le lien et choisis ton prénom.\">",
+			`<meta property="og:url" content="http://example.test` + g + `">`,
+		}},
+		{"picker after an error", func() (*http.Response, string) {
+			return previewer.post(t, g+"/me", url.Values{"name": {""}})
+		}, []string{`<meta property="og:title" content="g">`}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, body := tt.get()
+			assertContains(t, body, append(tt.want, common...)...)
+			if !image.MatchString(body) {
+				t.Errorf("no absolute og:image")
+			}
+			head := body[:strings.Index(body, "</head>")]
+			if strings.Contains(head, "Léa") {
+				t.Errorf("a first name reaches the preview tags:\n%s", head)
+			}
+		})
+	}
+	if _, home := b.get(t, g); strings.Contains(home, "og:") {
+		t.Errorf("the list page carries preview tags")
 	}
 }
 

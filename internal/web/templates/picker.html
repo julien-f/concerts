@@ -1,4 +1,9 @@
 {{define "title"}}Qui es-tu ? · {{.Group.Name}}{{end}}
+{{- /* Read by link previews of the group link; generic, so no first name reaches them here. */}}
+{{define "meta"}}{{template "ogCommon" .}}<meta property="og:title" content="{{.Group.Name}}">
+<meta property="og:description" content="Qui va à quel concert ? Ouvre le lien et choisis ton prénom.">
+<meta property="og:url" content="{{abs .Base}}">
+{{end}}
 {{define "content"}}
 <h1>Qui es-tu ?</h1>
 <p class="hint">Pas de compte ni de mot de passe : ce lien suffit. Ne le partage pas hors du groupe.</p>

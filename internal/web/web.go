@@ -37,6 +37,11 @@ func NewSecret() string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
+// abs is the absolute URL of a path on this site, for links read outside it (previews, WhatsApp).
+func (s *server) abs(path string) string {
+	return s.baseURL + path
+}
+
 // GroupURL returns the shareable link of a group.
 func GroupURL(baseURL, secret string) string {
 	return strings.TrimSuffix(baseURL, "/") + "/g/" + secret
@@ -83,6 +88,7 @@ func New(st *store.Store, log *slog.Logger, cfg Config) (http.Handler, error) {
 		fetch: cfg.Fetch, fetches: newFetchLimiter()}
 	s.pages, err = parsePages(template.FuncMap{
 		"static":   static.url,
+		"abs":      s.abs,
 		"stub":     stubOf,
 		"when":     s.when,
 		"frdate":   s.frDate,
