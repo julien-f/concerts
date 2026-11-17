@@ -42,7 +42,7 @@ REF ?= main
 measure-scroll:
 	scripts/measure-scroll.sh $(REF)
 
-# Go lines, binary size and `make check` duration, logged per slice.
+# Go lines, binary size and `make check` duration, for a merge commit's body.
 measure:
 	scripts/measure.sh
 

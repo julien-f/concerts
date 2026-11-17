@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Checks every screen of a fresh `make demo` at 390 px, light and dark:
+# Checks every screen of a fresh `make demo` at 390 and 768 px, light and dark:
 # 0 axe-core violations, 0 Nu HTML Checker errors, and the group page weight.
 set -euo pipefail
 

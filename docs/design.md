@@ -137,7 +137,7 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 │                              │  on screen; pre-line
 │ [Billetterie ↗] [Partager]   │  the only orange button, if
 │                              │  set; share sheet (ADR 0010)
-│ statuses + my 3 buttons      │  same block as the card
+│ statuses + my 2 buttons      │  same block as the card
 │ [Modifier]   [Supprimer]     │
 └──────────────────────────────┘
 ```
@@ -252,11 +252,11 @@ All under `/g/{secret}` (written `…`) but the first two and the last two; unkn
 | POST | `…/me` | pick `member_id` or create `name`; sets cookie | 303 `next` (a concert path) or `…`; 422 picker |
 | POST | `…/logout` | « Ce n'est pas moi »: clears cookie | 303 `…` |
 | GET | `…/concerts/new` | add form; `?url=` pre-fills from the ticket page | page; htmx swaps the form (`hx-select`) |
-| POST | `…/concerts` | create; `anyway=1` skips the duplicate check | 303 `…?added=<id>`; 422 form (invalid or duplicate) |
+| POST | `…/concerts` | create; `anyway=1` skips the duplicate check | 303 `…?added=<id>`; 422 form (invalid or duplicate); 422 if the group is full |
 | GET | `…/concerts/{id}` | old and internal concert URL; sets the group cookie | 303 `/c/<token>`, query kept |
 | GET | `…/concerts/{id}/edit` | edit form | page |
 | POST | `…/concerts/{id}/refresh` | « Relire la billetterie »: fills the posted form's empty fields from its ticket link, saves nothing | form page (200, as htmx swaps no 4xx) |
-| POST | `…/concerts/{id}` | update, recording a revision | 303 `…/concerts/{id}?saved=<rev>`; 422 form |
+| POST | `…/concerts/{id}` | update, recording a revision | 303 `…/concerts/{id}?saved=<rev>`; 422 form; 422 if the group is full |
 | GET | `…/concerts/{id}/history` | edits, newest first, with the fields each changed | page |
 | POST | `…/concerts/{id}/revisions/{rev}/revert` | go back to before that edit (an edit itself) | 303 `…/concerts/{id}?reverted=<rev>`; 422 if a value is no longer valid or the group is full |
 | POST | `…/concerts/{id}/delete` | soft delete | 303 `…?deleted=<id>` |
