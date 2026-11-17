@@ -89,7 +89,7 @@ func (s *server) prefill(r *http.Request, gr *groupRequest, u string) (c store.C
 }
 
 // fitParagraphs normalizes v as cleanParagraphs does and, if longer than maxRunes, cuts it
-// at the last line or sentence end in its second half (else word) that fits with « … ».
+// at the last line or sentence end, else word end, in the second half of what fits (else at the limit), with « … ».
 func fitParagraphs(v string, maxRunes int) string {
 	v = paragraphs(v)
 	if utf8.RuneCountInString(v) <= maxRunes {
@@ -98,9 +98,10 @@ func fitParagraphs(v string, maxRunes int) string {
 	rs := []rune(v)
 	win := string(rs[:maxRunes]) // one rune past the cut, telling whether the cut ends a line, sentence or word
 	cut := win[:len(win)-utf8.RuneLen(rs[maxRunes-1])]
-	if i := max(strings.LastIndex(win, "\n"), strings.LastIndex(win, ". ")+1); i > 0 && utf8.RuneCountInString(win[:i]) > maxRunes/2 {
+	late := func(i int) bool { return i > 0 && utf8.RuneCountInString(win[:i]) > maxRunes/2 } // in the second half
+	if i := max(strings.LastIndex(win, "\n"), strings.LastIndex(win, ". ")+1); late(i) {
 		cut = win[:i]
-	} else if i := strings.LastIndexAny(win, " \n"); i > 0 {
+	} else if i := strings.LastIndexAny(win, " \n"); late(i) {
 		cut = win[:i]
 	}
 	return strings.TrimSpace(cut) + "…"

@@ -185,8 +185,9 @@ func TestFetchLimiter(t *testing.T) {
 	}
 }
 
-// TestFitParagraphsWordCut: without a line or sentence end to cut at, the cut falls between words.
-func TestFitParagraphsWordCut(t *testing.T) {
+// TestFitParagraphsCut: a long description is cut at a line or sentence end, else between words,
+// either in the second half of what fits; else at the limit.
+func TestFitParagraphsCut(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		in, want string
@@ -197,12 +198,12 @@ func TestFitParagraphsWordCut(t *testing.T) {
 		{"aaaa bbbb\ncc", "aaaa bbbb…", 10},                                                              // ended by a line feed too
 		{"Un. Deux trois quatre\nfin", "Un. Deux trois quatre…", 22},                                     // a whole line, not the sentence before it
 		{"Concert\n" + strings.Repeat("mot ", 30), "Concert\n" + strings.Repeat("mot ", 7) + "mot…", 40}, // a line end too early: between words
-		{"Concert de rock\nhttps://example.com/" + strings.Repeat("x", 60), "Concert de rock…", 40},      // no space after an early line end: cut there
+		{"Concert\n" + strings.Repeat("x", 60), "Concert\n" + strings.Repeat("x", 31) + "…", 40},         // nothing in the second half: at the limit
 		{strings.Repeat("a", 22) + "\n" + strings.Repeat("é ", 20), strings.Repeat("a", 22) + "…", 40},   // past half in runes, not in bytes
 	} {
 		if got := fitParagraphs(tt.in, tt.max); got != tt.want {
-			t.Errorf("fitParagraphs: %d runes ending %q, want %d ending %q", utf8.RuneCountInString(got),
-				string([]rune(got)[max(0, utf8.RuneCountInString(got)-8):]), utf8.RuneCountInString(tt.want), string([]rune(tt.want)[utf8.RuneCountInString(tt.want)-8:]))
+			tail := func(s string) string { r := []rune(s); return string(r[max(0, len(r)-8):]) }
+			t.Errorf("fitParagraphs: %d runes ending %q, want %d ending %q", utf8.RuneCountInString(got), tail(got), utf8.RuneCountInString(tt.want), tail(tt.want))
 		}
 	}
 }
