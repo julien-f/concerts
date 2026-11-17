@@ -23,6 +23,7 @@ func parseForm(w http.ResponseWriter, r *http.Request) bool {
 // cleanText trims v and collapses whitespace runs; it reports false unless the
 // result is valid UTF-8 of 1 to maxRunes runes without invisible characters
 // (control, format, variation selectors, default-ignorable, braille blank).
+// The result is returned either way, so a form sent back keeps what was typed.
 func cleanText(v string, maxRunes int) (string, bool) {
 	return valid(strings.Join(strings.Fields(v), " "), maxRunes)
 }
@@ -45,14 +46,11 @@ func paragraphs(v string) string {
 	return strings.TrimRight(strings.Join(lines, "\n"), "\n")
 }
 
-// valid returns v, true if v is valid UTF-8 of 1 to maxRunes runes without
-// invisible characters other than line feeds; "", false otherwise.
+// valid returns v and whether it is valid UTF-8 of 1 to maxRunes runes without
+// invisible characters other than line feeds.
 func valid(v string, maxRunes int) (string, bool) {
-	if !utf8.ValidString(v) || v == "" || utf8.RuneCountInString(v) > maxRunes ||
-		strings.ContainsFunc(v, func(r rune) bool { return r != '\n' && invisible(r) }) {
-		return "", false
-	}
-	return v, true
+	return v, utf8.ValidString(v) && v != "" && utf8.RuneCountInString(v) <= maxRunes &&
+		!strings.ContainsFunc(v, func(r rune) bool { return r != '\n' && invisible(r) })
 }
 
 // invisible reports control, format, variation selector, default-ignorable and braille blank characters.
@@ -63,8 +61,6 @@ func invisible(r rune) bool {
 // cleanName is cleanText for first names, which must also start with a letter or digit.
 func cleanName(v string, maxRunes int) (string, bool) {
 	v, ok := cleanText(v, maxRunes)
-	if r, _ := utf8.DecodeRuneInString(v); !ok || !unicode.In(r, unicode.L, unicode.N) {
-		return "", false
-	}
-	return v, true
+	r, _ := utf8.DecodeRuneInString(v)
+	return v, ok && unicode.In(r, unicode.L, unicode.N)
 }

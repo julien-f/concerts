@@ -221,6 +221,21 @@ func TestConcertValidation(t *testing.T) {
 	}
 }
 
+// TestConcertFormKeepsInput: an invalid text field comes back as typed, not emptied, and
+// « Relire la billetterie » leaves it alone, as it does every field typed.
+func TestConcertFormKeepsInput(t *testing.T) {
+	t.Parallel()
+	ts := newTestServer(t)
+	b, secret := ts.member(t, "Léa")
+	long := strings.Repeat("v", 101)
+	form := validConcert()
+	form.Set("artist", "Foo\u200bBar")
+	form.Set("venue", long)
+	form.Set("description", "Ex\u00ademple")
+	_, body := b.post(t, "/g/"+secret+"/concerts", form)
+	assertContains(t, body, `value="Foo`+"\u200b"+`Bar"`, `value="`+long+`"`, ">Ex\u00ademple</textarea>")
+}
+
 // TestDuplicateConcert: a live concert with the same artist and date asks before adding another.
 func TestDuplicateConcert(t *testing.T) {
 	t.Parallel()
