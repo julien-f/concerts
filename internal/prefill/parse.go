@@ -9,6 +9,7 @@ import (
 	"io"
 	"maps"
 	"math"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -218,7 +219,7 @@ func fromEvent(ev map[string]any, now time.Time) Result {
 	res.Date, res.Time = wallClock(str(ev["startDate"]), now.Location())
 	switch loc := first(ev["location"]).(type) {
 	case string:
-		res.Venue = clean(loc)
+		res.Venue = clean(str(loc))
 	case map[string]any:
 		res.Venue = clean(str(loc["name"]))
 		if a := address(first(loc["address"])); a != res.Venue { // some pages repeat the venue
@@ -410,7 +411,13 @@ func performers(v any) string {
 }
 
 // str is a JSON-LD string with HTML entities decoded: WordPress encodes them (« &#8217; », « &amp; »).
-func str(v any) string { s, _ := v.(string); return html.UnescapeString(s) }
+// Only entities closed by « ; »: html.UnescapeString alone would read « Salle&regie » as « Salle®ie ».
+func str(v any) string {
+	s, _ := v.(string)
+	return entity.ReplaceAllStringFunc(s, html.UnescapeString)
+}
+
+var entity = regexp.MustCompile(`&(?:#[0-9]+|#[xX][0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);`)
 
 func nameOf(v any) string {
 	if m, ok := v.(map[string]any); ok {
