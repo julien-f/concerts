@@ -116,6 +116,35 @@ func TestConcerts(t *testing.T) {
 // testToday is the Paris date callers pass; concerts dated before it are past.
 const testToday = "2026-06-01"
 
+// TestConcertErrorIsEmpty: on an error, Concert returns no half-read concert, whose Deleted
+// would make callers answer 404 instead of 500.
+func TestConcertErrorIsEmpty(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s := openTest(t)
+	g, err := s.CreateGroup(ctx, "g", "s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := s.CreateMember(ctx, g.ID, "Léa")
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := s.CreateConcert(ctx, g.ID, m.ID, Concert{Artist: "A", Date: "2026-07-01", Venue: "V"}, "2026-01-02")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteConcert(ctx, g.ID, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.ExecContext(ctx, "DROP TABLE concert_revisions"); err != nil {
+		t.Fatal(err)
+	}
+	if c, err := s.Concert(ctx, g.ID, id); err == nil || c != (Concert{}) {
+		t.Errorf("Concert = %+v, %v; want an empty concert and the error", c, err)
+	}
+}
+
 func TestConcertLimit(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

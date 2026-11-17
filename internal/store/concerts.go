@@ -58,15 +58,15 @@ func (s *Store) Concert(ctx context.Context, groupID, id int64) (Concert, error)
 		return Concert{}, ErrNotFound
 	}
 	if err != nil {
-		return c, err
+		return Concert{}, err
 	}
 	err = s.db.QueryRowContext(ctx, `SELECT r.id, coalesce(m.name, '') FROM concert_revisions r
 		LEFT JOIN members m ON m.id = r.edited_by WHERE r.concert_id = ? ORDER BY r.id DESC LIMIT 1`,
 		id).Scan(&c.LastRevID, &c.EditedBy)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return Concert{}, err
 	}
-	return c, err
+	return c, nil
 }
 
 // ConcertByToken returns the group and id of the concert whose public link holds token,
