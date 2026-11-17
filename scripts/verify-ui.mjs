@@ -21,7 +21,7 @@ const screens = [
     name: "picker-duplicate",
     go: async (p) => {
       await p.fill("#name", "marc");
-      return submit(p, "text=Rejoindre");
+      return submit(p, 'button:has-text("Rejoindre")');
     },
   },
   {
@@ -99,7 +99,7 @@ const screens = [
       await p.fill("#ticket_url", "ftp://nope");
       // Skip the browser's own checks to reach the server's error page.
       await p.$eval("form.stack", (f) => (f.noValidate = true));
-      return submit(p, "text=Enregistrer");
+      return submit(p, 'button:has-text("Enregistrer")');
     },
   },
   {
@@ -109,7 +109,7 @@ const screens = [
       await p.fill("#date", "2031-05-17");
       await p.fill("#venue", "Le Trabendo");
       await p.fill("#ticket_url", "");
-      return submit(p, "text=Enregistrer");
+      return submit(p, 'button:has-text("Enregistrer")');
     },
   },
   {
@@ -131,7 +131,7 @@ const screens = [
     name: "deleted",
     go: async (p) => {
       await p.goto(`${groupURL}/concerts/1`);
-      return submit(p, "text=Supprimer");
+      return submit(p, 'button:has-text("Supprimer")');
     },
   },
   // The concert deleted above, as reached from a shared link: 404 page.
