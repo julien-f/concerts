@@ -59,5 +59,5 @@ func valid(v string, maxRunes int) (string, bool) {
 func CleanName(v string) (string, bool) {
 	v, ok := cleanText(v, maxNameRunes)
 	r, _ := utf8.DecodeRuneInString(v)
-	return v, ok && unicode.In(r, unicode.L, unicode.N)
+	return v, ok && unicode.In(r, unicode.L, unicode.Nd)
 }
