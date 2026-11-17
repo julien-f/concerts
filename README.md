@@ -9,12 +9,12 @@ Design and roadmap: [docs/design.md](docs/design.md).
 Requires Go (see `go.mod`) and gcc (for `go test -race` only).
 
 ```sh
-make run                                                   # serves on :8080, database concerts.db
+make run                                                   # serves on 127.0.0.1:8080, database concerts.db
 CONCERTS_BASE_URL=http://localhost:8080 go run ./cmd/concerts new-group "Gig buddies"   # prints the group link
 make demo                                                  # or: a fresh demo.db with sample data, served on :8080
 ```
 
-Environment: `CONCERTS_ADDR` (default `:8080`), `CONCERTS_DB` (default `concerts.db`), `CONCERTS_BASE_URL` (public URL; required by `serve`, `new-group`, `rotate-secret`). `concerts` without arguments lists the subcommands (`list-groups`, `rotate-secret`, `delete-member`, `backup`…).
+Environment: `CONCERTS_ADDR` (default `127.0.0.1:8080`; ignored when systemd passes a socket), `CONCERTS_DB` (default `concerts.db`), `CONCERTS_BASE_URL` (public URL; required by `serve`, `new-group`, `rotate-secret`). `concerts` without arguments lists the subcommands (`list-groups`, `rotate-secret`, `delete-member`, `backup`…).
 
 ## Test
 

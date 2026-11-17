@@ -30,7 +30,8 @@ const usage = `usage:
   concerts demo                                  fill an empty database with a demo group (development)
 
 environment:
-  CONCERTS_ADDR      listen address (default :8080)
+  CONCERTS_ADDR      listen address (default 127.0.0.1:8080); serve uses the socket
+                     systemd passes instead, when started by a .socket unit
   CONCERTS_DB        SQLite database path (default concerts.db)
   CONCERTS_BASE_URL  public base URL, e.g. https://concerts.example.com
                      (required by serve, new-group, rotate-secret and demo)
@@ -60,7 +61,9 @@ func run(args []string, log *slog.Logger) error {
 	var cmd func(*store.Store) error
 	switch {
 	case len(args) == 1 && args[0] == "serve":
-		cmd = func(st *store.Store) error { return serve(ctx, log, st, env("CONCERTS_ADDR", ":8080"), baseURL) }
+		cmd = func(st *store.Store) error {
+			return serve(ctx, log, st, env("CONCERTS_ADDR", "127.0.0.1:8080"), baseURL)
+		}
 	case len(args) == 2 && args[0] == "new-group":
 		cmd = func(st *store.Store) error { _, err := newGroup(ctx, st, baseURL, args[1]); return err }
 	case len(args) == 1 && args[0] == "list-groups":
@@ -146,6 +149,20 @@ func deleteMember(ctx context.Context, st *store.Store, groupID, name string) er
 	return nil
 }
 
+// listen returns the socket systemd passes (fd 3, see sd_listen_fds(3)), else a TCP listener on addr.
+func listen(addr string) (net.Listener, error) {
+	if os.Getenv("LISTEN_PID") != strconv.Itoa(os.Getpid()) {
+		return net.Listen("tcp", addr)
+	}
+	// An error rather than TCP: a service looking healthy but unreachable through the proxy hides the bug.
+	if n := os.Getenv("LISTEN_FDS"); n != "1" {
+		return nil, fmt.Errorf("LISTEN_FDS=%q: want exactly one socket", n)
+	}
+	f := os.NewFile(3, "systemd socket")
+	defer func() { _ = f.Close() }() // FileListener holds its own close-on-exec copy
+	return net.FileListener(f)
+}
+
 func serve(ctx context.Context, log *slog.Logger, st *store.Store, addr, baseURL string) error {
 	h, err := web.New(st, log, web.Config{BaseURL: baseURL, Now: time.Now})
 	if err != nil {
@@ -159,7 +176,7 @@ func serve(ctx context.Context, log *slog.Logger, st *store.Store, addr, baseURL
 		IdleTimeout:       2 * time.Minute,
 		MaxHeaderBytes:    64 << 10,
 	}
-	ln, err := net.Listen("tcp", addr)
+	ln, err := listen(addr)
 	if err != nil {
 		return err
 	}
