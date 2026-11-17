@@ -52,6 +52,22 @@ func (s *Store) Concert(ctx context.Context, groupID, id int64) (Concert, error)
 	return c, err
 }
 
+// SameConcert returns the group's oldest live concert dated date whose artist matches artist
+// as first names do (ignoring case), or ErrNotFound. Compared in Go: SQLite's lower() is ASCII-only.
+func (s *Store) SameConcert(ctx context.Context, groupID int64, artist, date string) (Concert, error) {
+	cs, err := queryAll(ctx, s.db, concertFields, concertSelect+`
+		WHERE c.group_id = ? AND c.date = ? AND c.deleted_at IS NULL ORDER BY c.id`, groupID, date)
+	if err != nil {
+		return Concert{}, err
+	}
+	for _, c := range cs {
+		if nameKey(c.Artist) == nameKey(artist) {
+			return c, nil
+		}
+	}
+	return Concert{}, ErrNotFound
+}
+
 // upcoming counts the group's live concerts dated today or later.
 func upcoming(ctx context.Context, tx *sql.Tx, groupID int64, today string) (n int, err error) {
 	err = tx.QueryRowContext(ctx,

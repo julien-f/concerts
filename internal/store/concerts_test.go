@@ -209,3 +209,39 @@ func TestConcertLimit(t *testing.T) {
 		t.Fatalf("rows = %d, upcoming = %d; want %d, %d", rows, up, 2*MaxConcerts, MaxConcerts-1)
 	}
 }
+
+func TestSameConcert(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s := openTest(t)
+	g, _ := s.CreateGroup(ctx, "g", "s1")
+	other, _ := s.CreateGroup(ctx, "other", "s2")
+	lea, _ := s.CreateMember(ctx, g.ID, "Léa")
+	add := func(groupID int64, artist, date string) int64 {
+		t.Helper()
+		id, err := s.CreateConcert(ctx, groupID, lea.ID, Concert{Artist: artist, Date: date, Venue: "V"}, testToday)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	deleted := add(g.ID, "Émilie Simon", "2027-03-14")
+	if err := s.DeleteConcert(ctx, g.ID, deleted); err != nil {
+		t.Fatal(err)
+	}
+	first := add(g.ID, "Émilie Simon", "2027-03-14")
+	add(g.ID, "émilie simon", "2027-03-14")
+	add(g.ID, "Air", "2027-03-14")
+	add(other.ID, "Justice", "2027-03-14")
+	add(g.ID, "Justice", "2027-03-15")
+
+	c, err := s.SameConcert(ctx, g.ID, "ÉMILIE SIMON", "2027-03-14")
+	if err != nil || c.ID != first || c.AddedBy != "Léa" {
+		t.Fatalf("SameConcert = %+v, %v; want the oldest live one, %d", c, err, first)
+	}
+	for _, artist := range []string{"Justice", "Émilie"} {
+		if _, err := s.SameConcert(ctx, g.ID, artist, "2027-03-14"); !errors.Is(err, ErrNotFound) {
+			t.Errorf("%s: err = %v, want ErrNotFound", artist, err)
+		}
+	}
+}

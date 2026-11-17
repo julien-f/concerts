@@ -94,6 +94,21 @@ const screens = [
     },
   },
   {
+    // The concert added above, again, submitted with Enter: warned, not added.
+    name: "add-duplicate",
+    go: async (p) => {
+      await p.goto(`${groupURL}/concerts/new`);
+      await p.fill("#artist", "nouveau groupe");
+      await p.fill("#date", "2031-05-17");
+      await p.fill("#venue", "Le Trabendo");
+      return Promise.all([p.waitForNavigation(), p.press("#venue", "Enter")]).then(([r]) => r);
+    },
+    check: async (p) =>
+      (await p.evaluate(() => document.activeElement?.textContent)) === "Voir ce concert"
+        ? null
+        : "focus is not on « Voir ce concert »",
+  },
+  {
     name: "deleted",
     go: async (p) => {
       await p.goto(`${groupURL}/concerts/1`);

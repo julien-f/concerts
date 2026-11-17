@@ -151,6 +151,55 @@ func TestConcertValidation(t *testing.T) {
 	}
 }
 
+// TestDuplicateConcert: a live concert with the same artist and date asks before adding another.
+func TestDuplicateConcert(t *testing.T) {
+	t.Parallel()
+	ts := newTestServer(t) // clock: 2026-06-01
+	lea, secret := ts.member(t, "Léa")
+	g := "/g/" + secret
+	marc := ts.browser(t)
+	marc.join(t, secret, "Marc")
+	lea.postRedirect(t, g+"/concerts", concertValues("Fontaines D.C.", "2026-06-13", "20:30", "Zénith Paris", "", ""))
+
+	dup := concertValues("FONTAINES d.c.", "2026-06-13", "21:00", "Zénith", "https://t.example/f", "2026-06-05")
+	dup.Set("address", "1 rue X")
+	resp, body := marc.post(t, g+"/concerts", dup)
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", resp.StatusCode)
+	}
+	assertContains(t, body, "<title>Déjà dans la liste – ",
+		"Fontaines D.C., sam. 13 juin · 20 h 30, est déjà dans la liste (Zénith Paris, ajouté par Léa).",
+		`ajouté par Léa).
+<a href="`+g+`/concerts/1" aria-describedby="duplicate" autofocus>Voir ce concert</a>`,
+		`name="anyway" value="1" aria-describedby="duplicate">Ajouter quand même</button>`,
+		// Every posted field is kept.
+		`value="FONTAINES d.c."`, `value="21:00"`, `value="Zénith"`, `value="1 rue X"`, `value="https://t.example/f"`, `value="2026-06-05"`)
+	if strings.Contains(body, "Corrige les champs") {
+		t.Error("a duplicate is reported as invalid fields")
+	}
+	// « Enregistrer » stays the default button, so Enter in a field does not add the duplicate.
+	if strings.Index(body, ">Enregistrer<") > strings.Index(body, ">Ajouter quand même<") {
+		t.Error("« Ajouter quand même » comes before « Enregistrer »")
+	}
+
+	invalid := concertValues("Fontaines D.C.", "2026-06-13", "", "", "", "")
+	invalid.Set("anyway", "1")
+	resp, body = marc.post(t, g+"/concerts", invalid)
+	if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(body, `id="venue-error"`) || strings.Contains(body, `id="duplicate"`) {
+		t.Errorf("« Ajouter quand même » with an invalid field: status %d, want 422 with the field error only", resp.StatusCode)
+	}
+
+	marc.postRedirect(t, g+"/concerts", concertValues("Fontaines D.C.", "2026-06-14", "", "Zénith Paris", "", ""))
+
+	ts.exec(t, "DELETE FROM members WHERE name = 'Léa'")
+	_, body = marc.post(t, g+"/concerts", dup)
+	assertContains(t, body, "est déjà dans la liste (Zénith Paris).")
+
+	dup.Set("anyway", "1")
+	_, body = marc.postRedirect(t, g+"/concerts", dup)
+	assertContains(t, body, "Concert ajouté : FONTAINES d.c.")
+}
+
 func TestConcertAccess(t *testing.T) {
 	t.Parallel()
 	ts := newTestServer(t)

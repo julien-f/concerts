@@ -73,7 +73,9 @@ func TestStatusRejected(t *testing.T) {
 	b, secret := ts.member(t, "Léa")
 	g := "/g/" + secret
 	b.postRedirect(t, g+"/concerts", validConcert())
-	b.postRedirect(t, g+"/concerts", validConcert())
+	second := validConcert()
+	second.Set("anyway", "1")
+	b.postRedirect(t, g+"/concerts", second)
 	b.postRedirect(t, g+"/concerts/2/delete", nil)
 	intruder, other := ts.member(t, "Intrus")
 

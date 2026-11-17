@@ -29,11 +29,12 @@ type concertForm struct {
 	*groupRequest
 	ID           int64
 	Fields       []field
-	FormError    string // error not tied to a field
-	PrefillURL   string // ticketing page last read (add form only)
-	PrefillMsg   string // outcome of that read, or of « Relire la billetterie » (edit form)
-	BadLink      bool   // the prefill link itself is invalid: focus goes there
-	RefreshFocus bool   // nothing filled by « Relire la billetterie »: focus stays on it
+	FormError    string         // error not tied to a field
+	PrefillURL   string         // ticketing page last read (add form only)
+	PrefillMsg   string         // outcome of that read, or of « Relire la billetterie » (edit form)
+	BadLink      bool           // the prefill link itself is invalid: focus goes there
+	RefreshFocus bool           // nothing filled by « Relire la billetterie »: focus stays on it
+	Duplicate    *store.Concert // live concert with the same artist and date (add form only)
 }
 
 func newConcertForm(gr *groupRequest, c store.Concert, errs map[string]string) *concertForm {
@@ -189,6 +190,19 @@ func (s *server) createConcert(w http.ResponseWriter, r *http.Request, gr *group
 	if len(errs) > 0 {
 		s.render(w, r, http.StatusUnprocessableEntity, "form", newConcertForm(gr, c, errs))
 		return
+	}
+	if r.PostForm.Get("anyway") == "" {
+		d, err := s.store.SameConcert(r.Context(), gr.Group.ID, c.Artist, c.Date)
+		switch {
+		case err == nil:
+			f := newConcertForm(gr, c, nil)
+			f.Duplicate, f.Notice = &d, "Déjà dans la liste"
+			s.render(w, r, http.StatusUnprocessableEntity, "form", f)
+			return
+		case !errors.Is(err, store.ErrNotFound):
+			s.fail(w, r, err)
+			return
+		}
 	}
 	id, err := s.store.CreateConcert(r.Context(), gr.Group.ID, gr.Me.ID, c, s.today())
 	s.done(w, r, gr, err, fmt.Sprintf("%s?added=%d", gr.Base, id))
