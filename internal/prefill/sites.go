@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // siteRules read Date, Time, Venue, Address from pages without a schema.org Event, by host without "www.".
@@ -89,7 +90,56 @@ func retourDeScene(texts []text) Result {
 			break
 		}
 	}
+	res.Price, res.Description = retourDeSceneAbout(texts)
 	return res
+}
+
+var (
+	// rdsPrice is a text of euro amounts only: « 20€/23€ », « 12 € ».
+	rdsPrice   = regexp.MustCompile(`^\d+(?:[.,]\d\d?)?[ \x{a0}\x{202f}]?€(?:[ \x{a0}\x{202f}]?/[ \x{a0}\x{202f}]?\d+(?:[.,]\d\d?)?[ \x{a0}\x{202f}]?€)*$`)
+	euroAmount = regexp.MustCompile(`\d+(?:[.,]\d\d?)?`)
+)
+
+// retourDeSceneAbout reads what follows the « Billetterie » button up to « Lieu »: the price,
+// then the artist blocks (heading, paragraphs), without « Suivre » links or icon glyphs.
+func retourDeSceneAbout(texts []text) (price, description string) {
+	start := slices.IndexFunc(texts, func(t text) bool { return !t.heading && strings.EqualFold(t.s, "Billetterie") })
+	if start < 0 {
+		return "", ""
+	}
+	var b strings.Builder
+	newLine := false // a skipped text's block break still separates its neighbours
+	for _, t := range texts[start+1:] {
+		if t.heading && strings.EqualFold(t.s, "Lieu") {
+			break
+		}
+		newLine = newLine || t.block
+		if t.s == "Suivre" || !strings.ContainsFunc(t.s, func(r rune) bool { return unicode.In(r, unicode.L, unicode.N) }) {
+			continue
+		}
+		if b.Len() == 0 && price == "" && rdsPrice.MatchString(t.s) {
+			var lo, hi float64
+			for _, s := range euroAmount.FindAllString(t.s, -1) {
+				if p := amount(s); p > 0 {
+					lo, hi = cmp.Or(min(lo, p), p), max(hi, p)
+				}
+			}
+			price, newLine = formatPrice(lo, hi), false
+			continue
+		}
+		switch {
+		case b.Len() == 0:
+		case t.heading:
+			b.WriteString("\n\n")
+		case newLine:
+			b.WriteString("\n")
+		default:
+			b.WriteString(" ")
+		}
+		b.WriteString(t.s)
+		newLine = false
+	}
+	return price, b.String()
 }
 
 // section returns the texts between the heading named name and the next heading.

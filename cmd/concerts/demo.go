@@ -25,8 +25,12 @@ func demo(ctx context.Context, st *store.Store, baseURL string) error {
 	day := func(offset int) string { return time.Now().AddDate(0, 0, offset).Format(time.DateOnly) }
 	var concerts []int64
 	seed := []store.Concert{
-		{Artist: "Fontaines D.C.", Date: day(10), Time: "20:00", Venue: "Zénith Paris", Address: "211 av. Jean Jaurès, 75019 Paris", TicketURL: "https://example.com/billets/fontaines"},
-		{Artist: "Yuksek", Date: day(25), Venue: "La Cigale"},
+		{Artist: "Fontaines D.C.", Date: day(10), Time: "20:00", Venue: "Zénith Paris", Address: "211 av. Jean Jaurès, 75019 Paris", TicketURL: "https://example.com/billets/fontaines",
+			Price: "39,90–52 €",
+			// A glued word and a long link, as pasted pages bring: they must not widen the page.
+			Description: "FONTAINES D.C.Le groupe de Dublin revient avec Romance, son quatrième album.\n\n" +
+				"Première partie à 19 h 30. Infos : https://example.com/billets/fontaines/informations-pratiques-et-acces"},
+		{Artist: "Yuksek", Date: day(25), Venue: "La Cigale", Price: "Prix libre"},
 		{Artist: "Zaho de Sagazan", Date: day(60), Time: "20:30", Venue: "L'Olympia", OnSaleDate: day(5)},
 		{Artist: "Air", Date: day(-20), Time: "20:00", Venue: "Salle Pleyel"},
 		{Artist: "Justice", Date: day(-60), Venue: "Accor Arena"},

@@ -17,9 +17,13 @@
 <p class="when"><time datetime="{{datetime .Concert}}">{{when .Concert}}</time></p>
 <p>{{.Venue}}</p>
 {{with .Map}}<p>{{$.Address}}<br><a href="{{.}}" rel="noopener noreferrer">Voir sur la carte<span class="visually-hidden"> OpenStreetMap</span></a></p>{{end}}
+{{with .Price}}<p>Prix : {{.}}</p>{{end}}
 {{with .OnSaleDate}}<p>Mise en vente : <time datetime="{{.}}">{{frdate .}}</time></p>{{end}}
 {{with .AddedBy}}<p class="meta">ajouté par {{.}}</p>{{end}}
 {{if .LastRevID}}<p class="meta">modifié{{with .EditedBy}} par {{.}}{{end}} · <a href="{{.Base}}/concerts/{{.ID}}/history">Voir l'historique</a></p>{{end}}
+{{- /* Folded: on a phone the answer buttons stay on screen. No heading in <summary>. */}}
+{{with .Description}}<details class="about"><summary>En savoir plus</summary>
+<p>{{.}}</p></details>{{end}}
 </div>
 <div class="side">
 <p class="actions">

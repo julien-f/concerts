@@ -4,8 +4,10 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"concerts/internal/prefill"
 	"concerts/internal/store"
@@ -74,11 +76,28 @@ func (s *server) prefill(r *http.Request, gr *groupRequest, u string) (c store.C
 	}
 	// The page is untrusted input: run it through the form's validation and drop what fails.
 	v := url.Values{"artist": {res.Artist}, "date": {res.Date}, "time": {res.Time},
-		"venue": {res.Venue}, "address": {res.Address}, "ticket_url": {u}, "on_sale_date": {res.OnSaleDate}}
+		"venue": {res.Venue}, "address": {res.Address}, "ticket_url": {u}, "on_sale_date": {res.OnSaleDate},
+		"price": {res.Price}, "description": {fitParagraphs(res.Description, maxDescriptionRunes)}}
 	_, errs := parseConcert(v)
 	for name := range errs {
 		v.Del(name)
 	}
 	c, _ = parseConcert(v)
 	return c, "", false
+}
+
+// fitParagraphs normalizes v as cleanParagraphs does and, if longer than maxRunes, cuts it
+// at the last line or sentence end (else word) that fits with « … ».
+func fitParagraphs(v string, maxRunes int) string {
+	v = paragraphs(v)
+	if utf8.RuneCountInString(v) <= maxRunes {
+		return v
+	}
+	cut := string([]rune(v)[:maxRunes-1])
+	if i := max(strings.LastIndex(cut, "\n"), strings.LastIndex(cut, ". ")+1); i > 0 {
+		cut = cut[:i]
+	} else if i := strings.LastIndex(cut, " "); i > 0 {
+		cut = cut[:i]
+	}
+	return strings.TrimSpace(cut) + "…"
 }

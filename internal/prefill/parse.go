@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"io"
 	"maps"
+	"math"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -17,8 +19,9 @@ import (
 
 // Result is what a ticketing page tells about a concert; fields are "" when unknown.
 // Date, Time and OnSaleDate are Europe/Paris wall clock (YYYY-MM-DD, HH:MM).
+// Price is for display (« 29–32 € »); Description keeps line feeds, at any length (the caller caps it).
 type Result struct {
-	Artist, Date, Time, Venue, Address, OnSaleDate string
+	Artist, Date, Time, Venue, Address, OnSaleDate, Price, Description string
 }
 
 // page holds the raw metadata found in a document.
@@ -30,10 +33,13 @@ type page struct {
 }
 
 // text is a visible text node; class is the innermost open element's, cleared by any end tag.
+// block: a block tag (paragraph, line break, heading…) came between it and the previous text.
 type text struct {
-	s, class string
-	heading  bool
+	s, class       string
+	heading, block bool
 }
+
+var blockTags = []string{"p", "br", "div", "li", "h1", "h2", "h3", "h4", "h5", "h6"}
 
 // maxTexts bounds the memory a page of tiny text nodes can take.
 const maxTexts = 5000
@@ -46,6 +52,7 @@ func scan(r io.Reader, withTexts bool) page {
 	p := page{meta: map[string]string{}}
 	z := html.NewTokenizer(r)
 	var class string
+	var block bool
 	var headings, hidden int // open h1–h6; open svg or template, whose text is not shown as is
 	depth := func(tag string) *int {
 		switch tag {
@@ -65,16 +72,19 @@ func scan(r io.Reader, withTexts bool) page {
 				continue
 			}
 			if s := clean(string(z.Text())); s != "" {
-				p.texts = append(p.texts, text{s: s, class: class, heading: headings > 0})
+				p.texts = append(p.texts, text{s: s, class: class, heading: headings > 0, block: block})
+				block = false
 			}
 		case html.EndTagToken:
 			class = ""
 			name, _ := z.TagName()
+			block = block || slices.Contains(blockTags, string(name))
 			if d := depth(string(name)); d != nil {
 				*d = max(*d-1, 0)
 			}
 		case html.StartTagToken, html.SelfClosingTagToken:
 			t := z.Token()
+			block = block || slices.Contains(blockTags, t.Data)
 			if !slices.Contains(voidTags, t.Data) { // HTML ignores the slash of <span/>: it opens the element
 				class = ""
 				for _, a := range t.Attr {
@@ -136,6 +146,7 @@ func Parse(r io.Reader, host string, now time.Time) Result {
 		site := rule(p.texts)
 		res.Date, res.Time = site.Date, cmp.Or(res.Time, site.Time)
 		res.Venue, res.Address = cmp.Or(res.Venue, site.Venue), cmp.Or(res.Address, site.Address)
+		res.Price, res.Description = cmp.Or(res.Price, site.Price), cmp.Or(res.Description, site.Description)
 	}
 	return res
 }
@@ -214,7 +225,120 @@ func fromEvent(ev map[string]any, now time.Time) Result {
 		}
 	}
 	res.OnSaleDate = onSale(ev["offers"], now)
+	res.Price = price(ev["offers"])
+	res.Description = unglue(prose(str(ev["description"])))
 	return res
+}
+
+// unglue separates words that a site glued by stripping the markup between them: a capitalised
+// word after a run of capitals goes on its own line (« SNIPERGroupe »), and so does such a heading
+// after a sentence end (« énergie.KENZOriginaire »); another sentence start gets a space
+// (« détermination.En », « 2027.KENZ revient », « D.C.Le »). Initials (« U.S.A. ») and names
+// like « McCartney » are left alone.
+func unglue(s string) string {
+	r := []rune(s)
+	is := func(i int, f func(rune) bool) bool { return i >= 0 && i < len(r) && f(r[i]) }
+	upper := func(i int) bool { return is(i, unicode.IsUpper) }
+	lower := func(i int) bool { return is(i, unicode.IsLower) }
+	word := func(i int) bool { return is(i, unicode.IsLetter) || is(i, unicode.IsDigit) }
+	// gluedHeading: a run of capitals from i glued to a capitalised word.
+	gluedHeading := func(i int) bool {
+		j := i
+		for upper(j) {
+			j++
+		}
+		return j-i >= 3 && lower(j)
+	}
+	var b strings.Builder
+	for i, c := range r {
+		switch {
+		case upper(i) && lower(i+1) && upper(i-1) && upper(i-2):
+			b.WriteByte('\n')
+		case upper(i) && is(i-1, func(p rune) bool { return strings.ContainsRune(".!?", p) }) && word(i-2) && (word(i-3) || lower(i+1)):
+			if gluedHeading(i) {
+				b.WriteByte('\n')
+			} else {
+				b.WriteByte(' ')
+			}
+		}
+		b.WriteRune(c)
+	}
+	return b.String()
+}
+
+// prose makes a JSON-LD description plain text: entities decoded (WordPress encodes them),
+// line feeds for CR, and invisible characters (soft hyphens, zero-width spaces…) dropped,
+// so the form, which rejects them, does not drop the whole text.
+func prose(s string) string {
+	s = strings.NewReplacer("\r\n", "\n", "\r", "\n").Replace(html.UnescapeString(s))
+	return strings.TrimSpace(strings.Map(func(r rune) rune {
+		if r != '\n' && unicode.In(r, unicode.Cc, unicode.Cf, unicode.Variation_Selector, unicode.Other_Default_Ignorable_Code_Point) {
+			return -1
+		}
+		return r
+	}, strings.ToValidUTF8(s, "")))
+}
+
+// price formats the range of euro amounts among offers, however nested; a priceCurrency
+// applies to the offers within, and none means euros. "" when there is none.
+func price(offers any) string {
+	var lo, hi float64
+	var walk func(v any, currency string)
+	walk = func(v any, currency string) {
+		switch v := v.(type) {
+		case []any:
+			for _, e := range v {
+				walk(e, currency)
+			}
+		case map[string]any:
+			currency = cmp.Or(clean(str(v["priceCurrency"])), currency)
+			if strings.EqualFold(cmp.Or(currency, "EUR"), "EUR") {
+				for _, k := range []string{"price", "lowPrice", "highPrice"} {
+					if p := amount(v[k]); p > 0 {
+						lo, hi = cmp.Or(min(lo, p), p), max(hi, p)
+					}
+				}
+			}
+			for _, k := range slices.Sorted(maps.Keys(v)) {
+				walk(v[k], currency)
+			}
+		}
+	}
+	walk(offers, "")
+	return formatPrice(lo, hi)
+}
+
+// amount reads a schema.org price, a number or a string with a dot or comma, rounded to the cent;
+// 0 when missing, not positive or implausible (≥ 10,000: a placeholder, not a ticket).
+func amount(v any) float64 {
+	var p float64
+	switch v := v.(type) {
+	case float64:
+		p = v
+	case string:
+		p, _ = strconv.ParseFloat(strings.Replace(clean(v), ",", ".", 1), 64)
+	}
+	if p <= 0 || p >= 10000 || math.IsNaN(p) {
+		return 0
+	}
+	return math.Round(p*100) / 100
+}
+
+// formatPrice writes « 32 € » or « 29–32 € », with cents only when there are some (« 39,90 € »); "" for no price.
+func formatPrice(lo, hi float64) string {
+	euros := func(p float64) string {
+		if p == math.Trunc(p) {
+			return strconv.FormatFloat(p, 'f', 0, 64)
+		}
+		return strings.Replace(strconv.FormatFloat(p, 'f', 2, 64), ".", ",", 1)
+	}
+	switch {
+	case hi == 0:
+		return ""
+	case lo == hi:
+		return euros(lo) + " €"
+	}
+	return euros(lo) + "–" + euros(hi) + " €"
 }
 
 // address formats a schema.org address: a string, or a PostalAddress as

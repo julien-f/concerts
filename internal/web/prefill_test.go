@@ -23,6 +23,9 @@ func ticketSite(t *testing.T) *httptest.Server {
 		case "/hostile":
 			_, _ = w.Write([]byte(`<script type="application/ld+json">{"@type":"MusicEvent","name":"` +
 				strings.Repeat("x", 101) + `","startDate":"2026-07-01T20:00","location":{"name":"Salle` + "\u200b" + `","address":"` + strings.Repeat("x", 101) + `"}}</script>`))
+		case "/long":
+			_, _ = w.Write([]byte(`<script type="application/ld+json">{"@type":"MusicEvent","name":"Long","description":"` +
+				strings.Repeat("Une phrase de vingt-neuf car. ", 70) + `"}</script>`))
 		default:
 			fixtures.ServeHTTP(w, r)
 		}
@@ -46,6 +49,11 @@ func TestPrefill(t *testing.T) {
 			`value="20:00"`, `value="Salle Exemple"`, `id="address" name="address" type="text" value="Paris"`, `id="ticket_url" name="ticket_url" type="url" value="` + site.URL + `/dice.html"`, "autofocus"}},
 		{"blocked site", site.URL + "/blocked", []string{"Impossible de lire cette page\u202f: essaie le lien de la salle ou de l", "ou remplis \u00e0 la main.", `name="ticket_url" type="url" value="` + site.URL + `/blocked"`}},
 		{"og:title only", site.URL + "/accor.html", []string{`value="Duo Fictif"`}},
+		{"price and description", site.URL + "/belle-electrique.html", []string{`id="price" name="price" type="text" value="26–29 €"`,
+			"maxlength=\"2000\">Une soirée, cinq figures du collectif.\nL&#39;une d’elles chante.</textarea>"}},
+		// 70 sentences of 30 runes: cut after the 66th, so with « … » it stays within 2,000 runes.
+		{"long description cut at a sentence end", site.URL + "/long", []string{
+			`maxlength="2000">` + strings.Repeat("Une phrase de vingt-neuf car. ", 65) + "Une phrase de vingt-neuf car.…</textarea>"}},
 		{"nothing found", site.URL + "/empty", []string{"Rien trouvé sur cette page\u202f: remplis", `aria-describedby="prefill-msg" autofocus`}},
 		{"hostile values dropped", site.URL + "/hostile", []string{`id="artist" name="artist" type="text" value=""`, `id="venue" name="venue" type="text" value=""`, `id="address" name="address" type="text" value=""`, `value="2026-07-01"`}},
 		{"not a web link", "javascript:alert(1)", []string{"Lien invalide\u202f: il doit",
@@ -91,6 +99,9 @@ func TestRefreshConcert(t *testing.T) {
 			`value="Mine"`, `value="Ma salle"`, `id="time" name="time" type="time" value="20:00">`,
 			`id="date" name="date" type="date" value="2027-01-24" required aria-describedby="prefill-msg" autofocus`,
 			`value="12, esplanade Exemple, 38000 GRENOBLE"`}},
+		{"price and description filled", concertValues("Mine", "2027-01-25", "21:00", "V", site.URL+"/belle-electrique.html", ""), []string{
+			"Complété depuis la billetterie\u202f: Adresse, Prix, Description.", `value="26–29 €"`,
+			">Une soirée, cinq figures du collectif."}},
 		{"nothing to fill", full, []string{
 			"Rien de plus sur la billetterie.", `aria-describedby="prefill-msg" autofocus>Relire la billetterie`}},
 		{"unreadable page", concertValues("Mine", "2027-01-25", "", "V", site.URL+"/blocked", ""), []string{

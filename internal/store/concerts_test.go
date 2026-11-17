@@ -23,7 +23,8 @@ func TestConcerts(t *testing.T) {
 		}
 		return id
 	}
-	late := add(Concert{Artist: "Late", Date: "2027-03-14", Time: "21:00", Venue: "V", Address: "1 rue X, Paris"})
+	late := add(Concert{Artist: "Late", Date: "2027-03-14", Time: "21:00", Venue: "V", Address: "1 rue X, Paris",
+		Price: "29–32 €", Description: "Un.\n\nDeux."})
 	allDay := add(Concert{Artist: "All day", Date: "2027-03-14", Venue: "V", TicketURL: "https://t.example/x"})
 	early := add(Concert{Artist: "Early", Date: "2027-01-01", Time: "20:00", Venue: "V", OnSaleDate: "2026-12-01"})
 
@@ -38,6 +39,9 @@ func TestConcerts(t *testing.T) {
 	if cs[2].Address != "1 rue X, Paris" || cs[0].Address != "" {
 		t.Fatalf("addresses = %q, %q", cs[2].Address, cs[0].Address)
 	}
+	if cs[2].Price != "29–32 €" || cs[2].Description != "Un.\n\nDeux." || cs[0].Price != "" || cs[0].Description != "" {
+		t.Fatalf("price, description = %q, %q; %q, %q", cs[2].Price, cs[2].Description, cs[0].Price, cs[0].Description)
+	}
 	if fmt.Sprint(order) != fmt.Sprint([]int64{early, allDay, late}) {
 		t.Fatalf("order = %v, want early, all day (no time first), late", order)
 	}
@@ -49,7 +53,7 @@ func TestConcerts(t *testing.T) {
 	if _, err := s.UpdateConcert(ctx, g.ID, lea.ID, late, upd, testToday); err != nil {
 		t.Fatal(err)
 	}
-	if c, _ := s.Concert(ctx, g.ID, late); c.Artist != "Later" || c.Time != "" || c.Venue != "W" || c.Address != "" {
+	if c, _ := s.Concert(ctx, g.ID, late); c.Artist != "Later" || c.Time != "" || c.Venue != "W" || c.Address != "" || c.Price != "" || c.Description != "" {
 		t.Fatalf("after update: %+v", c)
 	}
 

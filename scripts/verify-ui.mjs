@@ -62,6 +62,14 @@ const screens = [
   },
   { name: "mine", go: (p) => p.goto(`${groupURL}?mine=1`) },
   { name: "concert", go: (p) => p.goto(`${groupURL}/concerts/1`) },
+  {
+    // axe skips the content of a closed <details>.
+    name: "about-open",
+    go: async (p) => {
+      await p.click(".about summary");
+      return null;
+    },
+  },
   // Concert 1 is edited twice by the demo (revisions 1 and 2).
   { name: "history", go: (p) => p.goto(`${groupURL}/concerts/1/history`) },
   { name: "saved", go: (p) => p.goto(`${groupURL}/concerts/1?saved=2`) },
