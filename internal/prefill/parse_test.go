@@ -24,11 +24,11 @@ func TestParseFixtures(t *testing.T) {
 	t.Parallel()
 	tests := map[string]Result{
 		// Performer array, offset date, no on-sale date, a non-event block beside.
-		"dice.html": {Artist: "Les Hiboux", Date: "2026-11-27", Time: "20:00", Venue: "Salle Exemple"},
+		"dice.html": {Artist: "Les Hiboux", Date: "2026-11-27", Time: "20:00", Venue: "Salle Exemple", Address: "Paris"},
 		// Generic Event, local time without offset, pretty-printed JSON after a WebSite block.
 		"olympia.html": {Artist: "Jeanne Exemple", Date: "2026-12-08", Time: "20:00", Venue: "L'Exemple"},
-		// Minutes only, date-only endDate ignored.
-		"zenith.html": {Artist: "Nova Test", Date: "2027-01-24", Time: "20:00", Venue: "Arène Exemple"},
+		// Minutes only, date-only endDate ignored, full PostalAddress (country dropped).
+		"zenith.html": {Artist: "Nova Test", Date: "2027-01-24", Time: "20:00", Venue: "Arène Exemple", Address: "12, esplanade Exemple, 38000 GRENOBLE"},
 		// ComedyEvent, EventVenue, milliseconds; past validFrom skipped, nested future one kept; broken block skipped.
 		"fnac.html": {Artist: "Marc Essai", Date: "2027-11-04", Time: "20:00", Venue: "Théâtre Exemple", OnSaleDate: "2027-02-14"},
 		// No JSON-LD: og:title written with name=.
@@ -64,6 +64,14 @@ func TestParseEdgeCases(t *testing.T) {
 			Result{Artist: "Listed"}},
 		{"title fallback, cut at the first separator", `<title>Artiste &amp; Co - Salle | Site</title>`, Result{Artist: "Artiste & Co"}},
 		{"og:title 'null' skipped", `<meta property="og:title" content="null"><meta name="twitter:title" content="Tw @ Venue">`, Result{Artist: "Tw"}},
+		{"address as a string", `<script type="application/ld+json">{"@type":"MusicEvent","name":"A","location":{"name":"S","address":" 1 rue X, Lyon "}}</script>`,
+			Result{Artist: "A", Venue: "S", Address: "1 rue X, Lyon"}},
+		{"address array, no venue name", `<script type="application/ld+json">{"@type":"MusicEvent","name":"A","location":{"address":[{"streetAddress":"1 rue X","postalCode":"69001"}]}}</script>`,
+			Result{Artist: "A", Address: "1 rue X, 69001"}},
+		{"city not repeated when the street holds it", `<script type="application/ld+json">{"@type":"MusicEvent","name":"A","location":{"address":{"streetAddress":"1 rue X, 75001 Paris","postalCode":"75001","addressLocality":"PARIS"}}}</script>`,
+			Result{Artist: "A", Address: "1 rue X, 75001 Paris"}},
+		{"address equal to the venue dropped", `<script type="application/ld+json">{"@type":"MusicEvent","name":"A","location":{"name":"S","address":"S"}}</script>`,
+			Result{Artist: "A", Venue: "S"}},
 		{"garbage date ignored", `<script type="application/ld+json">{"@type":"MusicEvent","name":"A","startDate":"bientôt"}</script>`, Result{Artist: "A"}},
 		{"nothing", `<p>Just a moment...</p>`, Result{}},
 	}

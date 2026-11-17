@@ -17,7 +17,7 @@ import (
 // Result is what a ticketing page tells about a concert; fields are "" when unknown.
 // Date, Time and OnSaleDate are Europe/Paris wall clock (YYYY-MM-DD, HH:MM).
 type Result struct {
-	Artist, Date, Time, Venue, OnSaleDate string
+	Artist, Date, Time, Venue, Address, OnSaleDate string
 }
 
 // page holds the raw metadata found in a document.
@@ -149,9 +149,35 @@ func fromEvent(ev map[string]any, now time.Time) Result {
 		res.Venue = clean(loc)
 	case map[string]any:
 		res.Venue = clean(str(loc["name"]))
+		if a := address(first(loc["address"])); a != res.Venue { // some pages repeat the venue
+			res.Address = a
+		}
 	}
 	res.OnSaleDate = onSale(ev["offers"], now)
 	return res
+}
+
+// address formats a schema.org address: a string, or a PostalAddress as
+// "street, postcode locality" (the country is left out: the app is French).
+func address(v any) string {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return clean(str(v))
+	}
+	street := clean(str(m["streetAddress"]))
+	postal, city := clean(str(m["postalCode"])), clean(str(m["addressLocality"]))
+	// Some sites put the whole address in streetAddress: do not repeat the city.
+	if lower := strings.ToLower(street); (postal != "" && strings.Contains(lower, strings.ToLower(postal))) ||
+		(city != "" && strings.Contains(lower, strings.ToLower(city))) {
+		postal, city = "", ""
+	}
+	var parts []string
+	for _, s := range []string{street, clean(postal + " " + city)} {
+		if s != "" {
+			parts = append(parts, s)
+		}
+	}
+	return strings.Join(parts, ", ")
 }
 
 // first returns v, or its first element if it is an array.
