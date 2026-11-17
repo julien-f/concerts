@@ -89,6 +89,14 @@ docs
 - Its reviews: edit loads the concert only for an invalid form; prefill result compared without the link; word kept when the cut ends it; hours-only offset; ports 1–65535 and « no host name » (Go and check_url); verify-ui weighs in its own context.
 - Kept below the bar: UpdateConcert/CreateMember returning values with errors (callers check err first); form.html's two repeated lines; render/fragment's shared buffering; pickerPage.MaxRunes.
 
+## Rounds 3–8
+
+- Round 3: identity test checked by what the page shows; JSON-LD entities decoded in every text (str). Reviews: only ;-closed and whole entities, bare-string location, the picker asserted too.
+- Round 4: verify-ui's demo wait; prefill form mockup. Round 5: unknown entity names kept; design.md mockups. Round 6: picker message (« ou un chiffre »), ticket link without host name, CLAUDE.md verify-ui wording; review: wait until listening, .ics route, test messages.
+- Round 7: ticket link with a user part (shared httpURL rule), first name must start with a letter or a decimal digit, description cut sees one rune past the limit, verify-ui wait bounded at 2 min with a quiet single build, str fast path dropped (unmeasured), validation names in design.md.
+- Round 8: inventory found nothing worth a commit. Its review and the next two: the description cut's second-half rule for every cut (else at the limit).
+- Dismissed in these rounds: entities without « ; » (WordPress always writes it), <title> decoded per HTML rules, look-alike Unicode first names (accepted social risk), misleading message for a ticket link with a user part (only an attacker sends one), « .… » after a sentence cut, « ! »/« ? » as sentence ends, -o build tied to the target's name, allocations on a cold path.
+
 ## State
 
-Round 2 and its reviews done. Next: round 3 inventory (same zones, bar: bugs or clear maintainability wins); stop when a round finds nothing worth a commit; then make check, verify-ui, measure, the user question (set-aside items), the merge commit body.
+Inventory converged (round 8 empty). Left: final make check / verify-ui / measure, the user's answers on the set-aside items, deleting this file, the merge (awaits approval).
