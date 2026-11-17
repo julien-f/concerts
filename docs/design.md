@@ -141,6 +141,7 @@ Without identity: statuses shown, buttons and edit/delete replaced by « Choisis
 │ Adresse       [____________] │  autocomplete=off
 │ Mise en vente [jj/mm/aaaa]   │
 │ [        Enregistrer        ]│
+│ [Relire la billetterie]      │  edit only, after Enregistrer
 └──────────────────────────────┘
 ```
 
@@ -202,6 +203,7 @@ All under `/g/{secret}` (written `…`); unknown secret → 404. Every POST: `Cr
 | POST | `…/concerts` | create | 303 `…?added=<id>`; 422 form |
 | GET | `…/concerts/{id}` | concert page | page |
 | GET | `…/concerts/{id}/edit` | edit form | page |
+| POST | `…/concerts/{id}/refresh` | « Relire la billetterie »: fills the posted form's empty fields from its ticket link, saves nothing | form page (200, as htmx swaps no 4xx) |
 | POST | `…/concerts/{id}` | update | 303 `…/concerts/{id}?saved`; 422 form |
 | POST | `…/concerts/{id}/delete` | soft delete | 303 `…?deleted=<id>` |
 | POST | `…/concerts/{id}/restore` | undo delete | 303 `…?restored=<id>#c<id>`; 422 if the group is full |
@@ -242,6 +244,7 @@ One slice per branch, merged with `--no-ff`. All shipped (v1).
    - JSON-LD: first `MusicEvent`, else any `*Event`/`Festival`, wherever nested; artist = first performer, else event name; `startDate` converted to Paris; venue = location name; address = `location.address`, a string or a PostalAddress as « street, postcode city » (country left out, city not repeated if the street holds it, dropped if equal to the venue); on-sale = earliest `validFrom`/`availabilityStarts` from today on. Fallback artist: og:title (`property` or `name`), twitter:title, `<title>`, cut at ` | `, ` - `, ` @ `…; never a date from a title.
    - Client and limits: see the threat model (SSRF). Fetched values go through the form's validation; invalid ones are dropped. The user sees one generic message, never the error.
    - `GET …/concerts/new?url=`: a separate GET form above the main one (Enter in the main form saves); htmx swaps `<main>` and pushes the URL. The outcome is tied to the focused field (`aria-describedby`); « Lecture de la page… » sits in a live region present before the request.
+   - « Relire la billetterie » (edit form): a button inside the main form, after « Enregistrer » so Enter saves; it posts the fields as typed (`formaction`, `formnovalidate`) and fills only the empty ones from the ticket link, nothing saved until « Enregistrer ». Only the link is checked then; focus goes to the first filled field, else stays on the button.
 6. **« Ajouter à mon agenda »**: one concert's `.ics`, no feed, so the secret never reaches a calendar provider.
    - Hand-written RFC 5545: no METHOD (Outlook would see an invitation); UID `concert-<group>-<id>` (no host, RFC 7986); timed concerts in UTC with a 3 h end (no VTIMEZONE), date-only ones `VALUE=DATE` with an exclusive next-day end; SUMMARY, LOCATION (« venue, address »), DESCRIPTION « Billets : <link> » only.
    - TEXT escaping (a field cannot start a property line), folding at 75 octets on rune boundaries, CRLF; golden files. `attachment; filename="concert.ics"`, `private, no-store`. An edited concert re-imported on iOS is not updated (known limit).

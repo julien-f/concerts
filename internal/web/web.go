@@ -109,6 +109,7 @@ func New(st *store.Store, log *slog.Logger, cfg Config) (http.Handler, error) {
 	mux.HandleFunc("GET /g/{secret}/concerts/{id}", s.inGroup(s.showConcert))
 	mux.HandleFunc("GET /g/{secret}/concerts/{id}/edit", s.inGroup(requireMe(s.editConcert)))
 	mux.HandleFunc("POST /g/{secret}/concerts/{id}", s.inGroup(requireMe(s.updateConcert)))
+	mux.HandleFunc("POST /g/{secret}/concerts/{id}/refresh", s.inGroup(requireMe(s.refreshConcert)))
 	mux.HandleFunc("POST /g/{secret}/concerts/{id}/delete", s.inGroup(requireMe(s.deleteConcert)))
 	mux.HandleFunc("POST /g/{secret}/concerts/{id}/restore", s.inGroup(requireMe(s.restoreConcert)))
 	mux.HandleFunc("POST /g/{secret}/concerts/{id}/status", s.inGroup(requireMe(s.setStatus)))

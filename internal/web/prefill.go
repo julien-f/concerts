@@ -52,9 +52,9 @@ func (l *fetchLimiter) acquire(group int64, now time.Time) (release func(), ok b
 	}, true
 }
 
-// prefill reads the ticketing page u. It returns the concert to show in the form
-// (only values the form itself accepts), a message, and whether the link itself is wrong.
-func (s *server) prefill(r *http.Request, gr *groupRequest, u string) (c store.Concert, msg string, badLink bool) {
+// prefill reads the ticketing page u. It returns the concert found (only values the
+// form itself accepts), and when nothing was found, why and whether the link itself is wrong.
+func (s *server) prefill(r *http.Request, gr *groupRequest, u string) (c store.Concert, problem string, badLink bool) {
 	if _, errs := parseConcert(url.Values{"ticket_url": {u}}); errs["ticket_url"] != "" {
 		return store.Concert{}, errs["ticket_url"], true
 	}
@@ -80,5 +80,5 @@ func (s *server) prefill(r *http.Request, gr *groupRequest, u string) (c store.C
 		v.Del(name)
 	}
 	c, _ = parseConcert(v)
-	return c, "Vérifie les champs pré-remplis avant d'enregistrer.", false
+	return c, "", false
 }

@@ -29,5 +29,17 @@
 {{with .Error}}<p id="{{$f.Name}}-error" class="error">{{.}}</p>{{end}}
 {{end}}
 <button class="big">Enregistrer</button>
+{{if .ID}}
+{{- /* After « Enregistrer », so Enter saves; posts the fields as they are, so nothing typed is lost. */}}
+<div class="prefill">
+<p class="hint">Complète les champs vides à partir du lien de billetterie.</p>
+<button class="button secondary" formaction="{{.Base}}/concerts/{{.ID}}/refresh" formnovalidate
+ data-hx-post="{{.Base}}/concerts/{{.ID}}/refresh" data-hx-target="main" data-hx-select="main" data-hx-swap="outerHTML"
+ data-hx-sync="closest form:drop" data-hx-indicator="next .wait"
+{{- if .RefreshFocus}} aria-describedby="prefill-msg" autofocus{{end}}>Relire la billetterie</button>
+<p class="wait" role="status"><span>Lecture de la page…</span></p>
+{{with .PrefillMsg}}<p id="prefill-msg" class="prefill-msg">{{.}}</p>{{end}}
+</div>
+{{end}}
 </form>
 {{end}}
