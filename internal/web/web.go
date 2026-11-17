@@ -93,6 +93,7 @@ func New(st *store.Store, log *slog.Logger, cfg Config) (http.Handler, error) {
 		"stubStyle": stubStyle,
 		"when":      s.when,
 		"frdate":    s.frDate,
+		"frtime":    frTime,
 		"datetime":  datetime,
 	})
 	if err != nil {
