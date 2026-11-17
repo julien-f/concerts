@@ -194,15 +194,20 @@ func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	http.Error(w, "Erreur interne, réessaie plus tard.", http.StatusInternalServerError)
 }
 
+// notFoundText is the same for an unknown, rotated or truncated secret, so it reveals nothing;
+// it sends whoever was cut off by a rotation to the operator, not to the members.
+const notFoundText = "Page introuvable. Si ce lien vient de ton groupe, il a peut-être changé ou été coupé : " +
+	"demande le bon lien à la personne qui gère le groupe."
+
 // notFound answers 404: inside a group (gr != nil), a page with the group header and
-// a way back; elsewhere (unknown secret, static file), plain text that reveals nothing.
+// a way back; for an unknown secret or static file, notFoundText.
 // htmx, which swaps no 4xx, is told to reload instead (e.g. a concert deleted meanwhile).
 func (s *server) notFound(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
 	if isHTMX(r) {
 		w.Header().Set("HX-Refresh", "true") // the reload then gets the page
 	}
 	if gr == nil || isHTMX(r) {
-		http.Error(w, "Page introuvable.", http.StatusNotFound)
+		http.Error(w, notFoundText, http.StatusNotFound)
 		return
 	}
 	gr.Notice = "Erreur"

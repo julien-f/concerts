@@ -12,24 +12,23 @@ Adopted (the slice is when the tool first gets used):
 |---|---|---|
 | `govulncheck` v1.9.0 | now | Pinned in `make check` (`make vuln`). Reports only reachable vulnerabilities. Needs network. |
 | `http.CrossOriginProtection` (stdlib) | slice 1 | Wraps the mux. CSRF protection without tokens. Every state change is a POST. |
-| `http.MaxBytesReader`, length/UTF-8 checks, server timeouts (stdlib) | slice 1 | Hand-written `parseXForm(r)` instead of validation libraries. |
+| `http.MaxBytesReader`, length/UTF-8 checks, server timeouts (stdlib) | slice 1 | Hand-written `parseForm` instead of validation libraries. |
 | `time/tzdata` + `Europe/Paris` (stdlib) | slice 2 | Times stored as UTC, displayed in local time. |
 | Lucide icons, inline SVG | slice 3 | Copy only the icons used. Decorative icons get `aria-hidden`. |
 | `golang.org/x/net/html` + `encoding/json` | slice 5 | Open Graph and JSON-LD prefill, tested on saved HTML fixtures. |
 | SSRF-safe client (stdlib) | slice 5 | `net.Dialer.Control` rejects non-global and private IPs. http/https only, capped redirects, body and time limits. |
 | Hand-written `.ics` | slice 6 | CRLF, escaping, 75-octet folding, stable UID, golden-file test. |
-| Web Share API with `wa.me` fallback | slice 7 | About 10 lines of JS. |
+| ~~Web Share API with `wa.me` fallback~~ | slice 7 | Superseded by [ADR 0007](0007-plain-whatsapp-link.md): a plain `wa.me` link. |
 
 Front-end practices:
 - Hand-written CSS using native features (`:focus-visible`, `prefers-reduced-motion`, `color-scheme`, view transitions).
 - `system-ui` fonts.
 - Plain forms with Post/Redirect/Get, enhanced with `hx-*`. Native elements (`fieldset`, `details`, `dialog`) instead of JS widgets.
 
-Ad hoc checks that stay out of the repo: axe-core through Playwright (390px wide, light and dark), and the Nu HTML Checker (vnu).
+Ad hoc checks that stay out of the repo: axe-core through Playwright (390px wide, light and dark), and the Nu HTML Checker (vnu). Superseded by [ADR 0006](0006-scripted-ui-verification.md): scripted in `make verify-ui`.
 
 Deferred:
 - `sqlc`: reconsider past about 20 queries.
-- `golang.org/x/time/rate`: only if the slice 5 fetcher needs a limiter.
 - Litestream: only if losing up to a day of data (nightly `VACUUM INTO`) becomes unacceptable.
 - `go-cmp`: only if test diffs become painful.
 
@@ -46,6 +45,7 @@ Rejected:
 - `hx-boost` on everything: it disturbs focus and scroll for screen readers.
 - JSON-LD processors (json-gold), goquery, OG libraries.
 - Rarely updated `.ics` or SSRF libraries.
+- `golang.org/x/time/rate` (was deferred): slice 5 hand-writes its limiter (about 40 lines in `internal/web/prefill.go`), which also caps fetches in flight.
 
 ## Consequences
 

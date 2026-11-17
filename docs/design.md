@@ -12,7 +12,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 - No account: on the first visit, a member picks their first name, which the app remembers (cookie).
 - Anyone holding the link belongs to the group; if the link leaks, the secret is rotated.
 - Go, single binary under systemd on a shared personal server, run by a dedicated user from its home, behind Caddy over a Unix socket ([ADR 0008](decisions/0008-deployment-under-a-home-user.md)).
-- Local repository, no CI: the pre-commit hook is the safeguard: lint and tests, plus govulncheck when `go.mod`/`go.sum` are staged. `make deploy` runs govulncheck first, so a vulnerability published since, or newly reached by a code change, still blocks a deploy.
+- Local repository, no CI: the pre-commit hook is the safeguard (what it runs: [CLAUDE.md](../CLAUDE.md#commands)). `make deploy` runs govulncheck first, so a vulnerability published since, or newly reached by a code change, still blocks a deploy.
 - UI in French (`lang="fr"`); code, docs and commits in English.
 
 ## Out of scope
@@ -30,7 +30,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 - **Leaks through features**: the `.ics` holds no page URL; the prefill fetcher sends no cookie or `Referer`; absolute URLs come from `CONCERTS_BASE_URL` (required by `serve`), never from `Host`.
 - **Identity cookie**: `HttpOnly`, `SameSite=Lax`, `Path=/g/<secret>`, `Secure` when the base URL is https (`serve` logs a warning for a plain-http one outside localhost), `Max-Age` 400 days. It holds the member id, checked against the group on every request.
 - **CSRF**: every state change is a POST behind `http.CrossOriginProtection` (lets GET through; trusts `Sec-Fetch-Site`, else compares `Origin` with `Host`, so the proxy must keep `Host`). The prefill GET triggers an outbound fetch but needs the secret and is rate-limited.
-- **Abuse with a leaked link**: at most 100 members and 500 upcoming concerts per group (422 beyond), and 1000 concert rows, past and deleted ones included (so up to about 1000 live ones). At the cap a create purges the oldest deleted concert, else the oldest past one: a leaked link can flush the undo history and the past, as deleting everything then creating and deleting already could; backups are the remedy. Server read, write and idle timeouts; request bodies capped at 64 kB.
+- **Abuse with a leaked link**: per-group caps (see Data model) bound what it can store. At the row cap a create purges old concerts, so a leaked link can flush the undo history and the past, as deleting everything then creating and deleting already could; backups are the remedy. Server read, write and idle timeouts; request bodies capped at 64 kB.
 - **SSRF** (prefill): the resolved IP of every connection, redirects included, must be public unicast (IPv6 within `2000::/3`, special-purpose ranges excluded) on port 80 or 443; no proxy, no keep-alive, 3 redirects, 8 s, 1 MB of `text/html`; fetch errors are logged with the host only (a pasted group link must not reach the logs); one fetch in flight and 10 a minute per group, 2 in flight overall.
 - **Accepted risks**: anyone with the link can join and act as any first name; members are friends, so impersonation is social, not technical. « Prévenir le groupe » (`wa.me`) and link previews in other messengers hand the link to the messaging provider's servers, and with it the concert page, first names and answers included. Both are fixed by rotating the secret.
 
@@ -42,7 +42,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 4. **Plan**: filter « Mes concerts »; open a concert → « Ajouter à mon agenda » downloads its `.ics`; « Billetterie » opens the ticket link.
 5. **Fix**: open a concert → « Modifier » or « Supprimer » → banner « Concert supprimé » with « Annuler la suppression ».
 6. **Shared phone**: « Ce n'est pas moi » in every page header → picker again.
-7. **Operator**: `ssh <name>@server 'bin/admin …'` for `new-group`, `list-groups`, `rotate-secret`, `delete-member`, `restore`, `logs`; `make deploy`, `make rollback`; root only for `make install`/`uninstall`.
+7. **Operator**: [operations.md](operations.md).
 
 ## Screens
 
@@ -54,6 +54,9 @@ Mobile first (390 px), one column, max 40 rem wide on larger screens. Landmarks 
 ┌──────────────────────────────┐
 │ Les copains du concert       │
 │ Qui es-tu ?                  │  h1
+│ Pas de compte ni de mot de   │  hint: the link is the key
+│ passe : ce lien suffit. Ne   │  (members had no other way
+│ le partage pas hors du groupe│  to learn it)
 │ ┌──────────────────────────┐ │
 │ │      C'est moi : Léa     │ │  one big button per member,
 │ └──────────────────────────┘ │  alphabetical
@@ -178,7 +181,7 @@ statuses (concert_id → concerts ON DELETE CASCADE,
 - Main page = 2 queries per group (live concerts with creator name; their statuses with member names), assembled in Go: no N+1.
 - The identity cookie holds the member id; `inGroup` (web) resolves the secret, sets `Cache-Control` and drops a cookie naming a member of another group or a deleted one.
 - One accessor `Concert(groupID, id)` filters `group_id` and `deleted_at IS NULL` for every route but restore, which updates only a deleted row of the group; anything else is 404. Status writes also check the member belongs to the group.
-- Required: artist, date, venue. Optional: time, ticket link, on-sale date (a link is often not known yet). At most 500 upcoming concerts per group (edits and restores included; past ones never lock a group) and 1000 rows with past and deleted ones, so the disk cannot fill: at 1000 rows, a create purges the oldest deleted concert, else the oldest past one, with its statuses. « Today » (Paris) is passed to the store by web.
+- Required: artist, date, venue. Optional: time, ticket link, on-sale date (a link is often not known yet). At most 100 members and 500 upcoming concerts per group (422 beyond; edits and restores included; past ones never lock a group) and 1000 rows with past and deleted ones, so the disk cannot fill: at 1000 rows, a create purges the oldest deleted concert, else the oldest past one, with its statuses. « Today » (Paris) is passed to the store by web.
 - Validation (`parseForm`, also applied to prefilled values): text trimmed, 1–100 runes (name 1–30), valid UTF-8, no invisible characters (control, format, variation selectors, default-ignorable, braille blank), first names starting with a letter or digit; dates `YYYY-MM-DD`, time `HH:MM`; ticket URL absolute `http`/`https`, ≤ 2000 bytes.
 - Writes use `_txlock=immediate` and `busy_timeout`; status writes are upserts (idempotent). `synchronous(NORMAL)` may lose the last commits on power loss: accepted.
 
@@ -205,7 +208,7 @@ All under `/g/{secret}` (written `…`); unknown secret → 404. Every POST: `Cr
 
 - Routes needing an identity (all but the picker, `/me`, the concert page and `agenda.ics`) redirect to `…` (303) without a valid member cookie.
 - htmx requests get `HX-Redirect` instead of a 303 (htmx would swap the target page into the fragment) and `HX-Refresh` with a 404 (htmx swaps no 4xx).
-- Errors: 404 for unknown concert or a concert of another group: inside a group, a page « Concert introuvable » with the group header and « ← Tous les concerts » (htmx gets `HX-Refresh`, then that page); an unknown secret gets plain « Page introuvable. », which reveals nothing; 500 is a generic page, details only in logs. Pages render into a buffer first, so a template error never sends a truncated 200.
+- Errors: 404 for unknown concert or a concert of another group: inside a group, a page « Concert introuvable » with the group header and « ← Tous les concerts » (htmx gets `HX-Refresh`, then that page); an unknown secret (rotated, truncated or never issued) gets the same plain « Page introuvable. », which reveals nothing, plus a hint to ask whoever runs the group (not the members: a rotation cuts off the leaker); other unmatched paths get Go's default 404; 500 is a generic page, details only in logs. Pages render into a buffer first, so a template error never sends a truncated 200.
 
 ## Edge cases
 
@@ -221,7 +224,7 @@ All under `/g/{secret}` (written `…`); unknown secret → 404. Every POST: `Cr
 - **Ticket URL**: only `http`/`https`; rendered with `rel="noopener noreferrer"`.
 - **Double submit**: status writes are idempotent (the form sends the target state, not a toggle); creating twice creates two concerts (accepted; delete fixes it).
 
-## Roadmap
+## Slices
 
 One slice per branch, merged with `--no-ff`. All shipped (v1).
 
@@ -242,10 +245,12 @@ One slice per branch, merged with `--no-ff`. All shipped (v1).
    - TEXT escaping (a field cannot start a property line), folding at 75 octets on rune boundaries, CRLF; golden files. `attachment; filename="concert.ics"`, `private, no-store`. An edited concert re-imported on iOS is not updated (known limit).
 7. **Open Graph preview** of concert pages: no identity needed, so a previewer gets `og:title` (artist), `og:description` (date · venue), `og:url` (from `CONCERTS_BASE_URL`), `og:site_name`, `og:type`. No `og:image`: weight for no information.
 
-Also in v1: `make install`, `make deploy`, `make rollback` ([README](../README.md#deploy)).
+Also in v1: `make install`, `make deploy`, `make rollback` ([operations.md](operations.md)).
 
-Later: off-server backups, nothing set up yet. Leads:
+## Later
+
+Off-server backups and failure alerts, nothing set up yet. Leads:
 - First check whether the server is already backed up (host snapshots, a whole-server backup) and covers `/home/<name>/backups`, not the live database.
-- Best fit: another machine pulls nightly with `rsync` and a key limited to `rrsync -ro /home/<name>/backups`; the server holds no credential, so a compromise cannot delete the copies. Retention on the puller: about 14 daily, 8 weekly, 12 monthly.
+- Best fit: another machine pulls nightly with `rsync` and a key limited to `rrsync -ro /home/<name>/backups`; the server holds no credential, so a compromise cannot delete the copies. `make install` rewrites `authorized_keys` with the deploy key only, so it must learn to keep that second key first. Retention on the puller: about 14 daily, 8 weekly, 12 monthly.
 - Without an always-on machine: restic to BorgBase or a storage box in append-only mode, pruned from a trusted machine.
 - A periodic restore test (`PRAGMA integrity_check`, `list-groups`) and an alert when the newest snapshot is over 36 h old.
