@@ -70,7 +70,7 @@ func dialControl(_, address string, _ syscall.RawConn) error {
 }
 
 func checkRedirect(req *http.Request, via []*http.Request) error {
-	if len(via) >= 3 {
+	if len(via) > 3 { // via holds the first request, then one per redirect followed
 		return errors.New("too many redirects")
 	}
 	if req.URL.Scheme != "http" && req.URL.Scheme != "https" {

@@ -52,7 +52,11 @@ func TestCheckRedirect(t *testing.T) {
 	if err := checkRedirect(req("ftp://b.example"), via); err == nil {
 		t.Error("redirect to ftp accepted")
 	}
-	if err := checkRedirect(req("https://b.example"), append(via, via[0], via[0])); err == nil {
+	// via holds the first request, then one per redirect followed.
+	if err := checkRedirect(req("https://b.example"), append(via, via[0], via[0])); err != nil {
+		t.Errorf("third redirect: %v", err)
+	}
+	if err := checkRedirect(req("https://b.example"), append(via, via[0], via[0], via[0])); err == nil {
 		t.Error("fourth redirect accepted")
 	}
 }
