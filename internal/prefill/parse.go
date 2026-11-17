@@ -424,7 +424,7 @@ func clean(s string) string {
 	return strings.TrimFunc(plain(strings.ToValidUTF8(s, "")), unicode.IsSpace)
 }
 
-var dateLayouts = []string{time.RFC3339Nano, "2006-01-02T15:04Z07:00", "2006-01-02T15:04:05Z0700", "2006-01-02T15:04Z0700", "2006-01-02T15:04:05", "2006-01-02T15:04", time.DateOnly}
+var dateLayouts = []string{time.RFC3339Nano, "2006-01-02T15:04Z07:00", "2006-01-02T15:04:05Z0700", "2006-01-02T15:04Z0700", "2006-01-02T15:04:05Z07", "2006-01-02T15:04Z07", "2006-01-02T15:04:05", "2006-01-02T15:04", time.DateOnly}
 
 // wallClock turns a schema.org date into a date and time in loc ("" for a date alone).
 // A time without offset is already loc's wall clock; one with an offset is converted.
