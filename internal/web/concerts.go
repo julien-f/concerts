@@ -407,28 +407,18 @@ func (s *server) refreshConcert(w http.ResponseWriter, r *http.Request, gr *grou
 		return
 	}
 	page, problem, _ := s.prefill(r, gr, c.TicketURL)
-	filled := map[string]bool{}
-	if problem == "" {
-		for _, x := range []struct {
-			name string
-			dst  *string
-			src  string
-		}{{"artist", &c.Artist, page.Artist}, {"date", &c.Date, page.Date}, {"time", &c.Time, page.Time},
-			{"venue", &c.Venue, page.Venue}, {"address", &c.Address, page.Address}, {"on_sale_date", &c.OnSaleDate, page.OnSaleDate},
-			{"price", &c.Price, page.Price}, {"description", &c.Description, page.Description}} {
-			if *x.dst == "" && x.src != "" {
-				*x.dst, filled[x.name] = x.src, true
-			}
-		}
-	}
 	f := newConcertForm(gr, c, nil)
 	var labels []string
-	for i := range f.Fields {
-		if fd := &f.Fields[i]; filled[fd.Name] {
-			if labels == nil {
-				fd.Autofocus, fd.DescribedBy = true, "prefill-msg"
+	if problem == "" {
+		fromPage := newConcertForm(nil, page, nil).Fields // same fields, same order
+		for i := range f.Fields {
+			if fd := &f.Fields[i]; fd.Value == "" && fromPage[i].Value != "" {
+				fd.Value = fromPage[i].Value
+				if labels == nil {
+					fd.Autofocus, fd.DescribedBy = true, "prefill-msg"
+				}
+				labels = append(labels, fd.Label)
 			}
-			labels = append(labels, fd.Label)
 		}
 	}
 	switch {
