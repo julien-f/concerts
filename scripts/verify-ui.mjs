@@ -14,8 +14,6 @@ const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
 // Each screen gets the page and returns the navigation response to check, or null
 // for an in-page change (htmx swap), whose DOM is then checked as is.
 // Screens run in order and share cookies, so later ones can rely on earlier steps.
-// The member's cookies, saved before « public » drops them, for the page weight.
-let memberState;
 const submit = (p, selector) => Promise.all([p.waitForNavigation(), p.click(selector)]).then(([r]) => r);
 const screens = [
   { name: "picker", go: (p) => p.goto(groupURL) },
@@ -144,7 +142,6 @@ const screens = [
     go: async (p) => {
       await p.goto(groupURL);
       const href = await p.getAttribute(".card h3 a", "href");
-      memberState = await p.context().storageState();
       await p.context().clearCookies();
       return p.goto(new URL(href, groupURL).href);
     },
@@ -198,8 +195,14 @@ for (const s of screens) {
   console.log(`axe ${s.name}: checked 390 and 768 px, light and dark`);
 }
 
-// Page weight: everything the group page loads with an empty cache, each body gzip -9'd.
-const fresh = await browser.newContext({ storageState: memberState });
+// Page weight: everything the group page loads with an empty cache, each body gzip -9'd,
+// for a member picked in a context of its own (the screens above may have dropped cookies).
+const login = await browser.newContext();
+const loginPage = await login.newPage();
+await loginPage.goto(groupURL);
+await submit(loginPage, 'button:has-text("Léa")');
+const fresh = await browser.newContext({ storageState: await login.storageState() });
+await login.close();
 const weightPage = await fresh.newPage();
 const sizes = {};
 const pending = [];
@@ -211,8 +214,8 @@ weightPage.on("response", (r) => {
 await weightPage.goto(groupURL, { waitUntil: "networkidle" });
 await Promise.all(pending);
 if (!(await weightPage.content()).includes("Ajouter un concert")) {
-  console.log("page weight: not the group's list (no member cookie?)");
-  process.exit(1);
+  console.log("page weight: not the group's list");
+  failures++;
 }
 // Headless Chromium skips favicons; fetch the declared icons explicitly.
 for (const href of await weightPage.$$eval("link[rel=icon]", (ls) => ls.map((l) => l.href))) {
