@@ -125,6 +125,40 @@ func TestConcertListenLink(t *testing.T) {
 		`href="https://www.youtube.com/results?search_query=Simon&#43;%26&#43;Garfunkel" rel="noopener noreferrer">Écouter<span class="visually-hidden"> sur YouTube</span></a>`)
 }
 
+func TestConcertDescriptionPrice(t *testing.T) {
+	t.Parallel()
+	ts := newTestServer(t)
+	b, secret := ts.member(t, "Léa")
+	g := "/g/" + secret
+
+	form := concertValues("Zaz", "2026-06-13", "", "L'Olympia", "", "")
+	form.Set("price", " 29–32 € ")
+	form.Set("description", "Première <b>ligne</b>\r\n\r\n\r\nDeux & trois\r\n")
+	b.postRedirect(t, g+"/concerts", form)
+
+	_, body := b.get(t, g)
+	assertContains(t, body, `L&#39;Olympia <span class="price">· 29–32 €</span>`)
+	_, body = b.get(t, g+"/concerts/1")
+	assertContains(t, body, "<p>Prix : 29–32 €</p>",
+		"<details class=\"about\"><summary>En savoir plus</summary>\n<p>Première &lt;b&gt;ligne&lt;/b&gt;\n\nDeux &amp; trois</p></details>")
+	_, body = b.get(t, g+"/concerts/1/edit")
+	assertContains(t, body, `id="price" name="price" type="text" value="29–32 €" maxlength="30"`,
+		"<textarea id=\"description\" name=\"description\" rows=\"6\" maxlength=\"2000\">Première &lt;b&gt;ligne&lt;/b&gt;\n\nDeux &amp; trois</textarea>")
+
+	b.postRedirect(t, g+"/concerts/1", concertValues("Zaz", "2026-06-13", "", "L'Olympia", "", ""))
+	for path, absent := range map[string]string{g: `class="price"`, g + "/concerts/1": "Prix :"} {
+		if _, body = b.get(t, path); strings.Contains(body, absent) || strings.Contains(body, `class="about"`) {
+			t.Errorf("%s: price or description shown once cleared", path)
+		}
+	}
+	// The clearing edit is in the history, and undoing it brings both back.
+	_, body = b.get(t, g+"/concerts/1/history")
+	assertContains(t, body, "<li>Prix : 29–32 € → (vide)</li>")
+	b.postRedirect(t, g+"/concerts/1/revisions/1/revert", nil)
+	_, body = b.get(t, g+"/concerts/1")
+	assertContains(t, body, "<p>Prix : 29–32 €</p>", `<details class="about">`)
+}
+
 func TestConcertValidation(t *testing.T) {
 	t.Parallel()
 	ts := newTestServer(t)
@@ -144,6 +178,9 @@ func TestConcertValidation(t *testing.T) {
 		{"address too long", "address", strings.Repeat("a", 101)},
 		{"invisible character in address", "address", "1 rue X\u200b"},
 		{"bad on-sale date", "on_sale_date", "demain"},
+		{"price too long", "price", strings.Repeat("1", 31)},
+		{"description too long", "description", strings.Repeat("a", 2001)},
+		{"invisible character in description", "description", "Ex\u00ademple"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -86,7 +86,8 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 │ ┌────┬─────────────────────┐ │
 │ │sam.┆ Fontaines D.C.      │ │  h3 linking to the concert;
 │ │ 14 ┆ sam. 14 mars · 20 h │ │  stub aria-hidden, <time>
-│ │mars┆ · Zénith Paris      │ │  in the body
+│ │mars┆ · Zénith Paris      │ │  in the body; price if set,
+│ │    ┆ · 29–32 €           │ │  nowrap with its « · »
 │ │    ┆ ✓ Y vont : Léa, Marc│ │  SVG icon + text per status,
 │ │    ┆ ★ Intérêt : Sam     │ │  names alphabetical
 │ │    ┆ [★ Ça m'intéresse]  │ │  role=group "Ma réponse",
@@ -113,9 +114,13 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 │ Fontaines D.C.               │  h1
 │ sam. 14 mars · 20 h          │
 │ Zénith Paris                 │
+│ Prix : 29–32 €               │  if set
 │ Mise en vente : ven. 3 oct.  │  if set
 │ ajouté par Léa               │
 │ modifié par Tom · Voir l'his…│  if edited
+│ ▸ En savoir plus             │  description if set: <details>,
+│                              │  folded so the buttons stay
+│                              │  on screen; pre-line
 │ [Billetterie ↗] [Écouter]    │  ticket link if set; YouTube
 │ [Agenda]                     │  search for the artist; .ics
 │ [Prévenir le groupe]         │
@@ -144,6 +149,9 @@ Without identity: statuses shown, buttons and edit/delete replaced by « Choisis
 │ Salle*        [____________] │
 │ Adresse       [____________] │  autocomplete=off
 │ Mise en vente [jj/mm/aaaa]   │
+│ Prix          [____________] │  free text (« Prix libre »)
+│ Description   [____________] │  textarea, 6 rows
+│               [____________] │
 │ [        Enregistrer        ]│
 │ [Relire la billetterie]      │  edit only, after Enregistrer
 └──────────────────────────────┘
@@ -162,7 +170,7 @@ Without identity: statuses shown, buttons and edit/delete replaced by « Choisis
 - Pressed status = filled ink button + icon + `aria-pressed`; never color alone.
 - `system-ui` fonts, fields ≥ 16 px, targets ≥ 44 px on touch screens (36 px answer buttons without any touch input), `:focus-visible` outline, `prefers-reduced-motion` respected.
 - « Ajouter un concert »: one link right after the filters in the DOM (so the keyboard reaches it before the cards). Below 48 rem a fixed bar on the main screen only, above the cards (each a stacking context), padded by `env(safe-area-inset-bottom)`; `scroll-padding-bottom` and list padding keep focused and last cards visible. From 48 rem a plain button on the right of the filters.
-- From 48 rem: tickets in one row (info left, answer buttons right, status lines on one wrapping line, « · ajouté par » after the venue), so about twice as many concerts per screen; concert page in two columns (facts | actions and statuses); concert form in pairs (Date | Heure, Salle | Adresse, Lien | Mise en vente), « Enregistrer » right-aligned. One column, not a grid of cards: dates keep reading top to bottom.
+- From 48 rem: tickets in one row (info left, answer buttons right, status lines on one wrapping line, « · ajouté par » after the venue), so about twice as many concerts per screen; concert page in two columns (facts | actions and statuses); concert form in pairs (Date | Heure, Salle | Adresse, Mise en vente | Prix; Artiste, Lien and Description full width), « Enregistrer » right-aligned. One column, not a grid of cards: dates keep reading top to bottom.
 - Icons: inline Lucide SVG (`star`, `check`), `aria-hidden`; never emoji.
 - App icon and preview images: the `ticket` stub filled brick, perforation in paper colour (`icon.svg`; PNGs rendered from `scripts/*.svg` by `scripts/og-image.mjs`).
 
@@ -177,6 +185,7 @@ members  (id PK, group_id → groups ON DELETE CASCADE, name, name_key,
 concerts (id PK, group_id → groups ON DELETE CASCADE,
           artist, date 'YYYY-MM-DD', time 'HH:MM' NULL, venue,
           address NULL, ticket_url NULL, on_sale_date 'YYYY-MM-DD' NULL,
+          price NULL, description NULL,
           created_by → members ON DELETE SET NULL, created_at,
           deleted_at NULL)
           INDEX (group_id, date)
@@ -186,7 +195,8 @@ statuses (concert_id → concerts ON DELETE CASCADE,
           PRIMARY KEY (concert_id, member_id)) WITHOUT ROWID
 concert_revisions (id PK, concert_id → concerts ON DELETE CASCADE,
           artist, date, time NULL, venue, address NULL, ticket_url NULL,
-          on_sale_date NULL,   -- values before the edit
+          on_sale_date NULL, price NULL, description NULL,
+          -- values before the edit
           edited_by → members ON DELETE SET NULL, edited_at)
           INDEX (concert_id, id)
 ```
@@ -195,9 +205,10 @@ concert_revisions (id PK, concert_id → concerts ON DELETE CASCADE,
 - Main page = 2 queries per group (live concerts with creator name; their statuses with member names), assembled in Go: no N+1.
 - The identity cookie holds the member id; `inGroup` (web) resolves the secret, sets `Cache-Control` and drops a cookie naming a member of another group or a deleted one.
 - One accessor `Concert(groupID, id)` filters `group_id` and `deleted_at IS NULL` for every route but restore, which updates only a deleted row of the group; anything else is 404. Status writes also check the member belongs to the group.
-- Required: artist, date, venue. Optional: time, address, ticket link, on-sale date (a link is often not known yet). At most 100 members and 500 upcoming concerts per group (422 beyond; edits and restores included; past ones never lock a group) and 1000 rows with past and deleted ones, so the disk cannot fill: at 1000 rows, a create purges the oldest deleted concert, else the oldest past one, with its statuses and revisions. At most 20 revisions per concert, older ones pruned on each edit: worst case ≈ 1000 × 20 × 3.3 kB ≈ 66 MB per group, bounded since only the operator creates groups. « Today » (Paris) is passed to the store by web.
+- Required: artist, date, venue. Optional: time, address, ticket link, on-sale date (a link is often not known yet), price, description. At most 100 members and 500 upcoming concerts per group (422 beyond; edits and restores included; past ones never lock a group) and 1000 rows with past and deleted ones, so the disk cannot fill: at 1000 rows, a create purges the oldest deleted concert, else the oldest past one, with its statuses and revisions. At most 20 revisions per concert, older ones pruned on each edit: worst case ≈ 1000 × 20 × 11 kB (a 2000-rune description is up to 8 kB) ≈ 220 MB per group, bounded since only the operator creates groups. « Today » (Paris) is passed to the store by web.
 - An edit that changes something first copies the current values into a revision, in one transaction (`INSERT … SELECT` with NULL-safe `IS NOT`, so a no-op records nothing). Revision lookups join the concert, checking group and liveness in the same statement.
-- Validation (`parseForm`, also applied to prefilled values): text trimmed, 1–100 runes (name 1–30), valid UTF-8, no invisible characters (control, format, variation selectors, default-ignorable, braille blank), first names starting with a letter or digit; dates `YYYY-MM-DD`, time `HH:MM`; ticket URL absolute `http`/`https`, ≤ 2000 bytes.
+- Validation (`parseForm`, also applied to prefilled values): text trimmed, 1–100 runes (name 1–30), valid UTF-8, no invisible characters (control, format, variation selectors, default-ignorable, braille blank), first names starting with a letter or digit; dates `YYYY-MM-DD`, time `HH:MM`; ticket URL absolute `http`/`https`, ≤ 2000 bytes; price free text ≤ 30 runes; description ≤ 2000 runes, line feeds kept (blank-line runs folded into one).
+- Prefill of price and description: schema.org `offers` give a euro range (« 29–32 € », currency inherited, absent = euros, 0 and ≥ 10,000 skipped); the event's `description` gets entities decoded and invisible characters stripped (the form would reject the whole text); one longer than 2000 runes is cut at a line or sentence end with « … ». Open Graph descriptions are never used (Retour de Scène serves its menu there); Retour de Scène's rule reads the price and artist blocks between « Billetterie » and « Lieu ».
 - Writes use `_txlock=immediate` and `busy_timeout`; status writes are upserts (idempotent). `synchronous(NORMAL)` may lose the last commits on power loss: accepted.
 
 ## Routes

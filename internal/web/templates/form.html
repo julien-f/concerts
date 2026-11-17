@@ -1,4 +1,10 @@
 {{define "title"}}{{if .ID}}Modifier le concert{{else}}Ajouter un concert{{end}} · {{.Group.Name}}{{end}}
+{{- /* fieldAttrs are the attributes an input and a textarea share. */}}
+{{define "fieldAttrs"}}
+{{- if not .Optional}} required{{end}}{{with .Max}} maxlength="{{.}}"{{end}}{{with .Autocomplete}} autocomplete="{{.}}"{{end}}
+{{- with .Error}} aria-invalid="true" aria-describedby="{{$.Name}}-error"{{end}}
+{{- with .DescribedBy}} aria-describedby="{{.}}"{{end}}{{if .Autofocus}} autofocus{{end}}
+{{- end}}
 {{define "content"}}
 <p><a class="back" href="{{.Base}}{{with .ID}}/concerts/{{.}}{{end}}">← Annuler</a></p>
 <h1>{{if .ID}}Modifier le concert{{else}}Ajouter un concert{{end}}</h1>
@@ -27,10 +33,9 @@
 {{range .Fields}}{{$f := .}}
 <div class="field">
 <label for="{{.Name}}">{{.Label}}{{if .Optional}} <span class="hint">(facultatif)</span>{{end}}</label>
-<input id="{{.Name}}" name="{{.Name}}" type="{{.Type}}" value="{{.Value}}"
-{{- if not .Optional}} required{{end}}{{with .Max}} maxlength="{{.}}"{{end}}{{with .Autocomplete}} autocomplete="{{.}}"{{end}}
-{{- with .Error}} aria-invalid="true" aria-describedby="{{$f.Name}}-error"{{end}}
-{{- with .DescribedBy}} aria-describedby="{{.}}"{{end}}{{if .Autofocus}} autofocus{{end}}>
+{{- /* No line break after <textarea>: the parser drops one, so a value starting with one would lose it. */}}
+{{if eq .Type "textarea"}}<textarea id="{{.Name}}" name="{{.Name}}" rows="6"{{template "fieldAttrs" .}}>{{.Value}}</textarea>
+{{- else}}<input id="{{.Name}}" name="{{.Name}}" type="{{.Type}}" value="{{.Value}}"{{template "fieldAttrs" .}}>{{end}}
 {{with .Error}}<p id="{{$f.Name}}-error" class="error">{{.}}</p>{{end}}
 </div>
 {{end}}

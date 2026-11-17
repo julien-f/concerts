@@ -31,7 +31,9 @@ func TestMigrateFromPreviousSlice(t *testing.T) {
 		INSERT INTO members (id, group_id, name, name_key, created_at) VALUES (1, 1, 'Léa', 'léa', '2026-01-01T00:00:00Z');
 		INSERT INTO concerts (id, group_id, artist, date, venue, created_by, created_at)
 			VALUES (1, 1, 'A', '2026-03-14', 'V', 1, '2026-01-01T00:00:00Z');
-		INSERT INTO statuses (concert_id, member_id, status) VALUES (1, 1, 'ticket');`,
+		INSERT INTO statuses (concert_id, member_id, status) VALUES (1, 1, 'going');
+		INSERT INTO concert_revisions (id, concert_id, artist, date, venue, edited_by, edited_at)
+			VALUES (1, 1, 'Before', '2026-03-14', 'V', 1, '2026-01-02T00:00:00Z');`,
 		hashSecret("old")); err != nil {
 		t.Fatal(err)
 	}
@@ -48,17 +50,25 @@ func TestMigrateFromPreviousSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c, err := s.Concert(ctx, g.ID, 1); err != nil || c.AddedBy != "Léa" || c.Address != "" {
+	c, err := s.Concert(ctx, g.ID, 1)
+	if err != nil || c.AddedBy != "Léa" || c.Price != "" || c.Description != "" || c.LastRevID != 1 {
 		t.Fatalf("Concert = %+v, %v", c, err)
 	}
 	if ss, err := s.Statuses(ctx, g.ID, 1); err != nil || len(ss) != 1 || ss[0].Status != Going {
-		t.Fatalf("Statuses = %+v, %v; want the ticket merged into going", ss, err)
+		t.Fatalf("Statuses = %+v, %v", ss, err)
 	}
-	if err := s.SetStatus(ctx, g.ID, 1, 1, "ticket"); err == nil {
-		t.Fatal("SetStatus(ticket) succeeded; want the CHECK constraint to refuse it")
-	}
-	if err := s.SetStatus(ctx, g.ID, 1, 1, Interested); err != nil {
+	// The new columns take values, and an edit records the replaced ones.
+	c.Price, c.Description = "20 €", "Un.\n\nDeux."
+	if _, err := s.UpdateConcert(ctx, g.ID, 1, 1, c, testToday); err != nil {
 		t.Fatal(err)
+	}
+	c.Price, c.Description = "", ""
+	if _, err := s.UpdateConcert(ctx, g.ID, 1, 1, c, testToday); err != nil {
+		t.Fatal(err)
+	}
+	rs, err := s.Revisions(ctx, g.ID, 1)
+	if err != nil || len(rs) != 3 || rs[0].Price != "20 €" || rs[0].Description != "Un.\n\nDeux." || rs[2].Artist != "Before" || rs[2].Price != "" {
+		t.Fatalf("Revisions = %+v, %v", rs, err)
 	}
 }
 

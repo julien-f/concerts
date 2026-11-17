@@ -21,7 +21,8 @@ type Revision struct {
 // revisionSelect matches revisionFields; it joins the concert so every lookup checks
 // the group and liveness in the same statement.
 const revisionSelect = `SELECT r.id, r.artist, r.date, coalesce(r.time, ''), r.venue, coalesce(r.address, ''),
-	coalesce(r.ticket_url, ''), coalesce(r.on_sale_date, ''), coalesce(m.name, ''), r.edited_at
+	coalesce(r.ticket_url, ''), coalesce(r.on_sale_date, ''), coalesce(r.price, ''), coalesce(r.description, ''),
+	coalesce(m.name, ''), r.edited_at
 	FROM concert_revisions r JOIN concerts c ON c.id = r.concert_id LEFT JOIN members m ON m.id = r.edited_by
 	WHERE r.concert_id = ? AND c.group_id = ? AND c.deleted_at IS NULL`
 
@@ -40,7 +41,7 @@ func (ts timestampScanner) Scan(v any) error {
 
 func revisionFields(r *Revision) []any {
 	return []any{&r.ID, &r.Artist, &r.Date, &r.Time, &r.Venue, &r.Address, &r.TicketURL, &r.OnSaleDate,
-		&r.EditedBy, timestampScanner{&r.EditedAt}}
+		&r.Price, &r.Description, &r.EditedBy, timestampScanner{&r.EditedAt}}
 }
 
 // Revisions returns the history of the group's live concert, newest first; none for an unknown or deleted concert.

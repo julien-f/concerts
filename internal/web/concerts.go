@@ -46,6 +46,8 @@ func newConcertForm(gr *groupRequest, c store.Concert, errs map[string]string) *
 		{Name: "address", Label: "Adresse", Type: "text", Value: c.Address, Max: maxTextRunes, Optional: true, Autocomplete: "off"},
 		{Name: "ticket_url", Label: "Lien de billetterie", Type: "url", Value: c.TicketURL, Max: maxURLBytes, Optional: true},
 		{Name: "on_sale_date", Label: "Mise en vente", Type: "date", Value: c.OnSaleDate, Optional: true},
+		{Name: "price", Label: "Prix", Type: "text", Value: c.Price, Max: maxPriceRunes, Optional: true},
+		{Name: "description", Label: "Description", Type: "textarea", Value: c.Description, Max: maxDescriptionRunes, Optional: true},
 	}}
 	focused := false
 	for i := range f.Fields {
@@ -62,8 +64,10 @@ func newConcertForm(gr *groupRequest, c store.Concert, errs map[string]string) *
 }
 
 const (
-	maxTextRunes = 100
-	maxURLBytes  = 2000
+	maxTextRunes        = 100
+	maxURLBytes         = 2000
+	maxPriceRunes       = 30
+	maxDescriptionRunes = 2000
 )
 
 // parseConcert validates the concert form; errs is keyed by field name.
@@ -97,6 +101,16 @@ func parseConcert(f url.Values) (c store.Concert, errs map[string]string) {
 	}
 	if c.OnSaleDate = f.Get("on_sale_date"); c.OnSaleDate != "" && !validDate(c.OnSaleDate) {
 		errs["on_sale_date"] = "Date de mise en vente invalide."
+	}
+	if p := f.Get("price"); strings.TrimSpace(p) != "" {
+		if c.Price, ok = cleanText(p, maxPriceRunes); !ok {
+			errs["price"] = fmt.Sprintf("Prix invalide (%d caractères au plus).", maxPriceRunes)
+		}
+	}
+	if d := f.Get("description"); strings.TrimSpace(d) != "" {
+		if c.Description, ok = cleanParagraphs(d, maxDescriptionRunes); !ok {
+			errs["description"] = fmt.Sprintf("Description invalide (%d caractères au plus).", maxDescriptionRunes)
+		}
 	}
 	return c, errs
 }
@@ -307,7 +321,8 @@ func (s *server) refreshConcert(w http.ResponseWriter, r *http.Request, gr *grou
 			dst  *string
 			src  string
 		}{{"artist", &c.Artist, page.Artist}, {"date", &c.Date, page.Date}, {"time", &c.Time, page.Time},
-			{"venue", &c.Venue, page.Venue}, {"address", &c.Address, page.Address}, {"on_sale_date", &c.OnSaleDate, page.OnSaleDate}} {
+			{"venue", &c.Venue, page.Venue}, {"address", &c.Address, page.Address}, {"on_sale_date", &c.OnSaleDate, page.OnSaleDate},
+			{"price", &c.Price, page.Price}, {"description", &c.Description, page.Description}} {
 			if *x.dst == "" && x.src != "" {
 				*x.dst, filled[x.name] = x.src, true
 			}

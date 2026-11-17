@@ -1,6 +1,7 @@
 package prefill
 
 import (
+	"encoding/json"
 	"io/fs"
 	"os"
 	"strings"
@@ -35,30 +36,61 @@ func TestParseFixtures(t *testing.T) {
 		want       Result
 	}{
 		// Performer array, offset date, no on-sale date, a non-event block beside.
-		{"dice.html", "dice.fm", Result{Artist: "Les Hiboux", Date: "2026-11-27", Time: "20:00", Venue: "Salle Exemple", Address: "Paris"}},
+		{"dice.html", "dice.fm", Result{Artist: "Les Hiboux", Date: "2026-11-27", Time: "20:00", Venue: "Salle Exemple", Address: "Paris", Price: "30 €"}},
 		// Generic Event, local time without offset, pretty-printed JSON after a WebSite block.
-		{"olympia.html", "www.olympiahall.com", Result{Artist: "Jeanne Exemple", Date: "2026-12-08", Time: "20:00", Venue: "L'Exemple"}},
+		{"olympia.html", "www.olympiahall.com", Result{Artist: "Jeanne Exemple", Date: "2026-12-08", Time: "20:00", Venue: "L'Exemple", Price: "39,90 €"}},
 		// Minutes only, date-only endDate ignored, full PostalAddress (country dropped).
 		{"zenith.html", "www.zenith-grenoble.fr", Result{Artist: "Nova Test", Date: "2027-01-24", Time: "20:00", Venue: "Arène Exemple", Address: "12, esplanade Exemple, 38000 GRENOBLE"}},
-		// ComedyEvent, EventVenue, milliseconds; past validFrom skipped, nested future one kept; broken block skipped.
-		{"fnac.html", "www.fnacspectacles.com", Result{Artist: "Marc Essai", Date: "2027-11-04", Time: "20:00", Venue: "Théâtre Exemple", OnSaleDate: "2027-02-14"}},
+		// ComedyEvent, EventVenue, milliseconds; past validFrom skipped, nested future one kept; broken block skipped;
+		// AggregateOffer without currency (euros), and the nested offer counted in the price range.
+		{"fnac.html", "www.fnacspectacles.com", Result{Artist: "Marc Essai", Date: "2027-11-04", Time: "20:00", Venue: "Théâtre Exemple", OnSaleDate: "2027-02-14", Price: "55–64 €"}},
 		// No JSON-LD: og:title written with name=.
 		{"accor.html", "www.accorarena.com", Result{Artist: "Duo Fictif"}},
-		// Top-level array, local time without offset, validFrom null, performer object.
+		// Top-level array, local time without offset, validFrom null, performer object; description with
+		// CR LF, an HTML entity and a soft hyphen.
 		{"belle-electrique.html", "billetterie.la-belle-electrique.com", Result{Artist: "Collectif Exemple : Soirée Test", Date: "2027-04-23", Time: "20:00",
-			Venue: "La Salle Électrique Exemple", Address: "12, esplanade Exemple, 38000 GRENOBLE"}},
+			Venue: "La Salle Électrique Exemple", Address: "12, esplanade Exemple, 38000 GRENOBLE", Price: "26–29 €",
+			Description: "Une soirée, cinq figures du collectif.\nL'une d’elles chante."}},
 		// No Event in JSON-LD: visible info list; the svg, noscript and script dates, and the related event, are not taken.
 		{"lilyade.html", "www.lilyade.fr", Result{Artist: "Les Hiboux + Nova Test", Date: "2026-12-05", Time: "20:00", Venue: "L'Exemple", Address: "Villefictive"}},
 		{"lilyade.html", "example.com", Result{Artist: "Les Hiboux + Nova Test"}},
-		// No Event in JSON-LD: « Lieu » and « Horaire » blocks; the all-caps artist is kept as served.
+		// No Event in JSON-LD: « Lieu » and « Horaire » blocks; the all-caps artist is kept as served;
+		// price and artist blocks between « Billetterie » and « Lieu », without icon glyph or « Suivre ».
 		{"retourdescene.html", "www.retourdescene.net", Result{Artist: "LES HIBOUX + NOVA TEST", Date: "2026-12-05", Time: "20:00",
-			Venue: "L’Exemple", Address: "1 Rue de l’Exemple, 38000 Villefictive"}},
+			Venue: "L’Exemple", Address: "1 Rue de l’Exemple, 38000 Villefictive", Price: "20–23 €",
+			Description: "LES HIBOUX\nUne musique électronique hybride, le samedi 12 décembre 2026 en tournée.\n\nNOVA TEST\nUn duo électro venu\nde Grenoble."}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.file+"@"+tt.host, func(t *testing.T) {
 			t.Parallel()
 			if got := Parse(strings.NewReader(fixture(t, tt.file)), tt.host, now); got != tt.want {
 				t.Fatalf("Parse = %+v\nwant    %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPrice(t *testing.T) {
+	t.Parallel()
+	tests := []struct{ name, offers, want string }{
+		{"one tier", `{"price":32,"priceCurrency":"EUR"}`, "32 €"},
+		{"equal tiers", `[{"price":32},{"price":"32.00"}]`, "32 €"},
+		{"range, cents with comma or dot", `[{"price":"29,50"},{"price":"32.5"}]`, "29,50–32,50 €"},
+		{"aggregate low and high", `{"@type":"AggregateOffer","lowPrice":20,"highPrice":45}`, "20–45 €"},
+		{"other currency skipped", `[{"price":10,"priceCurrency":"USD"},{"price":25}]`, "25 €"},
+		{"currency inherited", `{"priceCurrency":"GBP","lowPrice":10,"offers":[{"price":12}]}`, ""},
+		{"free and junk amounts skipped", `[{"price":0},{"price":"gratuit"},{"price":12000},{"price":-5},{"price":18}]`, "18 €"},
+		{"none", `{"url":"https://x.example"}`, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var v any
+			if err := json.Unmarshal([]byte(tt.offers), &v); err != nil {
+				t.Fatal(err)
+			}
+			if got := price(v); got != tt.want {
+				t.Errorf("price(%s) = %q, want %q", tt.offers, got, tt.want)
 			}
 		})
 	}
@@ -123,6 +155,14 @@ func TestParseSiteRules(t *testing.T) {
 				return `<h3>Lieu</h3><p>Salle<br>Rue X<br>Lyon</p><h3>Horaire</h3><p>Le soir</p>`
 			},
 			Result{Venue: "Salle"}},
+		{"no price: the description is still read, a free text price kept in it", "www.retourdescene.net",
+			func(*testing.T) string {
+				return `<a>Billetterie</a><p>Prix libre</p><h1>X</h1><p>Un  <a>Suivre</a>  duo.</p><h3>Lieu</h3>`
+			},
+			Result{Description: "Prix libre\n\nX\nUn duo."}},
+		{"price with spaces and cents", "www.retourdescene.net",
+			func(*testing.T) string { return "<a>Billetterie</a><p>12,50 € / 15 €</p><h3>Lieu</h3>" },
+			Result{Price: "12,50–15 €"}},
 		{"rule of another host not applied", "www.retourdescene.net",
 			func(t *testing.T) string { return fixture(t, "lilyade.html") },
 			Result{Artist: "Les Hiboux + Nova Test"}},
