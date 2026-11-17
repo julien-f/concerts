@@ -93,6 +93,17 @@ func TestParseSiteRules(t *testing.T) {
 					span + "Samedi 5 décembre 2026</span>" + span + "20h00</span>" + span + "X</span>" + span + "Y</span>"
 			},
 			Result{Artist: "Ld", Date: "2026-12-05", Time: "20:00", Venue: "Salle Ld", Address: "Y"}},
+		{"city missing: the next block's date is not taken as the address", "www.lilyade.fr",
+			func(t *testing.T) string { return lilyade(t, "Villefictive", "") },
+			Result{Artist: "Les Hiboux + Nova Test", Date: "2026-12-05", Time: "20:00", Venue: "L'Exemple"}},
+		{"venue's trailing separator trimmed", "www.lilyade.fr",
+			func(*testing.T) string {
+				return span + "Samedi 5 décembre 2026</span>" + span + "20h00</span>" + span + "L'Exemple,</span>" + span + "Ville</span>"
+			},
+			Result{Date: "2026-12-05", Time: "20:00", Venue: "L'Exemple", Address: "Ville"}},
+		{"a self-closing non-void tag opens an element (HTML ignores the slash)", "www.lilyade.fr",
+			func(*testing.T) string { return span + `<i class="icon"/>Samedi 5 décembre 2026</span>` },
+			Result{}},
 		{"class cleared by an end tag", "www.lilyade.fr",
 			func(*testing.T) string { return "<p>" + span + "x</span>Samedi 5 décembre 2026</p>" },
 			Result{}},
@@ -157,7 +168,7 @@ func TestFrenchTime(t *testing.T) {
 	t.Parallel()
 	for s, want := range map[string]string{
 		"20h00": "20:00", "20h": "20:00", "20 h 30": "20:30", "9h": "09:00", "20h > 01h (portes 20h, début 20h30)": "20:00",
-		"portes 19H30": "19:30", "24h": "", "120h": "", "20h75": "", "20:00": "", "": "",
+		"portes 19H30": "19:30", "20 h": "20:00", "20 h 30": "20:30", "24h": "", "120h": "", "20h75": "", "20:00": "", "": "",
 	} {
 		if got := frenchTime(s); got != want {
 			t.Errorf("frenchTime(%q) = %q, want %q", s, got, want)

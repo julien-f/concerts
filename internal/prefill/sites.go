@@ -10,8 +10,7 @@ import (
 	"time"
 )
 
-// siteRules read what a site shows only in its visible text (no schema.org
-// Event), keyed by host without "www.". They fill Date, Time, Venue, Address.
+// siteRules read Date, Time, Venue, Address from pages without a schema.org Event, by host without "www.".
 var siteRules = map[string]func([]text) Result{
 	"lilyade.fr":        lilyade,
 	"retourdescene.net": retourDeScene,
@@ -23,8 +22,7 @@ func siteRule(host string) func([]text) Result {
 	return siteRules[strings.TrimPrefix(host, "www.")]
 }
 
-// lilyade reads the Elementor info items: date, time, venue, city (the address
-// in the footer is the hall's, wrong for an event held elsewhere).
+// lilyade reads the info items date, time, venue, city: the footer address is the hall's, not the event's.
 func lilyade(texts []text) Result {
 	var items []string
 	for _, t := range texts {
@@ -35,18 +33,26 @@ func lilyade(texts []text) Result {
 			items = append(items, t.s)
 		}
 	}
-	for i, s := range items {
-		if date := frenchDate(s); date != "" {
-			res := Result{Date: date}
-			if i+3 < len(items) {
-				if res.Time = frenchTime(items[i+1]); res.Time != "" {
-					res.Venue, res.Address = items[i+2], items[i+3]
-				}
-			}
-			return res
-		}
+	isDate := func(s string) bool { return frenchDate(s) != "" }
+	i := slices.IndexFunc(items, isDate)
+	if i < 0 {
+		return Result{}
 	}
-	return Result{}
+	res := Result{Date: frenchDate(items[i])}
+	block := items[i+1:]
+	if j := slices.IndexFunc(block, isDate); j >= 0 {
+		block = block[:j] // the next date starts the desktop copy of the same items
+	}
+	if len(block) > 0 {
+		res.Time = frenchTime(block[0])
+	}
+	if res.Time != "" && len(block) > 1 {
+		res.Venue = strings.TrimRight(block[1], ", ") // related events write « L'ilyade, »
+	}
+	if res.Time != "" && len(block) > 2 {
+		res.Address = block[2]
+	}
+	return res
 }
 
 var (
@@ -133,7 +139,8 @@ func frenchDate(s string) string {
 	return t.Format(time.DateOnly)
 }
 
-var frenchTimeRE = regexp.MustCompile(`(?i)\b([01]?\d|2[0-3]) ?h ?([0-5]\d)?\b`)
+// RE2's \s is ASCII only: French typography puts U+00A0 or U+202F around « h ».
+var frenchTimeRE = regexp.MustCompile(`(?i)\b([01]?\d|2[0-3])[ \x{a0}\x{202f}]?h[ \x{a0}\x{202f}]?([0-5]\d)?\b`)
 
 // frenchTime finds the first « 20h », « 20h30 » or « 20 h 30 » in s, as HH:MM; "" if none.
 func frenchTime(s string) string {

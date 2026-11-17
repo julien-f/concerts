@@ -3,6 +3,7 @@ package prefill
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"io"
 	"maps"
@@ -28,8 +29,7 @@ type page struct {
 	texts  []text // visible text, only for hosts with a site rule
 }
 
-// text is a non-empty visible text node, with the class of the innermost
-// open element (empty after any end tag) and whether it sits in a heading.
+// text is a visible text node; class is the innermost open element's, cleared by any end tag.
 type text struct {
 	s, class string
 	heading  bool
@@ -41,43 +41,49 @@ const maxTexts = 5000
 // voidTags never get an end tag, so they must not replace the open element's class.
 var voidTags = []string{"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
 
-// scan collects meta tags, <title> and JSON-LD blocks with the tokenizer: no tree, no scripts run.
-// With withTexts, it also collects the visible text.
+// scan collects meta tags, <title>, JSON-LD blocks and, withTexts, visible text, with the tokenizer: no tree, no scripts run.
 func scan(r io.Reader, withTexts bool) page {
 	p := page{meta: map[string]string{}}
 	z := html.NewTokenizer(r)
 	var class string
 	var headings, hidden int // open h1–h6; open svg or template, whose text is not shown as is
+	depth := func(tag string) *int {
+		switch tag {
+		case "h1", "h2", "h3", "h4", "h5", "h6":
+			return &headings
+		case "svg", "template":
+			return &hidden
+		}
+		return nil
+	}
 	for {
 		switch tt := z.Next(); tt {
 		case html.ErrorToken:
 			return p
 		case html.TextToken:
-			if s := clean(string(z.Text())); withTexts && hidden == 0 && s != "" && len(p.texts) < maxTexts {
+			if !withTexts || hidden > 0 || len(p.texts) >= maxTexts {
+				continue
+			}
+			if s := clean(string(z.Text())); s != "" {
 				p.texts = append(p.texts, text{s: s, class: class, heading: headings > 0})
 			}
 		case html.EndTagToken:
 			class = ""
-			switch name, _ := z.TagName(); string(name) {
-			case "h1", "h2", "h3", "h4", "h5", "h6":
-				headings = max(headings-1, 0)
-			case "svg", "template":
-				hidden = max(hidden-1, 0)
+			name, _ := z.TagName()
+			if d := depth(string(name)); d != nil {
+				*d = max(*d-1, 0)
 			}
 		case html.StartTagToken, html.SelfClosingTagToken:
 			t := z.Token()
-			if tt == html.StartTagToken && !slices.Contains(voidTags, t.Data) {
+			if !slices.Contains(voidTags, t.Data) { // HTML ignores the slash of <span/>: it opens the element
 				class = ""
 				for _, a := range t.Attr {
 					if a.Key == "class" {
 						class = a.Val
 					}
 				}
-				switch t.Data {
-				case "h1", "h2", "h3", "h4", "h5", "h6":
-					headings++
-				case "svg", "template":
-					hidden++
+				if d := depth(t.Data); d != nil && tt == html.StartTagToken { // <svg/> does close itself
+					*d++
 				}
 			}
 			switch t.Data {
@@ -114,8 +120,7 @@ func scan(r io.Reader, withTexts bool) page {
 	}
 }
 
-// Parse extracts a Result from an HTML document read from host (for site rules).
-// now's location is the app's time zone (Europe/Paris); on-sale dates before now are dropped.
+// Parse extracts a Result from a page of host; now is in Europe/Paris and drops past on-sale dates.
 func Parse(r io.Reader, host string, now time.Time) Result {
 	rule := siteRule(host)
 	p := scan(r, rule != nil)
@@ -129,16 +134,8 @@ func Parse(r io.Reader, host string, now time.Time) Result {
 	// A date from JSON-LD means an event was found: do not mix in another source.
 	if rule != nil && res.Date == "" {
 		site := rule(p.texts)
-		for _, f := range []struct {
-			dst *string
-			src string
-		}{
-			{&res.Date, site.Date}, {&res.Time, site.Time}, {&res.Venue, site.Venue}, {&res.Address, site.Address},
-		} {
-			if *f.dst == "" {
-				*f.dst = f.src
-			}
-		}
+		res.Date, res.Time = site.Date, cmp.Or(res.Time, site.Time)
+		res.Venue, res.Address = cmp.Or(res.Venue, site.Venue), cmp.Or(res.Address, site.Address)
 	}
 	return res
 }
