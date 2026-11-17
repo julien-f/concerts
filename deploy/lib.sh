@@ -25,7 +25,10 @@ check_url() {
 	esac
 	case $1 in
 	*[!A-Za-z0-9._~:/-]*) die "base URL '$1': letters, digits and . _ ~ : / - only" ;;
-	https:///* | https://*/?*) die "base URL '$1': https://host only, no path" ;;
+	esac
+	# One trailing slash is allowed (install.sh strips it); nothing else after the host.
+	case ${1%/} in
+	https:/ | https:// | https://*/* | *:) die "base URL '$1': https://host[:port] only, no path" ;;
 	esac
 }
 
