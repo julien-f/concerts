@@ -1,6 +1,7 @@
-// Driven by verify-ui.sh: visits each screen at 390 px, runs axe-core in light
-// and dark mode, runs each screen's own check, saves the server HTML for vnu and
-// checks the group page weight.
+// Driven by verify-ui.sh: visits each screen at 390 px, runs each screen's own
+// check, then at 390 and 768 px (phone, narrowest desktop layout) checks for
+// horizontal overflow and runs axe-core in light and dark mode; saves the server
+// HTML for vnu and checks the group page weight.
 import { createRequire } from "node:module";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
@@ -34,7 +35,14 @@ const screens = [
         const r = b.getBoundingClientRect();
         return document.elementFromPoint(r.left + r.width / 2, r.top + 5)?.closest(".add-bar") !== null;
       });
-      return hit ? null : "an answer button covers the « Ajouter » bar";
+      if (!hit) return "an answer button covers the « Ajouter » bar";
+      // From 48 rem the answer buttons sit on the right of the ticket's info.
+      await p.setViewportSize({ width: 768, height: 844 });
+      const beside = await p.$eval(".card", (c) =>
+        c.querySelector(".mine").getBoundingClientRect().left >= c.querySelector(".artist").getBoundingClientRect().right,
+      );
+      await p.setViewportSize({ width: 390, height: 844 });
+      return beside ? null : "at 768 px the answer buttons are not beside the ticket's info";
     },
   },
   {
@@ -134,24 +142,31 @@ for (const s of screens) {
     failures++;
     console.log(`check ${s.name}: ${problem}`);
   }
-  // Whole page in view: a fixed bar then covers only the bottom padding, unless content
-  // really sits under it (axe would otherwise report the bar's colors as a contrast issue).
-  const height = await page.evaluate(() => document.documentElement.scrollHeight);
-  await page.setViewportSize({ width: 390, height: Math.max(844, height) });
-  for (const colorScheme of ["light", "dark"]) {
-    await page.emulateMedia({ colorScheme });
-    await page.evaluate(axeSource);
-    const { violations } = await page.evaluate(() =>
-      window.axe.run(document, { resultTypes: ["violations"] }),
-    );
-    for (const v of violations) {
+  for (const width of [390, 768]) {
+    // Whole page in view: a fixed bar then covers only the bottom padding, unless content
+    // really sits under it (axe would otherwise report the bar's colors as a contrast issue).
+    await page.setViewportSize({ width, height: 844 });
+    const height = await page.evaluate(() => document.documentElement.scrollHeight);
+    await page.setViewportSize({ width, height: Math.max(844, height) });
+    if (await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)) {
       failures++;
-      console.log(`axe ${s.name} (${colorScheme}): ${v.id}: ${v.help}`);
-      for (const n of v.nodes) console.log(`  ${n.target.join(" ")}: ${n.failureSummary.split("\n").join(" ")}`);
+      console.log(`check ${s.name} (${width} px): the page scrolls horizontally`);
+    }
+    for (const colorScheme of ["light", "dark"]) {
+      await page.emulateMedia({ colorScheme });
+      await page.evaluate(axeSource);
+      const { violations } = await page.evaluate(() =>
+        window.axe.run(document, { resultTypes: ["violations"] }),
+      );
+      for (const v of violations) {
+        failures++;
+        console.log(`axe ${s.name} (${width} px, ${colorScheme}): ${v.id}: ${v.help}`);
+        for (const n of v.nodes) console.log(`  ${n.target.join(" ")}: ${n.failureSummary.split("\n").join(" ")}`);
+      }
     }
   }
   await page.setViewportSize({ width: 390, height: 844 });
-  console.log(`axe ${s.name}: checked light and dark`);
+  console.log(`axe ${s.name}: checked 390 and 768 px, light and dark`);
 }
 
 // Page weight: everything the group page loads with an empty cache, each body gzip -9'd.

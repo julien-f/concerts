@@ -6,7 +6,7 @@ ADR 0004 kept axe-core and the Nu HTML Checker as ad hoc checks outside the repo
 
 ## Decision
 
-- `scripts/verify-ui.sh` (`make verify-ui`) starts `make demo` on a free port and drives headless Chromium through `playwright-core` (`scripts/verify-ui.mjs`): axe-core injected with `page.evaluate`, 390 px viewport, light and dark; server HTML saved for `vnu.jar`; group page weight summed as gzip -9.
+- `scripts/verify-ui.sh` (`make verify-ui`) starts `make demo` on a free port and drives headless Chromium through `playwright-core` (`scripts/verify-ui.mjs`): axe-core injected with `page.evaluate`, 390 and 768 px viewports (phone, narrowest desktop layout), light and dark, plus a horizontal-overflow check; server HTML saved for `vnu.jar`; group page weight summed as gzip -9.
 - Tools are dev-only, pinned (playwright-core, axe-core, vnu-jar through npm) and installed once into the main checkout's `bin/tools/` (git-ignored), browsers included.
 - Not part of `make check`: it needs Node, Java and about 10 s; it runs before each merge.
 

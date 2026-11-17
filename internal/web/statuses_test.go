@@ -63,7 +63,8 @@ func TestStatusWithHTMX(t *testing.T) {
 	if !strings.HasPrefix(body, `<div class="statuses">`) || strings.Contains(body, "<html") {
 		t.Fatalf("want only the status block, got:\n%s", body)
 	}
-	assertContains(t, body, "Billet : Léa", `id="c1-ticket" name="status" value="" aria-pressed="true"`,
+	// who-list: the desktop card lays out the swapped block's lines through it.
+	assertContains(t, body, `<div class="who-list">`, "Billet : Léa", `id="c1-ticket" name="status" value="" aria-pressed="true"`,
 		`name="back" value="concert"`, `data-hx-target="closest .statuses"`)
 }
 
