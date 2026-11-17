@@ -172,6 +172,24 @@ func TestRunChecksBaseURL(t *testing.T) {
 	}
 }
 
+// TestDemo: make demo and verify-ui depend on it; it must keep up with the store.
+func TestDemo(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	st := openStore(t)
+	if err := demo(ctx, st, "http://x", time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	gs, err := st.Groups(ctx)
+	if err != nil || len(gs) != 1 {
+		t.Fatalf("groups = %+v, %v; want the demo group", gs, err)
+	}
+	cs, err := st.Concerts(ctx, gs[0].ID)
+	if err != nil || len(cs) != 34 {
+		t.Errorf("concerts = %d, %v; want 34", len(cs), err)
+	}
+}
+
 func TestServeSocketChild(t *testing.T) {
 	if os.Getenv("SERVE_SOCKET_CHILD") == "" {
 		t.Skip("run by TestServeSocketActivation")
