@@ -166,9 +166,9 @@ Without identity: statuses shown, buttons and edit/delete replaced by « Choisis
 │ ← Annuler                    │
 │ Ajouter un concert           │
 │ Lien de billetterie          │  own GET form (new only),
-│ [https://…        ][Pré-remplir]│ hx-disabled-elt, indicator
+│ [https://…        ][Pré-remplir]│ hx-sync drop, role=status
 │ (Impossible de lire cette    │  « Lecture de la page… »;
-│  page : essaie le lien de la │  failure/limit, role=status
+│  page : essaie le lien de la │  failure/limit: described-by
 │  salle ou de l'organisateur, │
 │  ou remplis à la main.)      │
 │ ─────────────────────────────│  main POST form below
