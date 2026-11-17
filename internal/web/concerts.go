@@ -147,7 +147,7 @@ func (s *server) concert(w http.ResponseWriter, r *http.Request, gr *groupReques
 		return store.Concert{}, false
 	}
 	c, err := s.store.Concert(r.Context(), gr.Group.ID, id)
-	if errors.Is(err, store.ErrNotFound) || c.Deleted {
+	if errors.Is(err, store.ErrNotFound) || (err == nil && c.Deleted) {
 		s.notFound(w, r, gr)
 		return c, false
 	}
@@ -279,7 +279,7 @@ func (s *server) byToken(w http.ResponseWriter, r *http.Request) (groupID int64,
 	if err == nil {
 		c, err = s.store.Concert(r.Context(), groupID, id)
 	}
-	if errors.Is(err, store.ErrNotFound) || c.Deleted {
+	if errors.Is(err, store.ErrNotFound) || (err == nil && c.Deleted) {
 		http.Error(w, "Concert introuvable : il a été supprimé ou ce lien est incomplet.", http.StatusNotFound)
 		return 0, c, false
 	}
