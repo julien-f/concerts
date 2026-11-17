@@ -238,7 +238,7 @@ All under `/g/{secret}` (written `…`); unknown secret → 404. Every POST: `Cr
 One slice per branch, merged with `--no-ff`. All shipped (v1).
 
 0. Skeleton: groups, `new-group`, `/g/<secret>`, `/healthz`.
-1. **Members and identity**: first names as « C'est moi » buttons plus a « Ton prénom » field; a taken name offers « C'est moi » or an initial; « Ce n'est pas moi » on every page; `list-groups`, `rotate-secret <group-id>` (prints the new link; everyone picks their name again), `delete-member <group-id> <first-name>`.
+1. **Members and identity**: first names as « C'est moi » buttons plus a « Ton prénom » field; a taken name offers « C'est moi » or an initial; « Ce n'est pas moi » on every page; `list-groups`, `rotate-secret <group-id>` (prints the new link; everyone picks their name again), `delete-member <group-id> <first-name>`, `rename-member <group-id> <first-name> <new-first-name>`.
 2. **Concerts**: artist, date, optional time, venue, optional address (concert page only, with « Voir sur la carte »: an OpenStreetMap search for « venue, address »), optional http(s) ticket link, optional on-sale date; editable; soft delete with « Annuler la suppression »; « ajouté par X »; « Prévenir le groupe » (`wa.me`, [ADR 0007](decisions/0007-plain-whatsapp-link.md)) right after adding.
 3. **Statuses**: interested / going / ticket bought; tapping the active one clears it.
    - One status block (names per status, my three buttons) shared by card and concert page; htmx swaps that block only, and buttons keep stable ids so focus survives.

@@ -36,7 +36,7 @@ Touche ton prénom ou tape-le, pas besoin de compte.
 Ce lien est la clé : ne le transfère pas hors du groupe, même dans une autre messagerie (elle lit le lien pour en faire un aperçu). Avec lui, n'importe qui peut répondre sous ton prénom.
 Tout le monde peut ajouter, modifier ou supprimer un concert. Pas de notif : pense à « Prévenir le groupe ».
 Nouveau téléphone ou navigateur : rouvre le lien et touche ton prénom.
-Lien partagé par erreur ou prénom à retirer : écris à <opérateur>.
+Lien partagé par erreur, prénom à corriger ou à retirer : écris à <opérateur>.
 ```
 
 After `rotate-secret`, replace the first line with: `Nouveau lien, l'ancien ne marche plus : <lien> (rechoisis ton prénom).`
@@ -61,6 +61,7 @@ ssh concerts@server bin/admin logs            # last 200 lines, backup runs incl
 
 - The outer quotes matter: ssh joins its arguments, so a quoted name would otherwise be split.
 - `demo` and `serve` are for development: `demo` adds a sample group to the live database.
+- A member asks to change their first name: `bin/admin rename-member <id> "<first-name>" "<new-first-name>"` (`list-groups` gives the id). Answers and « ajouté par » follow; the picker's rules apply and an existing name is refused.
 
 ## Monitoring
 
