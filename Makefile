@@ -82,7 +82,7 @@ ssh -t $(ADMIN_HOST) "sudo sh $$d/$(2); s=\$$?; rm -r $$d; exit \$$s"
 endef
 
 install:
-	@test -n "$(PROXY_USER)" -a -n "$(BASE_URL)" -a -f $(DEPLOY_KEY) || { echo "PROXY_USER, BASE_URL and DEPLOY_KEY (a public key file) are required" >&2; exit 1; }
+	@{ test -n "$(PROXY_USER)" && test -n "$(BASE_URL)" && test -f "$(DEPLOY_KEY)"; } || { echo "PROXY_USER, BASE_URL and DEPLOY_KEY (a public key file) are required" >&2; exit 1; }
 	$(call as_root,$(DEPLOY_KEY),install.sh $(NAME) $(PROXY_USER) $(BASE_URL) $$d/$(notdir $(DEPLOY_KEY)))
 
 uninstall:
