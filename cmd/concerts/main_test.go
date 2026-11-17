@@ -110,16 +110,29 @@ func testServeSocket(t *testing.T, listenPID string, pidNS bool) {
 	}
 }
 
-func TestRenameMember(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	st, err := store.Open(ctx, filepath.Join(t.TempDir(), "c.db"), time.Now)
+func openStore(t *testing.T) *store.Store {
+	t.Helper()
+	now := func() time.Time { return time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC) }
+	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "c.db"), now)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
-	g, _ := st.CreateGroup(ctx, "g", "s")
-	m, _ := st.CreateMember(ctx, g.ID, "Lea")
+	return st
+}
+
+func TestRenameMember(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	st := openStore(t)
+	g, err := st.CreateGroup(ctx, "g", "s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := st.CreateMember(ctx, g.ID, "Lea")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if err := renameMember(ctx, st, strconv.FormatInt(g.ID, 10), "lea", "\u200bLéa"); err == nil {
 		t.Error("invisible character accepted")
@@ -135,11 +148,7 @@ func TestRenameMember(t *testing.T) {
 func TestNewGroupCleansName(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	st, err := store.Open(ctx, filepath.Join(t.TempDir(), "c.db"), time.Now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = st.Close() })
+	st := openStore(t)
 	for _, name := range []string{"  ", "a\u200bb"} {
 		if _, err := newGroup(ctx, st, "http://x", name); err == nil {
 			t.Errorf("newGroup(%q) accepted", name)
