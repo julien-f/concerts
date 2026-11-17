@@ -54,8 +54,9 @@ func valid(v string, maxRunes int) (string, bool) {
 		!strings.ContainsFunc(v, func(r rune) bool { return r != '\n' && prefill.Invisible(r) })
 }
 
-// cleanName is cleanText for first names, which must also start with a letter or digit.
-func cleanName(v string) (string, bool) {
+// CleanName is cleanText for first names, which must also start with a letter or digit;
+// exported for the operator's rename-member.
+func CleanName(v string) (string, bool) {
 	v, ok := cleanText(v, maxNameRunes)
 	r, _ := utf8.DecodeRuneInString(v)
 	return v, ok && unicode.In(r, unicode.L, unicode.N)

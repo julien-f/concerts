@@ -340,7 +340,6 @@ func amount(v any) float64 {
 	return math.Round(p*100) / 100
 }
 
-// formatPrice writes « 32 € » or « 29–32 € », with cents only when there are some (« 39,90 € »); "" for no price.
 // widen extends the price range lo–hi (0–0 when empty) to p, unless p is not positive.
 func widen(lo, hi, p float64) (float64, float64) {
 	if p <= 0 {
@@ -349,6 +348,7 @@ func widen(lo, hi, p float64) (float64, float64) {
 	return cmp.Or(min(lo, p), p), max(hi, p)
 }
 
+// formatPrice writes « 32 € » or « 29–32 € », with cents only when there are some (« 39,90 € »); "" for no price.
 func formatPrice(lo, hi float64) string {
 	euros := func(p float64) string {
 		if p == math.Trunc(p) {

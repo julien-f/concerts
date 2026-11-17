@@ -121,7 +121,7 @@ func TestRenameMember(t *testing.T) {
 	g := mustGroup(t, s, "g", "s1")
 	other := mustGroup(t, s, "other", "s2")
 	lea := mustMember(t, s, g.ID, "lea")
-	_, _ = s.CreateMember(ctx, g.ID, "Zoé")
+	mustMember(t, s, g.ID, "Zoé")
 	elsewhere := mustMember(t, s, other.ID, "lea")
 
 	for _, tc := range []struct {

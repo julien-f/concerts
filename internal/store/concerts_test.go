@@ -15,14 +15,7 @@ func TestConcerts(t *testing.T) {
 	other := mustGroup(t, s, "other", "s2")
 	lea := mustMember(t, s, g.ID, "Léa")
 
-	add := func(c Concert) int64 {
-		t.Helper()
-		id, err := s.CreateConcert(ctx, g.ID, lea.ID, c, testToday)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return id
-	}
+	add := func(c Concert) int64 { t.Helper(); return mustConcert(t, s, g.ID, lea.ID, c, testToday) }
 	late := add(Concert{Artist: "Late", Date: "2027-03-14", Time: "21:00", Venue: "V", Address: "1 rue X, Paris",
 		Price: "29–32 €", Description: "Un.\n\nDeux."})
 	allDay := add(Concert{Artist: "All day", Date: "2027-03-14", Venue: "V", TicketURL: "https://t.example/x"})
@@ -122,18 +115,8 @@ func TestConcertErrorIsEmpty(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s := openTest(t)
-	g, err := s.CreateGroup(ctx, "g", "s")
-	if err != nil {
-		t.Fatal(err)
-	}
-	m, err := s.CreateMember(ctx, g.ID, "Léa")
-	if err != nil {
-		t.Fatal(err)
-	}
-	id, err := s.CreateConcert(ctx, g.ID, m.ID, Concert{Artist: "A", Date: "2026-07-01", Venue: "V"}, "2026-01-02")
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := mustGroup(t, s, "g", "s")
+	id := mustConcert(t, s, g.ID, mustMember(t, s, g.ID, "Léa").ID, Concert{Artist: "A", Date: "2026-07-01", Venue: "V"}, testToday)
 	if err := s.DeleteConcert(ctx, g.ID, id); err != nil {
 		t.Fatal(err)
 	}
@@ -273,11 +256,7 @@ func TestSameConcert(t *testing.T) {
 	lea := mustMember(t, s, g.ID, "Léa")
 	add := func(groupID int64, artist, date string) int64 {
 		t.Helper()
-		id, err := s.CreateConcert(ctx, groupID, lea.ID, Concert{Artist: artist, Date: date, Venue: "V"}, testToday)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return id
+		return mustConcert(t, s, groupID, lea.ID, Concert{Artist: artist, Date: date, Venue: "V"}, testToday)
 	}
 	deleted := add(g.ID, "Émilie Simon", "2027-03-14")
 	if err := s.DeleteConcert(ctx, g.ID, deleted); err != nil {

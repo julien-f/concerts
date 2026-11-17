@@ -15,10 +15,7 @@ func TestRevisions(t *testing.T) {
 	lea := mustMember(t, s, g.ID, "Léa")
 	tom := mustMember(t, s, g.ID, "Tom")
 	orig := Concert{Artist: "A", Date: "2027-03-14", Venue: "V"}
-	id, err := s.CreateConcert(ctx, g.ID, lea.ID, orig, testToday)
-	if err != nil {
-		t.Fatal(err)
-	}
+	id := mustConcert(t, s, g.ID, lea.ID, orig, testToday)
 	update := func(by int64, c Concert) int64 {
 		t.Helper()
 		rev, err := s.UpdateConcert(ctx, g.ID, by, id, c, testToday)
