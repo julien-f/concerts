@@ -268,14 +268,13 @@ func unglue(s string) string {
 }
 
 // prose makes a JSON-LD description plain text: entities decoded (WordPress encodes them),
-// line feeds for CR, then plain.
+// line feeds for CR, then clean.
 func prose(s string) string {
-	s = strings.NewReplacer("\r\n", "\n", "\r", "\n").Replace(html.UnescapeString(s))
-	return strings.TrimSpace(plain(strings.ToValidUTF8(s, "")))
+	return clean(strings.NewReplacer("\r\n", "\n", "\r", "\n").Replace(html.UnescapeString(s)))
 }
 
-// plain keeps a description's words apart and acceptable to the form, which would reject
-// the whole text: line feeds kept, other blanks (tabs, braille blank…) as spaces, other
+// plain keeps a value's words apart and acceptable to the form, which would reject it
+// whole: line feeds kept, other blanks (tabs, braille blank…) as spaces, other
 // Invisible characters (soft hyphens, zero-width spaces…) dropped.
 func plain(s string) string {
 	return strings.Map(func(r rune) rune {
@@ -292,7 +291,7 @@ func plain(s string) string {
 }
 
 // Invisible reports control, format, variation selector, default-ignorable and braille blank
-// characters: the form rejects them, and a description drops them.
+// characters: the form rejects them, and plain drops them from every prefilled value.
 func Invisible(r rune) bool {
 	return r == '\u2800' || unicode.In(r, unicode.Cc, unicode.Cf, unicode.Variation_Selector, unicode.Other_Default_Ignorable_Code_Point)
 }
