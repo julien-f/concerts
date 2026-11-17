@@ -23,18 +23,22 @@
 {{with .PrefillMsg}}<p id="prefill-msg" class="prefill-msg">{{.}}</p>{{end}}
 </form>
 {{end}}
-<form method="post" action="{{.Base}}/concerts{{with .ID}}/{{.}}{{end}}" class="stack">
+<form method="post" action="{{.Base}}/concerts{{with .ID}}/{{.}}{{end}}" class="stack fields">
 {{range .Fields}}{{$f := .}}
+<div class="field">
 <label for="{{.Name}}">{{.Label}}{{if .Optional}} <span class="hint">(facultatif)</span>{{end}}</label>
 <input id="{{.Name}}" name="{{.Name}}" type="{{.Type}}" value="{{.Value}}"
 {{- if not .Optional}} required{{end}}{{with .Max}} maxlength="{{.}}"{{end}}{{with .Autocomplete}} autocomplete="{{.}}"{{end}}
 {{- with .Error}} aria-invalid="true" aria-describedby="{{$f.Name}}-error"{{end}}
 {{- with .DescribedBy}} aria-describedby="{{.}}"{{end}}{{if .Autofocus}} autofocus{{end}}>
 {{with .Error}}<p id="{{$f.Name}}-error" class="error">{{.}}</p>{{end}}
+</div>
 {{end}}
+<div class="submit">
 <button class="big">Enregistrer</button>
 {{- /* After « Enregistrer », which stays the default button: Enter warns again. */}}
 {{if .Duplicate}}<button class="button secondary" name="anyway" value="1" aria-describedby="duplicate">Ajouter quand même</button>{{end}}
+</div>
 {{if .ID}}
 {{- /* After « Enregistrer », so Enter saves; posts the fields as they are, so nothing typed is lost. */}}
 <div class="prefill">

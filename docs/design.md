@@ -37,7 +37,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 ## User journeys
 
 1. **Join**: tap the link in WhatsApp → picker screen → tap « C'est moi » on one's name, or type a new first name → main screen. Later visits skip the picker (cookie). From a shared concert link without identity, the concert page shows « Choisis ton prénom pour répondre », and the picker returns to that concert (`next`).
-2. **Add**: tap « Ajouter un concert » (fixed at the bottom) → paste a ticket URL, tap « Pré-remplir » → check or type the fields → « Enregistrer » → main screen with a banner « Concert ajouté » and « Prévenir le groupe » (opens WhatsApp with artist, date and the concert link).
+2. **Add**: tap « Ajouter un concert » (fixed at the bottom on a phone, beside the filters on a computer) → paste a ticket URL, tap « Pré-remplir » → check or type the fields → « Enregistrer » → main screen with a banner « Concert ajouté » and « Prévenir le groupe » (opens WhatsApp with artist, date and the concert link).
 3. **Respond**: on a card, tap « Ça m'intéresse », « J'y vais » or « J'ai mon billet »; tapping the active one clears it. The status block updates in place (htmx) or after a full reload (no JS).
 4. **Plan**: filter « Mes concerts »; open a concert → « Ajouter à mon agenda » downloads its `.ics`; « Billetterie » opens the ticket link.
 5. **Fix**: open a concert → « Modifier » or « Supprimer » → banner « Concert supprimé » with « Annuler la suppression ».
@@ -46,7 +46,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 
 ## Screens
 
-Mobile first (390 px), one column, max 40 rem wide on larger screens. Landmarks `<header>`, `<main>`, `<nav aria-label="Filtre">`. Header on every group page: group name, « <Prénom> » and a « Ce n'est pas moi » button (POST form, 44 px target). `<title>` starts with the banner or « Erreur » when there is one, so no-JS screen-reader users hear it after a redirect.
+Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and tablets: a portrait iPad is exactly 48 rem) the column is 56 rem and the main screen, concert page and form use the width (below). Landmarks `<header>`, `<main>`, `<nav aria-label="Filtre">`. Header on every group page: group name, « <Prénom> » and a « Ce n'est pas moi » button (POST form, 44 px target). `<title>` starts with the banner or « Erreur » when there is one, so no-JS screen-reader users hear it after a redirect.
 
 ### Picker (`/g/<secret>` without identity)
 
@@ -94,7 +94,7 @@ Mobile first (390 px), one column, max 40 rem wide on larger screens. Landmarks 
 │ │    ┆  mon billet]        │ │  flex-wrap
 │ └────┴─────────────────────┘ │
 │ ▸ Passés (3)                 │  <details>, names only
-│ [   + Ajouter un concert   ] │  fixed <a>, main screen only
+│ [   + Ajouter un concert   ] │  fixed bar, main screen only
 └──────────────────────────────┘
 ```
 
@@ -158,8 +158,9 @@ Without identity: statuses shown, buttons and edit/delete replaced by « Choisis
 - Palette: paper `#f4efe6` / card `#fffdf8` / ink `#1f1a17` / brick accent `#b4361d`; dark: `#17140f` / `#24201a` / `#f1ebe1` / `#ff8a65`. AA contrast checked by axe.
 - Month headings: small monospace caps in the accent color.
 - Pressed status = filled ink button + icon + `aria-pressed`; never color alone.
-- `system-ui` fonts, fields ≥ 16 px, targets ≥ 44 px, `:focus-visible` outline, `prefers-reduced-motion` respected.
-- Fixed « Ajouter » bar on the main screen only, padded by `env(safe-area-inset-bottom)`; `scroll-padding-bottom` and list padding keep focused and last cards visible.
+- `system-ui` fonts, fields ≥ 16 px, targets ≥ 44 px on touch screens (36 px answer buttons without any touch input), `:focus-visible` outline, `prefers-reduced-motion` respected.
+- « Ajouter un concert »: one link right after the filters in the DOM (so the keyboard reaches it before the cards). Below 48 rem a fixed bar on the main screen only, above the cards (each a stacking context), padded by `env(safe-area-inset-bottom)`; `scroll-padding-bottom` and list padding keep focused and last cards visible. From 48 rem a plain button on the right of the filters.
+- From 48 rem: tickets in one row (info left, answer buttons right, status lines on one wrapping line, « · ajouté par » after the venue), so about twice as many concerts per screen; concert page in two columns (facts | actions and statuses); concert form in pairs (Date | Heure, Salle | Adresse, Lien | Mise en vente), « Enregistrer » right-aligned. One column, not a grid of cards: dates keep reading top to bottom.
 - Icons: inline Lucide SVG (`star`, `check`, `ticket`), `aria-hidden`; never emoji.
 - App icon and preview images: the `ticket` stub filled brick, perforation in paper colour (`icon.svg`; PNGs rendered from `scripts/*.svg` by `scripts/og-image.mjs`).
 
@@ -261,6 +262,7 @@ One slice per branch, merged with `--no-ff`. All shipped (v1).
    - Concert page: `og:title` (artist), `og:description` (date · venue); picker: `og:title` (group name) and a generic `og:description`, no first name. Both: `og:url` (from `CONCERTS_BASE_URL`), `og:site_name`, `og:type`, `twitter:card` (Discord's large layout), shared in partial `ogCommon`.
    - One static `og:image` for every page (1200×630, no text, stub in the central square that WhatsApp's thumbnail keeps) and a 180×180 `apple-touch-icon` (iMessage and Signal fall back to it; no SVG support). A per-concert image would need a font and a new dependency to repeat `og:title`.
    - Previewers need the https base URL and must not be blocked: never add a disallow-all `robots.txt`. A preview travels with the message, so a change never reaches links already sent.
+8. **Desktop layout**: the 48 rem layout of « Visual direction »; `verify-ui` also runs at 768 px (overflow, axe, buttons beside the info).
 
 Also in v1: `make install`, `make deploy`, `make rollback` ([operations.md](operations.md)).
 
