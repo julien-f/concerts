@@ -51,7 +51,8 @@ func TestConcertLifecycle(t *testing.T) {
 		"https://wa.me/?text=Fontaines%20D.C.%2C%20sam.%2013%20juin", "http%3A%2F%2Fexample.test%2Fg%2F"+secret+"%2Fconcerts%2F1")
 
 	_, body = b.get(t, g+"/concerts/1")
-	assertContains(t, body, "<h1>Fontaines D.C.</h1>", `href="https://tickets.example/f?a=1&amp;b=2"`, "Mise en vente\u202f: ", "ven. 5 juin", "Modifier")
+	assertContains(t, body, "<h1>Fontaines D.C.</h1>", `href="https://tickets.example/f?a=1&amp;b=2"`, "Mise en vente\u202f: ", "ven. 5 juin", "Modifier",
+		`class="band `+stubStyle("Fontaines D.C.")+`"`)
 
 	// The edit form, and its re-rendering after an invalid edit, post back to this concert.
 	_, body = b.get(t, g+"/concerts/1/edit")
