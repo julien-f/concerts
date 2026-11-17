@@ -6,10 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"concerts/internal/store"
 )
@@ -121,8 +119,11 @@ func TestIdentityCookie(t *testing.T) {
 	}
 
 	resp, _ := ts.browser(t).post(t, "/g/"+secret+"/me", url.Values{"name": {"Sam"}})
-	c := resp.Cookies()[0]
-	if c.Path != "/g/"+secret || !c.HttpOnly || c.SameSite != http.SameSiteLaxMode || c.Secure || c.MaxAge != 400*24*3600 {
+	cs := resp.Cookies()
+	if len(cs) != 1 || cs[0].Name != memberCookie {
+		t.Fatalf("cookies = %+v, want the member cookie", cs)
+	}
+	if c := cs[0]; c.Path != "/g/"+secret || !c.HttpOnly || c.SameSite != http.SameSiteLaxMode || c.Secure || c.MaxAge != 400*24*3600 {
 		t.Fatalf("cookie = %+v", c)
 	}
 }
@@ -135,15 +136,10 @@ func TestBaseURL(t *testing.T) {
 		t.Fatalf("cookies %+v: want a Secure cookie for an https base URL in any case", c)
 	}
 
-	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "t.db"), time.Now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = st.Close() })
 	// Links append /g/<secret> to it, and the proxy sends the whole host to the app.
 	for _, bad := range []string{"", "concerts.example", "ftp://concerts.example", "https://", "https://h/sub",
 		"https://h/?x", "https://h#x", "https://u@h"} {
-		if _, err := New(st, slog.New(slog.DiscardHandler), Config{BaseURL: bad, Now: time.Now}); err == nil {
+		if _, err := New(ts.store, slog.New(slog.DiscardHandler), Config{BaseURL: bad, Now: ts.clock.Now}); err == nil {
 			t.Errorf("New(%q): want an error", bad)
 		}
 	}

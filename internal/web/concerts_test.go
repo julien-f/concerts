@@ -284,11 +284,8 @@ func TestConcertAccess(t *testing.T) {
 		{"anonymous edit", anon, "GET", g + "/concerts/1/edit", http.StatusSeeOther, g},
 		{"anonymous delete", anon, "POST", g + "/concerts/1/delete", http.StatusSeeOther, g},
 		{"anonymous concert page", anon, "GET", g + "/concerts/1", http.StatusSeeOther, ts.concertURL(t, secret, 1)},
-		{"other group's concert", intruder, "GET", "/g/" + other + "/concerts/1", http.StatusNotFound, ""},
 		{"other group's delete", intruder, "POST", "/g/" + other + "/concerts/1/delete", http.StatusNotFound, ""},
 		{"other group's restore", intruder, "POST", "/g/" + other + "/concerts/1/restore", http.StatusNotFound, ""},
-		{"unknown concert", b, "GET", g + "/concerts/99", http.StatusNotFound, ""},
-		{"non-numeric id", b, "GET", g + "/concerts/abc", http.StatusNotFound, ""},
 		{"unknown secret", b, "GET", "/g/" + NewSecret() + "/concerts/1", http.StatusNotFound, ""},
 	}
 	for _, tt := range tests {

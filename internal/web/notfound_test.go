@@ -43,6 +43,7 @@ func TestConcertNotFoundPage(t *testing.T) {
 		{"edit form", "GET", g + "/concerts/1/edit"},
 		{"another group's concert", "GET", g + "/concerts/2"},
 		{"not a number", "GET", g + "/concerts/abc"},
+		{"unknown concert", "GET", g + "/concerts/99"},
 		{"update", "POST", g + "/concerts/1"},
 		{"status", "POST", g + "/concerts/1/status"},
 		{"delete again", "POST", g + "/concerts/1/delete"},
