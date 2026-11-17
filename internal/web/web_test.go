@@ -1,6 +1,8 @@
 package web
 
 import (
+	"bytes"
+	"image/png"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -52,6 +54,8 @@ func TestStaticAssets(t *testing.T) {
 	}{
 		{`/static/style\.[0-9a-f]{16}\.css`, "text/css; charset=utf-8", ":root"},
 		{`/static/htmx-2\.0\.11\.min\.[0-9a-f]{16}\.js`, "text/javascript; charset=utf-8", "htmx"},
+		{`/static/og\.[0-9a-f]{16}\.png`, "image/png", "\x89PNG"},
+		{`/static/apple-touch-icon\.[0-9a-f]{16}\.png`, "image/png", "\x89PNG"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.pattern, func(t *testing.T) {
@@ -141,5 +145,33 @@ func TestPlainHTTPBaseURLWarns(t *testing.T) {
 				t.Errorf("warning logged = %v, want %v:\n%s", got, warn, ts.logs.String())
 			}
 		})
+	}
+}
+
+// TestPreviewImages guards a bad regeneration by scripts/og-image.mjs (wrong size, 2× render, photo).
+func TestPreviewImages(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name          string
+		width, height int
+		maxBytes      int
+	}{
+		{"og.png", 1200, 630, 50_000},
+		{"apple-touch-icon.png", 180, 180, 10_000},
+	} {
+		body, err := staticFS.ReadFile("static/" + tt.name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := png.DecodeConfig(bytes.NewReader(body))
+		if err != nil {
+			t.Fatalf("%s: %v", tt.name, err)
+		}
+		if cfg.Width != tt.width || cfg.Height != tt.height {
+			t.Errorf("%s is %d×%d, want %d×%d", tt.name, cfg.Width, cfg.Height, tt.width, tt.height)
+		}
+		if len(body) > tt.maxBytes {
+			t.Errorf("%s weighs %d bytes, want at most %d", tt.name, len(body), tt.maxBytes)
+		}
 	}
 }

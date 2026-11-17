@@ -247,7 +247,7 @@ func (s *server) restoreConcert(w http.ResponseWriter, r *http.Request, gr *grou
 
 // pageURL is the absolute link of a concert page.
 func (s *server) pageURL(gr *groupRequest, c store.Concert) string {
-	return fmt.Sprintf("%s%s/concerts/%d", s.baseURL, gr.Base, c.ID)
+	return s.abs(fmt.Sprintf("%s/concerts/%d", gr.Base, c.ID))
 }
 
 // shareURL is the « Prévenir le groupe » link: WhatsApp with the concert and its page.

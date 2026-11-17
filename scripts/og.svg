@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+<!-- The stub stays in the central 630×630 square: WhatsApp's fallback thumbnail crops to it. -->
+<rect width="1200" height="630" fill="#f4efe6"/>
+<g transform="translate(380 95) scale(18.333)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+<path fill="#b4361d" stroke="#b4361d" d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/>
+<path fill="none" stroke="#f4efe6" d="M13 5v2M13 17v2M13 11v2"/>
+</g>
+</svg>

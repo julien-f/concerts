@@ -30,3 +30,15 @@
 </div>
 </article></li>
 {{end}}
+
+{{- /* Link preview tags of the pages a previewer reaches: the picker and concert pages
+(it never has the identity cookie). Same image everywhere: og:title already names the page. */}}
+{{define "ogCommon"}}<meta property="og:type" content="website">
+<meta property="og:site_name" content="Concerts · {{.Group.Name}}">
+<meta property="og:image" content="{{abs (static "og.png")}}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:alt" content="Un ticket de concert">
+<meta name="twitter:card" content="summary_large_image">
+{{end}}
