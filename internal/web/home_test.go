@@ -152,3 +152,18 @@ func TestHomePastShown(t *testing.T) {
 		t.Errorf("30 past concerts: want no link to all, Passés (30):\n%s", body)
 	}
 }
+
+// TestStaleBanners: a banner from the URL shows only while true, so a reload or a shared
+// address never announces a concert that is no longer there.
+func TestStaleBanners(t *testing.T) {
+	t.Parallel()
+	ts := newTestServer(t)
+	b, secret := ts.member(t, "Léa")
+	g := "/g/" + secret
+	b.postRedirect(t, g+"/concerts", validConcert())
+	b.postRedirect(t, g+"/concerts/1/delete", nil)
+	for _, q := range []string{"?added=1", "?restored=1", "?added=99"} {
+		_, body := b.get(t, g+q)
+		assertLacks(t, body, "Concert ajouté", "Concert rétabli")
+	}
+}

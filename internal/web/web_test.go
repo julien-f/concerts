@@ -175,3 +175,24 @@ func TestPreviewImages(t *testing.T) {
 		}
 	}
 }
+
+// TestDatabaseDown: a failing database gives a generic 500 page, details only in the log,
+// and /healthz says so.
+func TestDatabaseDown(t *testing.T) {
+	t.Parallel()
+	ts := newTestServer(t)
+	secret := ts.newGroup(t, "g")
+	if err := ts.store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	resp, body := ts.get(t, "/g/"+secret)
+	if resp.StatusCode != http.StatusInternalServerError || strings.TrimSpace(body) != "Erreur interne, réessaie plus tard." {
+		t.Errorf("group page: %d %q, want 500 and the generic message", resp.StatusCode, body)
+	}
+	if !strings.Contains(ts.logs.String(), "database is closed") {
+		t.Errorf("log lacks the cause:\n%s", ts.logs.String())
+	}
+	if resp, _ := ts.get(t, "/healthz"); resp.StatusCode != http.StatusServiceUnavailable {
+		t.Errorf("/healthz: status = %d, want 503", resp.StatusCode)
+	}
+}

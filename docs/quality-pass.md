@@ -53,12 +53,12 @@ deploy + scripts
 - [ ] `install.sh`/`uninstall.sh` SELinux lookup duplicated → `lib.sh`; `base-url.conf` not written via `.new` + `mv`. (set aside: root scripts, untestable here)
 
 tests
-- [ ] Anonymous create/delete/status rows check only 303: also check the picker `Location`.
-- [ ] `TestRevisionsAtLimit` (1.8 s, slowest) duplicates `TestConcertLimit`.
-- [ ] `TestICSFoldInvalidUTF8` races a real 5 s timer.
-- [ ] Shared helpers (`assertContains`, `location`…) into `testserver_test.go`; bulk-insert SQL twice; overlapping 404 rows; `Cookies()[0]` panic; extra DB with `time.Now` in `identity_test.go`.
-- [ ] Ignored setup errors in store tests (`g, _ := s.CreateGroup`): `must*` helpers.
-- [ ] Missing tests: 500 page and `/healthz` 503, stale `?added=` banner, non-numeric `{rev}`, `demo` in-process.
+- [x] Anonymous create/delete/status rows check only 303: also check the picker `Location`.
+- [x] `TestRevisionsAtLimit` (1.8 s, slowest) duplicates `TestConcertLimit`.
+- [x] `TestICSFoldInvalidUTF8` races a real 5 s timer.
+- [x] Shared helpers (`assertContains`, `location`…) into `testserver_test.go`; bulk-insert SQL twice; overlapping 404 rows; `Cookies()[0]` panic; extra DB with `time.Now` in `identity_test.go`.
+- [x] Ignored setup errors in store tests (`g, _ := s.CreateGroup`): `must*` helpers.
+- [x] Missing tests: 500 page and `/healthz` 503, stale `?added=` banner, `demo` in-process (non-numeric `{rev}` was already covered).
 
 docs
 - [ ] design.md: `token` missing from the data model; `Concert` does not filter deleted; `inGroup` ignores (not drops) a stale cookie; logout and old URL need no identity; « Prévenir le groupe » → « Partager »; icon list; palette names; « only orange button » for members; delete banner « Annuler la suppression »; facts stated twice (row cap, year rule, `next`, group cookie, pre-commit hook).
