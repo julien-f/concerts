@@ -229,10 +229,27 @@ type concertPage struct {
 	URL      string // absolute page URL, for Open Graph
 	Share    string // « Prévenir le groupe » link
 	Map      string // OpenStreetMap search for the venue, "" without an address
-	Listen   string // YouTube search for the artist
-	Saved    bool   // banner after an edit
-	Reverted bool   // banner after going back to a revision
-	UndoRev  int64  // revision the banner offers to go back to, 0 for none
+	Listen   []listenLink
+	Saved    bool  // banner after an edit
+	Reverted bool  // banner after going back to a revision
+	UndoRev  int64 // revision the banner offers to go back to, 0 for none
+}
+
+// listenLink is an « Écouter » YouTube search; Name is "" when the concert has a single artist.
+type listenLink struct{ Name, URL string }
+
+// listenLinks gives one link per artist of a line-up split on spaced « + » or « / » (« AC/DC » stays whole).
+func listenLinks(artist string) []listenLink {
+	var links []listenLink
+	for _, a := range strings.Split(strings.ReplaceAll(" "+artist+" ", " / ", " + "), " + ") {
+		if a = strings.TrimSpace(a); a != "" {
+			links = append(links, listenLink{a, "https://www.youtube.com/results?search_query=" + url.QueryEscape(a)})
+		}
+	}
+	if len(links) == 1 {
+		links[0].Name = ""
+	}
+	return links
 }
 
 func (s *server) showConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
@@ -246,8 +263,7 @@ func (s *server) showConcert(w http.ResponseWriter, r *http.Request, gr *groupRe
 		return
 	}
 	p := &concertPage{groupRequest: gr, Concert: c, Statuses: newStatusBlock(gr, c, ss, "concert", s.upcoming(c)),
-		URL: s.pageURL(gr, c), Share: s.shareURL(gr, c),
-		Listen: "https://www.youtube.com/results?search_query=" + url.QueryEscape(c.Artist)}
+		URL: s.pageURL(gr, c), Share: s.shareURL(gr, c), Listen: listenLinks(c.Artist)}
 	if c.Address != "" {
 		p.Map = "https://www.openstreetmap.org/search?query=" + url.QueryEscape(c.Venue+", "+c.Address)
 	}

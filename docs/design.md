@@ -39,7 +39,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 1. **Join**: tap the link in WhatsApp → picker screen → tap « C'est moi » on one's name, or type a new first name → main screen. Later visits skip the picker (cookie). From a shared concert link without identity, the concert page shows « Choisis ton prénom pour répondre », and the picker returns to that concert (`next`).
 2. **Add**: tap « Ajouter un concert » (fixed at the bottom on a phone, beside the filters on a computer) → paste a ticket URL, tap « Pré-remplir » → check or type the fields → « Enregistrer » → main screen with a banner « Concert ajouté » and « Prévenir le groupe » (opens WhatsApp with artist, date and the concert link).
 3. **Respond**: on a card, tap « Ça m'intéresse » or « J'y vais »; tapping the active one clears it. The status block updates in place (htmx) or after a full reload (no JS).
-4. **Plan**: filter « Mes concerts »; open a concert → « Écouter » searches the artist on YouTube; « Ajouter à mon agenda » downloads its `.ics`; « Billetterie » opens the ticket link.
+4. **Plan**: filter « Mes concerts »; open a concert → « Écouter » searches the artist on YouTube (one « Écouter <artiste> » per artist of a line-up written with a spaced « + » or « / », the separator prefill joins the performers with); « Ajouter à mon agenda » downloads its `.ics`; « Billetterie » opens the ticket link.
 5. **Fix**: open a concert → « Modifier » (banner with « Annuler ») or « Supprimer » (banner « Concert supprimé » with « Annuler la suppression »). A bad edit noticed later: « Voir l'historique » → « Revenir avant cette modification ».
 6. **Shared phone**: « Ce n'est pas moi » in every page header → picker again.
 7. **Operator**: [operations.md](operations.md).

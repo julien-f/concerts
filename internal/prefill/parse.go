@@ -210,7 +210,7 @@ func types(n map[string]any) []string {
 
 func fromEvent(ev map[string]any, now time.Time) Result {
 	var res Result
-	res.Artist = clean(nameOf(first(ev["performer"])))
+	res.Artist = performers(ev["performer"])
 	if name := clean(str(ev["name"])); res.Artist == "" {
 		res.Artist = name
 	}
@@ -370,6 +370,21 @@ func first(v any) any {
 		return a[0]
 	}
 	return v
+}
+
+// performers joins the performers' names with « + », a separator the concert page splits on.
+func performers(v any) string {
+	a, ok := v.([]any)
+	if !ok {
+		a = []any{v}
+	}
+	var names []string
+	for _, p := range a {
+		if n := clean(nameOf(p)); n != "" && !slices.Contains(names, n) {
+			names = append(names, n)
+		}
+	}
+	return strings.Join(names, " + ")
 }
 
 func str(v any) string { s, _ := v.(string); return s }
