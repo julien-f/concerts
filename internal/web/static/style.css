@@ -219,7 +219,6 @@ textarea { resize: vertical; }
     background: linear-gradient(transparent, var(--bg) 40%);
   }
   .add { display: flex; max-width: 38rem; margin: 0 auto; min-height: 3.25rem; border-radius: 0.75rem; }
-  .by { display: block; }
 }
 
 /* Mouse only: smaller answer buttons; any touch input keeps 44 px targets. */
@@ -245,7 +244,6 @@ textarea { resize: vertical; }
   .card .mine button { flex: none; }
   .card .stub { padding-block: 0.4rem; }
   .card { margin-bottom: 0.5rem; }
-  .by::before { content: "· " / ""; }
   .card .who-list { display: flex; flex-wrap: wrap; gap: 0 1rem; margin-top: 0.15rem; }
   .card .who { margin: 0; }
 

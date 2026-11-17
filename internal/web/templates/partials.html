@@ -26,7 +26,7 @@
 {{with stub .Date}}<div class="stub {{stubStyle $.Artist}}" aria-hidden="true"><span class="date"><span>{{.Weekday}}</span><b>{{.Day}}</b><span>{{.Month}}</span></span></div>{{end}}
 <div class="body">
 <h3 class="artist"><a href="/c/{{.Token}}">{{.Artist}}</a></h3>
-<p class="meta"><time datetime="{{datetime .Concert}}">{{when .Concert}}</time> · {{.Venue}}{{with .Price}} <span class="price">· {{.}}</span>{{end}}{{with .AddedBy}} <span class="by">ajouté par {{.}}</span>{{end}}</p>
+<p class="meta"><time datetime="{{datetime .Concert}}">{{when .Concert}}</time> · {{.Venue}}{{with .Price}} <span class="price">· {{.}}</span>{{end}}</p>
 {{template "statuses" .Statuses}}
 </div>
 </article></li>
