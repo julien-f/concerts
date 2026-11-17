@@ -86,7 +86,6 @@ textarea { resize: vertical; }
 .with-icon { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.75rem; }
 .button.secondary { background: transparent; color: var(--ink); border-color: var(--muted); }
 .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 1rem 0; }
-.actions form { margin: 0; }
 
 .prefill { margin: 0 0 1.5rem; padding: 0.75rem; border: 1px dashed var(--muted); border-radius: 0.75rem; }
 .prefill label { display: block; margin-bottom: 0.25rem; }
@@ -104,7 +103,6 @@ textarea { resize: vertical; }
   background: var(--paper); border: 1px solid var(--muted);
 }
 .banner p { margin: 0; }
-.banner form { margin: 0; }
 
 .toolbar {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
@@ -205,7 +203,7 @@ textarea { resize: vertical; }
 .artist a:hover { text-decoration: underline; }
 .meta { color: var(--muted); font-size: 0.9rem; margin: 0; overflow-wrap: anywhere; }
 
-/* Status block: names per status, my three answers. */
+/* Status block: names per status, my answers. */
 .sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
 .icon {
   width: 1.1em; height: 1.1em; flex: none; vertical-align: -0.15em;
