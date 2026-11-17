@@ -21,7 +21,7 @@ func TestStatusWithoutJS(t *testing.T) {
 	marc.postRedirect(t, g+"/concerts/1/status", url.Values{"status": {"going"}, "back": {"list"}})
 	_, body := sam.postRedirect(t, g+"/concerts/1/status", url.Values{"status": {"going"}, "back": {"list"}})
 	assertContains(t, body, "<!doctype html>", "Y vont : Marc, Sam",
-		`id="c1-going" name="status" value="" aria-pressed="true"`, `id="c1-ticket" name="status" value="ticket" aria-pressed="false"`)
+		`id="c1-going" name="status" value="" aria-pressed="true"`, `id="c1-interested" name="status" value="interested" aria-pressed="false"`)
 
 	// Same answer twice is harmless; the pressed button (empty status) clears it.
 	resp, _ := sam.post(t, g+"/concerts/1/status", url.Values{"status": {"going"}, "back": {"concert"}})
@@ -31,11 +31,11 @@ func TestStatusWithoutJS(t *testing.T) {
 	_, body = sam.postRedirect(t, g+"/concerts/1/status", url.Values{"status": {""}, "back": {"concert"}})
 	assertContains(t, body, "<h1>A</h1>", "Y va : Marc", `id="c1-going" name="status" value="going" aria-pressed="false"`)
 
-	lea.postRedirect(t, g+"/concerts/1/status", url.Values{"status": {"ticket"}})
+	lea.postRedirect(t, g+"/concerts/1/status", url.Values{"status": {"going"}})
 	lea.postRedirect(t, g+"/concerts/1/status", url.Values{"status": {"interested"}})
 	_, body = lea.get(t, g)
 	assertContains(t, body, "Intérêt : Léa")
-	if strings.Contains(body, "Billet :") {
+	if strings.Contains(body, "Léa, Marc") {
 		t.Errorf("a changed answer left the old one:\n%s", body)
 	}
 
@@ -54,7 +54,7 @@ func TestStatusWithHTMX(t *testing.T) {
 	g := "/g/" + secret
 	b.postRedirect(t, g+"/concerts", validConcert())
 
-	req := b.postRequest(t, g+"/concerts/1/status", url.Values{"status": {"ticket"}, "back": {"concert"}})
+	req := b.postRequest(t, g+"/concerts/1/status", url.Values{"status": {"going"}, "back": {"concert"}})
 	req.Header.Set("HX-Request", "true")
 	resp, body := b.do(t, req)
 	if resp.StatusCode != http.StatusOK {
@@ -64,7 +64,7 @@ func TestStatusWithHTMX(t *testing.T) {
 		t.Fatalf("want only the status block, got:\n%s", body)
 	}
 	// who-list: the desktop card lays out the swapped block's lines through it.
-	assertContains(t, body, `<div class="who-list">`, "Billet : Léa", `id="c1-ticket" name="status" value="" aria-pressed="true"`,
+	assertContains(t, body, `<div class="who-list">`, "Y va : Léa", `id="c1-going" name="status" value="" aria-pressed="true"`,
 		`name="back" value="concert"`, `data-hx-target="closest .statuses"`)
 }
 
@@ -88,6 +88,7 @@ func TestStatusRejected(t *testing.T) {
 		want   int
 	}{
 		{"unknown status", b, g + "/concerts/1/status", "king", http.StatusBadRequest},
+		{"retired ticket status", b, g + "/concerts/1/status", "ticket", http.StatusBadRequest},
 		{"deleted concert", b, g + "/concerts/2/status", "going", http.StatusNotFound},
 		{"unknown concert", b, g + "/concerts/9/status", "going", http.StatusNotFound},
 		{"other group's concert", intruder, "/g/" + other + "/concerts/1/status", "going", http.StatusNotFound},

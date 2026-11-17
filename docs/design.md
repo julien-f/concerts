@@ -38,7 +38,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 
 1. **Join**: tap the link in WhatsApp → picker screen → tap « C'est moi » on one's name, or type a new first name → main screen. Later visits skip the picker (cookie). From a shared concert link without identity, the concert page shows « Choisis ton prénom pour répondre », and the picker returns to that concert (`next`).
 2. **Add**: tap « Ajouter un concert » (fixed at the bottom on a phone, beside the filters on a computer) → paste a ticket URL, tap « Pré-remplir » → check or type the fields → « Enregistrer » → main screen with a banner « Concert ajouté » and « Prévenir le groupe » (opens WhatsApp with artist, date and the concert link).
-3. **Respond**: on a card, tap « Ça m'intéresse », « J'y vais » or « J'ai mon billet »; tapping the active one clears it. The status block updates in place (htmx) or after a full reload (no JS).
+3. **Respond**: on a card, tap « Ça m'intéresse » or « J'y vais »; tapping the active one clears it. The status block updates in place (htmx) or after a full reload (no JS).
 4. **Plan**: filter « Mes concerts »; open a concert → « Ajouter à mon agenda » downloads its `.ics`; « Billetterie » opens the ticket link.
 5. **Fix**: open a concert → « Modifier » (banner with « Annuler ») or « Supprimer » (banner « Concert supprimé » with « Annuler la suppression »). A bad edit noticed later: « Voir l'historique » → « Revenir avant cette modification ».
 6. **Shared phone**: « Ce n'est pas moi » in every page header → picker again.
@@ -90,15 +90,15 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 │ │    ┆ ✓ Y vont : Léa, Marc│ │  SVG icon + text per status,
 │ │    ┆ ★ Intérêt : Sam     │ │  names alphabetical
 │ │    ┆ [★ Ça m'intéresse]  │ │  role=group "Ma réponse",
-│ │    ┆ [✓ J'y vais][🎟 J'ai │ │  aria-pressed, stable ids,
-│ │    ┆  mon billet]        │ │  flex-wrap
+│ │    ┆ [✓ J'y vais]        │ │  aria-pressed, stable ids,
+│ │    ┆                     │ │  flex-wrap
 │ └────┴─────────────────────┘ │
 │ ▸ Passés (3)                 │  <details>, names only
 │ [   + Ajouter un concert   ] │  fixed bar, main screen only
 └──────────────────────────────┘
 ```
 
-- Status lines: « Billet : », « Y va : » / « Y vont : », « Intérêt : » (no gender, count-aware).
+- Status lines: « Y va : » / « Y vont : », « Intérêt : » (no gender, count-aware).
 - « Mes concerts » = concerts where I have a status, computed in Go from the statuses already loaded; « Passés » is filtered too; clearing a status under the filter keeps the card until reload.
 - Past cards show names only, no buttons, newest first, under an `h2` « Passés (N) » followed by a `<details>` (« Afficher les concerts passés »). Only the 30 newest are rendered (cards are built for those only), then « Afficher les N concerts passés » (`?past=all`, keeping `mine=1`) lands on the first card not shown so far. N is the total. All are rendered, `open`, with `?past=all` or when an added or restored concert is past. A late answer posted to a past concert is still accepted.
 - Empty filter with only past answers: « Aucun concert à venir parmi les tiens. »
@@ -162,7 +162,7 @@ Without identity: statuses shown, buttons and edit/delete replaced by « Choisis
 - `system-ui` fonts, fields ≥ 16 px, targets ≥ 44 px on touch screens (36 px answer buttons without any touch input), `:focus-visible` outline, `prefers-reduced-motion` respected.
 - « Ajouter un concert »: one link right after the filters in the DOM (so the keyboard reaches it before the cards). Below 48 rem a fixed bar on the main screen only, above the cards (each a stacking context), padded by `env(safe-area-inset-bottom)`; `scroll-padding-bottom` and list padding keep focused and last cards visible. From 48 rem a plain button on the right of the filters.
 - From 48 rem: tickets in one row (info left, answer buttons right, status lines on one wrapping line, « · ajouté par » after the venue), so about twice as many concerts per screen; concert page in two columns (facts | actions and statuses); concert form in pairs (Date | Heure, Salle | Adresse, Lien | Mise en vente), « Enregistrer » right-aligned. One column, not a grid of cards: dates keep reading top to bottom.
-- Icons: inline Lucide SVG (`star`, `check`, `ticket`), `aria-hidden`; never emoji.
+- Icons: inline Lucide SVG (`star`, `check`), `aria-hidden`; never emoji.
 - App icon and preview images: the `ticket` stub filled brick, perforation in paper colour (`icon.svg`; PNGs rendered from `scripts/*.svg` by `scripts/og-image.mjs`).
 
 ## Data model
@@ -181,7 +181,7 @@ concerts (id PK, group_id → groups ON DELETE CASCADE,
           INDEX (group_id, date)
 statuses (concert_id → concerts ON DELETE CASCADE,
           member_id → members ON DELETE CASCADE,
-          status CHECK IN ('interested','going','ticket'),
+          status CHECK IN ('interested','going'),
           PRIMARY KEY (concert_id, member_id)) WITHOUT ROWID
 concert_revisions (id PK, concert_id → concerts ON DELETE CASCADE,
           artist, date, time NULL, venue, address NULL, ticket_url NULL,
@@ -250,8 +250,8 @@ One slice per branch, merged with `--no-ff`. All shipped (v1).
 0. Skeleton: groups, `new-group`, `/g/<secret>`, `/healthz`.
 1. **Members and identity**: first names as « C'est moi » buttons plus a « Ton prénom » field; a taken name offers « C'est moi » or an initial; « Ce n'est pas moi » on every page; `list-groups`, `rotate-secret <group-id>` (prints the new link; everyone picks their name again), `delete-member <group-id> <first-name>`, `rename-member <group-id> <first-name> <new-first-name>`.
 2. **Concerts**: artist, date, optional time, venue, optional address (concert page only, with « Voir sur la carte »: an OpenStreetMap search for « venue, address »), optional http(s) ticket link, optional on-sale date; editable; soft delete with « Annuler la suppression »; « ajouté par X »; « Prévenir le groupe » (`wa.me`, [ADR 0007](decisions/0007-plain-whatsapp-link.md)) right after adding.
-3. **Statuses**: interested / going / ticket bought; tapping the active one clears it.
-   - One status block (names per status, my three buttons) shared by card and concert page; htmx swaps that block only, and buttons keep stable ids so focus survives.
+3. **Statuses**: interested / going; tapping the active one clears it. A third one, « J'ai mon billet », was merged into « J'y vais » after v1 (migration 0007): members rarely came back to set it once they had bought.
+   - One status block (names per status, my buttons) shared by card and concert page; htmx swaps that block only, and buttons keep stable ids so focus survives.
    - The active button submits an empty status, so every POST states the target state: a double tap is harmless.
 4. **Single main screen**: upcoming concerts grouped by month; « Mes concerts » filters the same list; « Passés » (collapsed, newest first, no buttons) from the day after the date; « sam. 14 mars · 20 h », Europe/Paris. « Today » is the Paris date of the injected clock.
 5. **Prefill from a ticketing URL** (`internal/prefill`), manual entry on failure.
@@ -287,3 +287,5 @@ Off-server backups and failure alerts, nothing set up yet. Leads:
 - Best fit: another machine pulls nightly with `rsync` and a key limited to `rrsync -ro /home/<name>/backups`; the server holds no credential, so a compromise cannot delete the copies. `make install` rewrites `authorized_keys` with the deploy key only, so it must learn to keep that second key first. Retention on the puller: about 14 daily, 8 weekly, 12 monthly.
 - Without an always-on machine: restic to BorgBase or a storage box in append-only mode, pruned from a trusted machine.
 - A periodic restore test (`PRAGMA integrity_check`, `list-groups`) and an alert when the newest snapshot is over 36 h old.
+
+A « Je cherche un billet » status, if the group asks for it: it flags the exception (a sold-out concert, a resale), which members have a reason to set, unlike the dropped « J'ai mon billet ».

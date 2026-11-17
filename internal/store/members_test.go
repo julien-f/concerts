@@ -30,7 +30,8 @@ func TestMigrateFromPreviousSlice(t *testing.T) {
 		INSERT INTO groups (id, name, secret_hash, created_at) VALUES (1, 'Old', ?, '2026-01-01T00:00:00Z');
 		INSERT INTO members (id, group_id, name, name_key, created_at) VALUES (1, 1, 'Léa', 'léa', '2026-01-01T00:00:00Z');
 		INSERT INTO concerts (id, group_id, artist, date, venue, created_by, created_at)
-			VALUES (1, 1, 'A', '2026-03-14', 'V', 1, '2026-01-01T00:00:00Z');`,
+			VALUES (1, 1, 'A', '2026-03-14', 'V', 1, '2026-01-01T00:00:00Z');
+		INSERT INTO statuses (concert_id, member_id, status) VALUES (1, 1, 'ticket');`,
 		hashSecret("old")); err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +51,13 @@ func TestMigrateFromPreviousSlice(t *testing.T) {
 	if c, err := s.Concert(ctx, g.ID, 1); err != nil || c.AddedBy != "Léa" || c.Address != "" {
 		t.Fatalf("Concert = %+v, %v", c, err)
 	}
-	if err := s.SetStatus(ctx, g.ID, 1, 1, Going); err != nil {
+	if ss, err := s.Statuses(ctx, g.ID, 1); err != nil || len(ss) != 1 || ss[0].Status != Going {
+		t.Fatalf("Statuses = %+v, %v; want the ticket merged into going", ss, err)
+	}
+	if err := s.SetStatus(ctx, g.ID, 1, 1, "ticket"); err == nil {
+		t.Fatal("SetStatus(ticket) succeeded; want the CHECK constraint to refuse it")
+	}
+	if err := s.SetStatus(ctx, g.ID, 1, 1, Interested); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -22,7 +22,7 @@ func TestStatuses(t *testing.T) {
 	for _, st := range []struct {
 		concert, member int64
 		status          string
-	}{{c1, zoe.ID, Going}, {c1, lea.ID, Interested}, {c1, lea.ID, Ticket}, {c1, lea.ID, Ticket}, {c2, zoe.ID, Going}, {c2, zoe.ID, ""}} {
+	}{{c1, zoe.ID, Going}, {c1, lea.ID, Interested}, {c1, lea.ID, Going}, {c1, lea.ID, Going}, {c2, zoe.ID, Going}, {c2, zoe.ID, ""}} {
 		if err := s.SetStatus(ctx, g.ID, st.concert, st.member, st.status); err != nil {
 			t.Fatal(err)
 		}
@@ -32,7 +32,7 @@ func TestStatuses(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Upserts keep one row per member; "" clears; names in order.
-	want := fmt.Sprint([]Status{{c1, lea, Ticket}, {c1, zoe, Going}})
+	want := fmt.Sprint([]Status{{c1, lea, Going}, {c1, zoe, Going}})
 	if fmt.Sprint(got) != want {
 		t.Fatalf("Statuses = %v, want %v", got, want)
 	}
@@ -74,7 +74,7 @@ func TestStatuses(t *testing.T) {
 	if err := s.DeleteMember(ctx, g.ID, "Zoé"); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := s.Statuses(ctx, g.ID, 0); fmt.Sprint(got) != fmt.Sprint([]Status{{c1, lea, Ticket}}) {
+	if got, _ := s.Statuses(ctx, g.ID, 0); fmt.Sprint(got) != fmt.Sprint([]Status{{c1, lea, Going}}) {
 		t.Errorf("after deleting Zoé: %v", got)
 	}
 }

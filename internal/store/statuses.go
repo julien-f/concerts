@@ -6,7 +6,6 @@ import "context"
 const (
 	Interested = "interested"
 	Going      = "going"
-	Ticket     = "ticket"
 )
 
 // Status is one member's answer to one concert.

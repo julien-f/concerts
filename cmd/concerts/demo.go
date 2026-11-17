@@ -43,8 +43,8 @@ func demo(ctx context.Context, st *store.Store, baseURL string) error {
 		concert, member int64
 		status          string
 	}{
-		{concerts[0], marc, store.Ticket}, {concerts[0], sam, store.Going}, {concerts[0], lea, store.Interested},
-		{concerts[1], marc, store.Interested}, {concerts[3], lea, store.Ticket}, {concerts[3], sam, store.Ticket},
+		{concerts[0], marc, store.Going}, {concerts[0], sam, store.Going}, {concerts[0], lea, store.Interested},
+		{concerts[1], marc, store.Interested}, {concerts[3], lea, store.Going}, {concerts[3], sam, store.Going},
 	} {
 		if err := st.SetStatus(ctx, g.ID, s.concert, s.member, s.status); err != nil {
 			return err

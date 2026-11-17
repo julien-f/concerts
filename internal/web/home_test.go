@@ -85,7 +85,7 @@ func TestHomeMineFilter(t *testing.T) {
 	marc.join(t, secret, "Marc")
 	marc.postRedirect(t, g+"/concerts/2/status", url.Values{"status": {"going"}})
 	// Only a past concert answered: the filter says nothing upcoming is mine, and lists it.
-	b.postRedirect(t, g+"/concerts/3/status", url.Values{"status": {"ticket"}}) // past: no button, but accepted
+	b.postRedirect(t, g+"/concerts/3/status", url.Values{"status": {"going"}}) // past: no button, but accepted
 	_, body = b.get(t, g+"?mine=1")
 	assertContains(t, body, "Aucun concert à venir parmi les tiens.", "Passés (1)")
 	b.postRedirect(t, g+"/concerts/1/status", url.Values{"status": {"interested"}})

@@ -9,11 +9,10 @@ import (
 	"concerts/internal/store"
 )
 
-// statusLabels: button order is interested, going, ticket; lines list them the other way round.
+// statusLabels: button order is interested, going; lines list them the other way round.
 var statusLabels = []struct{ Status, Button, One, Many string }{
 	{store.Interested, "Ça m'intéresse", "Intérêt", "Intérêt"},
 	{store.Going, "J'y vais", "Y va", "Y vont"},
-	{store.Ticket, "J'ai mon billet", "Billet", "Billet"},
 }
 
 type statusLine struct{ Status, Label, Names string }
@@ -93,8 +92,8 @@ func (s *server) setStatus(w http.ResponseWriter, r *http.Request, gr *groupRequ
 	case "mine":
 		back, target = "mine", fmt.Sprintf("%s?mine=1#c%d", gr.Base, c.ID)
 	}
-	// Past concerts show no buttons, but a late answer (a tab left open past midnight,
-	// a ticket mentioned afterwards) is harmless, so the server still takes it.
+	// Past concerts show no buttons, but a late answer (a tab left open past midnight)
+	// is harmless, so the server still takes it.
 	err := s.store.SetStatus(r.Context(), gr.Group.ID, c.ID, gr.Me.ID, status)
 	if err != nil || !isHTMX(r) {
 		s.done(w, r, gr, err, target)
