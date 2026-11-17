@@ -54,7 +54,13 @@ func TestConcertLifecycle(t *testing.T) {
 
 	_, body = b.follow(t, g+"/concerts/1")
 	assertContains(t, body, "<h1>Fontaines D.C.</h1>", "ajouté par Léa", "sam. 13 juin · 20\u00a0h\u00a030", `href="https://tickets.example/f?a=1&amp;b=2"`, "Mise en vente\u202f: ", "ven. 5 juin", "Modifier",
-		`class="band `+stubStyle("Fontaines D.C.")+`"`)
+		`<header class="head `+stubStyle("Fontaines D.C.")+`">`,
+		// The stub, drawn for the eyes; the year only when it is not this one.
+		"<span class=\"label\" aria-hidden=\"true\"><span>sam.</span><b>13</b><span>juin</span><span class=\"hour\">20\u00a0h\u00a030</span></span>",
+		// « Partager »: WhatsApp without JS, the share sheet's text and link for share.js.
+		`href="https://wa.me/?text=Fontaines%20D.C.%2C%20sam.%2013%20juin`,
+		"data-share-text=\"Fontaines D.C., sam. 13 juin · 20\u00a0h\u00a030, Zénith Paris\" data-share-url=\"http://example.test"+ts.concertURL(t, secret, 1)+`">`,
+		`<script src="/static/share.`)
 
 	// The edit form, and its re-rendering after an invalid edit, post back to this concert.
 	_, body = b.get(t, g+"/concerts/1/edit")
@@ -69,7 +75,8 @@ func TestConcertLifecycle(t *testing.T) {
 
 	_, body = b.postRedirect(t, g+"/concerts/1", concertValues("Fontaines D.C.", "2027-01-09", "9:05", "Olympia", "", ""))
 	assertContains(t, body, "<title>Concert modifié – ", "Modifications enregistrées", "<h1>Fontaines D.C.</h1>",
-		"sam. 9 janv. 2027 · 9\u00a0h\u00a005", `datetime="2027-01-09T09:05"`, "Olympia")
+		"sam. 9 janv. 2027 · 9\u00a0h\u00a005", `datetime="2027-01-09T09:05"`, "Olympia",
+		"<span>janv.</span><span>2027</span><span class=\"hour\">9\u00a0h\u00a005</span>")
 	if strings.Contains(body, "Billetterie") || strings.Contains(body, "Mise en vente") {
 		t.Errorf("cleared optional fields still shown:\n%s", body)
 	}
@@ -124,15 +131,15 @@ func TestConcertListenLink(t *testing.T) {
 	b.postRedirect(t, g+"/concerts", concertValues("Simon & Garfunkel", "2026-06-13", "", "L'Olympia", "", ""))
 	_, body := b.follow(t, g+"/concerts/1")
 	assertContains(t, body,
-		`href="https://www.youtube.com/results?search_query=Simon&#43;%26&#43;Garfunkel" rel="noopener noreferrer">Écouter<span class="visually-hidden"> sur YouTube</span></a>`)
+		`href="https://www.youtube.com/results?search_query=Simon&#43;%26&#43;Garfunkel" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>Écouter<span class="visually-hidden"> sur YouTube</span></a>`)
 
 	// Several artists: one link each, named; « AC/DC » is not split.
 	b.postRedirect(t, g+"/concerts", concertValues("Les Hiboux + AC/DC /  Zaz +", "2026-06-14", "", "L'Olympia", "", ""))
 	_, body = b.follow(t, g+"/concerts/2")
 	assertContains(t, body,
-		`href="https://www.youtube.com/results?search_query=Les&#43;Hiboux" rel="noopener noreferrer">Écouter Les Hiboux<span class="visually-hidden"> sur YouTube</span></a>`,
-		`href="https://www.youtube.com/results?search_query=AC%2FDC" rel="noopener noreferrer">Écouter AC/DC<span class="visually-hidden"> sur YouTube</span></a>`,
-		`href="https://www.youtube.com/results?search_query=Zaz" rel="noopener noreferrer">Écouter Zaz<span class="visually-hidden"> sur YouTube</span></a>`)
+		`href="https://www.youtube.com/results?search_query=Les&#43;Hiboux" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span class="visually-hidden">Écouter </span>Les Hiboux<span class="visually-hidden"> sur YouTube</span></a>`,
+		`href="https://www.youtube.com/results?search_query=AC%2FDC" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span class="visually-hidden">Écouter </span>AC/DC<span class="visually-hidden"> sur YouTube</span></a>`,
+		`href="https://www.youtube.com/results?search_query=Zaz" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span class="visually-hidden">Écouter </span>Zaz<span class="visually-hidden"> sur YouTube</span></a>`)
 }
 
 func TestConcertDescriptionPrice(t *testing.T) {

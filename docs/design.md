@@ -117,19 +117,26 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 ```
 ┌──────────────────────────────┐
 │ ← Tous les concerts          │
-│ Fontaines D.C.               │  h1
-│ sam. 14 mars · 20 h          │
+│┌─────┐                       │  head: the artist's pattern;
+││ SAM │ Fontaines D.C.        │  date stub (year if not this
+││ 14  │                       │  one, time if set) on a paper
+││MARS │                       │  label, h1
+││20 h │                       │
+│└─────┘                       │
+│- - - - - - - - - - - - - - - │  perforation, notches
+│ (▶ Écouter)                  │  pills: one per artist, named
+│                              │  when several; YouTube search
 │ Zénith Paris                 │
 │ Prix : 29–32 €               │  if set
 │ Mise en vente : ven. 3 oct.  │  if set
+│ 📅 Ajouter à mon agenda      │  .ics, a link like the map's
 │ ajouté par Léa               │
 │ modifié par Tom · Voir l'his…│  if edited
 │ ▸ En savoir plus             │  description if set: <details>,
 │                              │  folded so the buttons stay
 │                              │  on screen; pre-line
-│ [Billetterie ↗] [Écouter]    │  ticket link if set; YouTube
-│ [Agenda]                     │  search for the artist; .ics
-│ [Prévenir le groupe]         │
+│ [Billetterie ↗] [Partager]   │  the only orange button, if
+│                              │  set; share sheet (ADR 0010)
 │ statuses + my 3 buttons      │  same block as the card
 │ [Modifier]   [Supprimer]     │
 └──────────────────────────────┘
@@ -142,12 +149,12 @@ Without identity: statuses shown, buttons and edit/delete replaced by « Choisis
 ```
 ┌──────────────────────────────┐
 │ Concerts                     │  no group name
-│ Fontaines D.C.               │  h1
-│ sam. 14 mars · 20 h          │
+│ head and pills               │  same as the member page
 │ Zénith Paris                 │
 │ Mise en vente : ven. 3 oct.  │  if set
+│ 📅 Ajouter à mon agenda      │
 │ 3 personnes du groupe y vont │  « J'y vais », if any
-│ [Billetterie ↗] [Agenda]     │
+│ [Billetterie ↗]              │
 │ Tu fais partie du groupe ? … │  open the group link once
 └──────────────────────────────┘
 ```
@@ -185,7 +192,7 @@ Without identity: statuses shown, buttons and edit/delete replaced by « Choisis
 
 - **Motif: the ticket stub**, chosen over a gig-poster direction (phase 0 mockup, removed once applied in slice 2): denser, warmer, the stub naturally carries the date. Implemented in `internal/web/static/style.css`.
 - Card = stub (weekday, day, month in `ui-monospace`) + dashed perforation + body; half-circle notches cut into the card.
-- Stub pattern, festive without images but soft, since a list stacks many: faint fine rings, stripes, dots or scallops on a pale tint in one of 12 `oklch` hues, both picked from a hash of the artist (`stubStyle`), unmasked (fading them with `mask-image` cut scrolling from 51 to 36 fps on a Galaxy S10 in Firefox), desaturated on past concerts; the perforation stays visible over the tint; the concert page's ticket opens on a band of the same pattern. Classes `hue-N pat-N`, since the CSP forbids `style=""`. The date sits on an opaque paper label: axe skips text over gradients, so the label is what keeps its contrast checked.
+- Stub pattern, festive without images but soft, since a list stacks many: faint fine rings, stripes, dots or scallops on a pale tint in one of 12 `oklch` hues, both picked from a hash of the artist (`stubStyle`), unmasked (fading them with `mask-image` cut scrolling from 51 to 36 fps on a Galaxy S10 in Firefox), desaturated on past concerts; the perforation stays visible over the tint; the concert page's ticket opens on a head of the same pattern, holding a larger stub and the title, cut by a perforation with notches; the title there sits on the pattern, which axe does not check, so the tint stays pale (dark in dark mode). Classes `hue-N pat-N`, since the CSP forbids `style=""`. The date sits on an opaque paper label: axe skips text over gradients, so the label is what keeps its contrast checked.
 - Palette: paper `#f4efe6` / card `#fffdf8` / ink `#1f1a17` / brick accent `#b4361d`; dark: `#17140f` / `#24201a` / `#f1ebe1` / `#ff8a65`. AA contrast checked by axe.
 - Month headings: small monospace caps in the accent color.
 - Pressed status = filled ink button + icon + `aria-pressed`; never color alone.
@@ -315,6 +322,7 @@ One slice per branch, merged with `--no-ff`. All shipped (v1).
 10. **Public concert link** ([ADR 0009](decisions/0009-public-concert-link.md)): members share what they see, so the concert page moved to a secret-free `/c/<token>` (see the threat model) instead of adding a share button.
    - Old concert URLs, the picker's `next` and post-edit redirects reach it through a 303. Cards, `og:url`, `<link rel="canonical">` (Chrome on Android shares it), « Prévenir le groupe », the history page and `.ics` link to it directly.
    - Out of scope: secret-free list and forms (their addresses still hold the secret), revoking one concert's link.
+11. **Lighter concert page**: one orange button (« Billetterie »); the date and title move into the patterned head; « Écouter » becomes one pill per artist, « Ajouter à mon agenda » a link among the facts, « Prévenir le groupe » a secondary « Partager » opening the share sheet ([ADR 0010](decisions/0010-share-sheet.md)).
 
 Also in v1: `make install`, `make deploy`, `make rollback` ([operations.md](operations.md)).
 

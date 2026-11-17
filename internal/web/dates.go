@@ -82,6 +82,23 @@ func (s *server) when(c store.Concert) string {
 	return out
 }
 
+// ticketDate is the concert page's stub: the card's, plus the time and the year when it is not now's.
+type ticketDate struct {
+	stub
+	Time, Year string
+}
+
+func (s *server) ticketDate(c store.Concert) ticketDate {
+	t := ticketDate{stub: stubOf(c.Date)}
+	if c.Time != "" {
+		t.Time = frTime(c.Time)
+	}
+	if d, err := time.Parse(time.DateOnly, c.Date); err == nil && d.Year() != s.now().In(paris).Year() {
+		t.Year = strconv.Itoa(d.Year())
+	}
+	return t
+}
+
 // datetime is the machine-readable value of a concert's <time> element.
 func datetime(c store.Concert) string {
 	if c.Time == "" {
