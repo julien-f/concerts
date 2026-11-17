@@ -152,7 +152,7 @@ Without identity: statuses shown, buttons and edit/delete replaced by « Choisis
 
 - **Motif: the ticket stub**, chosen over a gig-poster direction (phase 0 mockup, removed once applied in slice 2): denser, warmer, the stub naturally carries the date. Implemented in `internal/web/static/style.css`.
 - Card = stub (weekday, day, month in `ui-monospace`) + dashed perforation + body; half-circle notches cut into the card.
-- Stub pattern, festive without images: rings, stripes, dots or checks in one of 12 `oklch` hues, both picked from a hash of the artist (`stubStyle`), desaturated on past concerts; the concert page's ticket opens on a band of the same pattern. Classes `hue-N pat-N`, since the CSP forbids `style=""`. The date sits on an opaque paper label: axe skips text over gradients, so the label is what keeps its contrast checked.
+- Stub pattern, festive without images but soft, since a list stacks many: faint fine rings, stripes, dots or scallops on a pale tint in one of 12 `oklch` hues, both picked from a hash of the artist (`stubStyle`), fading toward the date, desaturated on past concerts; the perforation stays visible over the tint; the concert page's ticket opens on a band of the same pattern. Classes `hue-N pat-N`, since the CSP forbids `style=""`. The date sits on an opaque paper label: axe skips text over gradients, so the label is what keeps its contrast checked.
 - Palette: paper `#f4efe6` / card `#fffdf8` / ink `#1f1a17` / brick accent `#b4361d`; dark: `#17140f` / `#24201a` / `#f1ebe1` / `#ff8a65`. AA contrast checked by axe.
 - Month headings: small monospace caps in the accent color.
 - Pressed status = filled ink button + icon + `aria-pressed`; never color alone.

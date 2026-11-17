@@ -10,7 +10,7 @@
   --line: #d9cfc2;
   --error: #a3221a;
   /* Stub tint: lightness and chroma here, hue from .hue-N (oklch keeps every hue equally light). */
-  --tint-l: 0.9; --tint-c: 0.07; --tint-ink-l: 0.38; --tint-ink-c: 0.13;
+  --tint-l: 0.95; --tint-c: 0.035; --tint-ink-l: 0.38; --tint-ink-c: 0.13;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -22,7 +22,7 @@
     --on-accent: #17140f;
     --line: #4a4237;
     --error: #ff9a8a;
-    --tint-l: 0.4; --tint-c: 0.09; --tint-ink-l: 0.93; --tint-ink-c: 0.05;
+    --tint-l: 0.3; --tint-c: 0.04; --tint-ink-l: 0.93; --tint-ink-c: 0.05;
   }
 }
 * { box-sizing: border-box; }
@@ -126,46 +126,50 @@ input[aria-invalid="true"] { border: 2px solid var(--error); }
   box-shadow: 0 1px 0 var(--line);
   isolation: isolate; /* keeps .mine's z-index inside the card, under the « Ajouter » bar */
 }
+/* Notches above the stub, which is positioned for its pattern. */
 .card::before, .card::after {
-  content: ""; position: absolute; left: calc(4rem - 0.5rem); width: 1rem; height: 1rem;
+  content: ""; position: absolute; z-index: 2; left: calc(4rem - 0.5rem); width: 1rem; height: 1rem;
   border-radius: 50%; background: var(--bg);
 }
 .card::before { top: -0.5rem; }
 .card::after { bottom: -0.5rem; }
 .stub {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  padding: 0.75rem 0.25rem; border-right: 2px dashed var(--line);
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 0.75rem 0.25rem; border-right: 2px dashed color-mix(in oklch, var(--muted) 65%, transparent);
+  border-radius: calc(0.625rem - 1px) 0 0 calc(0.625rem - 1px);
   font-family: ui-monospace, monospace; text-transform: uppercase; color: var(--muted); font-size: 0.75rem;
 }
 .stub b { font-size: 1.6rem; line-height: 1.1; color: var(--ink); }
 
-/* Stub pattern, picked from the artist by stubStyle (stubstyle.go). Declared on .stub, where --h is set,
-   since a var() resolves where the property is declared. Decoration only: the date sits on an opaque label,
-   the one place axe can check contrast (it skips text over gradients). */
-.stub[class*="hue-"], .band {
-  --tint: oklch(var(--tint-l) var(--tint-c) var(--h));
-  --fg: oklch(var(--tint-ink-l) var(--tint-ink-c) var(--h) / 0.35);
-  background-color: var(--tint);
+/* Stub pattern, picked from the artist by stubStyle (stubstyle.go): a pale tint, and faint lines on ::before
+   fading toward the date. --tint is declared where --h is set, since a var() resolves where it is declared.
+   Decoration only: the date sits on an opaque label, the one place axe can check contrast (it skips text
+   over gradients). */
+.stub[class*="hue-"], .band { --tint: oklch(var(--tint-l) var(--tint-c) var(--h)); background-color: var(--tint); }
+.stub[class*="hue-"]::before, .band::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  --fg: oklch(var(--tint-ink-l) var(--tint-ink-c) var(--h) / 0.12);
+  mask-image: radial-gradient(ellipse 75% 65% at 50% 50%, transparent 30%, black 90%);
 }
-/* The concert page's ticket opens on the same pattern. */
-.band { height: 3rem; margin: 0 -1rem; border-radius: 0.75rem 0.75rem 0 0; }
-.stub[class*="hue-"] {
-  border-radius: calc(0.625rem - 1px) 0 0 calc(0.625rem - 1px);
-  border-right-color: var(--tint);
-}
+/* The concert page's ticket opens on the same pattern, fading toward the title. */
+.band { position: relative; height: 3rem; margin: 0 -1rem; border-radius: 0.75rem 0.75rem 0 0; }
+.band::before { mask-image: linear-gradient(black, transparent); }
 .stub .date {
-  display: flex; flex-direction: column; align-items: center;
+  position: relative; display: flex; flex-direction: column; align-items: center;
   padding: 0.25rem 0.35rem; border-radius: 0.375rem; background: var(--paper);
 }
 .past .stub { filter: saturate(0.35); }
 .hue-0 { --h: 0; } .hue-1 { --h: 30; } .hue-2 { --h: 60; } .hue-3 { --h: 90; }
 .hue-4 { --h: 120; } .hue-5 { --h: 150; } .hue-6 { --h: 180; } .hue-7 { --h: 210; }
 .hue-8 { --h: 240; } .hue-9 { --h: 270; } .hue-10 { --h: 300; } .hue-11 { --h: 330; }
-/* Rings, stripes, dots, checks; half-pixel gaps between stops against aliasing. */
-.pat-0 { background-image: repeating-radial-gradient(circle at 20% 15%, var(--fg) 0 3px, transparent 3.5px 9px); }
-.pat-1 { background-image: repeating-linear-gradient(135deg, var(--fg) 0 4px, transparent 4.5px 11px); }
-.pat-2 { background-image: radial-gradient(circle, var(--fg) 0 3px, transparent 3.5px); background-size: 12px 12px; }
-.pat-3 { background-image: conic-gradient(var(--fg) 25%, transparent 0 50%, var(--fg) 0 75%, transparent 0); background-size: 14px 14px; }
+/* Rings, stripes, dots, scallops; half-pixel gaps between stops against aliasing. */
+.pat-0::before { background-image: repeating-radial-gradient(circle at 20% 15%, var(--fg) 0 1.2px, transparent 1.7px 8px); }
+.pat-1::before { background-image: repeating-linear-gradient(135deg, var(--fg) 0 1.5px, transparent 2px 9px); }
+.pat-2::before { background-image: radial-gradient(circle, var(--fg) 0 1.6px, transparent 2.1px); background-size: 10px 10px; }
+.pat-3::before {
+  background-image: radial-gradient(circle at 50% 0, transparent 0 4.5px, var(--fg) 5px 6.2px, transparent 6.7px);
+  background-size: 12px 8px;
+}
 .card .body { padding: 0.75rem; min-width: 0; }
 .artist { font-size: 1.1rem; margin: 0; overflow-wrap: anywhere; }
 .artist a { color: var(--ink); text-decoration: none; }
