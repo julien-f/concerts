@@ -80,6 +80,8 @@ docs
 - Exit code 2 for usage errors: behaviour change, nothing depends on it.
 - design.md section lengths: taste.
 
+- After all zones: /simplify (helpers used everywhere, misplaced doc comment, CleanName alias; dismissed: otherYear reparse via stubOf (cards would show the year), valid's four scans) and /code-review high (5 fixes: invalid UTF-8 in every sent-back field, `https://h#` and `https://h:`, check_url after the slash strip, invisible characters in every prefilled field, otherYear takes a parsed date; dismissed again: limit refusal after the write, the Deleted guard in both layers, needsURL; dismissed: plain turning no-break spaces into spaces, which the form's paragraphs already does).
+
 ## State
 
-Zones done up to deploy + scripts. Next: /simplify + /code-review on the whole diff, then a second inventory round.
+Round 1 done (all zones + two review rounds). Next: second inventory round on the new code (same 8 zones), then stop if it finds nothing worth a commit; finally make check, verify-ui, measure, the user question (set-aside items), and the merge commit body.
