@@ -1,31 +1,43 @@
 [Unit]
 Description=concerts web app
-After=network-online.target
-Wants=network-online.target
+Requires=concerts.socket
+After=concerts.socket
 
+# No [Install]: concerts.socket starts it on the first request.
 [Service]
-ExecStart=/usr/local/bin/concerts serve
+Type=exec
+ExecStart=/home/concerts/bin/concerts serve
 User=concerts
 Group=concerts
-StateDirectory=concerts
-WorkingDirectory=/var/lib/concerts
-Environment=CONCERTS_ADDR=127.0.0.1:8080
-Environment=CONCERTS_DB=/var/lib/concerts/concerts.db
-Environment=CONCERTS_BASE_URL=https://concerts.example.com
+WorkingDirectory=/home/concerts/data
+# CONCERTS_BASE_URL comes from concerts.service.d/base-url.conf, written by install.sh.
+Environment=CONCERTS_DB=/home/concerts/data/concerts.db GOMEMLIMIT=160MiB
 Restart=on-failure
+RestartSec=1s
+
+# An empty /home but for these: the service cannot write its binary, the backups or authorized_keys.
+ProtectHome=tmpfs
+BindReadOnlyPaths=/home/concerts/bin
+BindPaths=/home/concerts/data
 
 NoNewPrivileges=yes
 ProtectSystem=strict
-ProtectHome=yes
 PrivateTmp=yes
 PrivateDevices=yes
+PrivateUsers=yes
+PrivateIPC=yes
+# Hides the deployer's processes, same UID (systemd 257+; LISTEN_PID still matches).
+PrivatePIDs=yes
+ProtectProc=invisible
+ProcSubset=pid
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectKernelLogs=yes
 ProtectControlGroups=yes
 ProtectClock=yes
 ProtectHostname=yes
-RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+# For the prefill fetches; the inherited Unix socket needs no socket(2).
+RestrictAddressFamilies=AF_INET AF_INET6
 RestrictNamespaces=yes
 RestrictRealtime=yes
 RestrictSUIDSGID=yes
@@ -33,8 +45,12 @@ LockPersonality=yes
 MemoryDenyWriteExecute=yes
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+# Go's startup prlimit gets EPERM, which it ignores, instead of a SIGSYS kill.
+SystemCallErrorNumber=EPERM
 CapabilityBoundingSet=
 UMask=0077
+LimitCORE=0
 
-[Install]
-WantedBy=multi-user.target
+MemoryMax=256M
+TasksMax=128

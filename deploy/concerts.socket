@@ -1,0 +1,11 @@
+[Unit]
+Description=concerts web app socket
+
+[Socket]
+ListenStream=/run/concerts.sock
+# Only the reverse proxy may connect.
+SocketGroup=caddy
+SocketMode=0660
+
+[Install]
+WantedBy=sockets.target

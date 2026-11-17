@@ -5,25 +5,43 @@ Description=concerts database backup
 Type=oneshot
 User=concerts
 Group=concerts
-StateDirectory=concerts concerts/backups
-Environment=CONCERTS_DB=/var/lib/concerts/concerts.db
-ExecStart=/bin/sh -c 'exec /usr/local/bin/concerts backup "/var/lib/concerts/backups/concerts-$(date +%%Y-%%m-%%dT%%H%%M%%S).db"'
+Environment=CONCERTS_DB=/home/concerts/data/concerts.db
+ExecStart=/bin/sh -c 'exec /home/concerts/bin/concerts backup "/home/concerts/backups/concerts-$(date +%%Y-%%m-%%dT%%H%%M%%S).db"'
 # Keeps 14 days of snapshots; copying them off the server is up to the operator.
-ExecStartPost=/usr/bin/find /var/lib/concerts/backups -name 'concerts-*.db' -mtime +14 -delete
+ExecStartPost=/usr/bin/find /home/concerts/backups -name 'concerts-*.db' -mtime +14 -delete
+Nice=10
+IOSchedulingClass=idle
+
+ProtectHome=tmpfs
+BindReadOnlyPaths=/home/concerts/bin
+# Read-write: reading a WAL database writes its -shm.
+BindPaths=/home/concerts/data /home/concerts/backups
 
 NoNewPrivileges=yes
 ProtectSystem=strict
-ProtectHome=yes
 PrivateTmp=yes
 PrivateDevices=yes
 PrivateNetwork=yes
+PrivateUsers=yes
+PrivateIPC=yes
+ProtectProc=invisible
+ProcSubset=pid
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
+ProtectKernelLogs=yes
 ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=none
 RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+SystemCallErrorNumber=EPERM
 CapabilityBoundingSet=
 UMask=0077
+LimitCORE=0

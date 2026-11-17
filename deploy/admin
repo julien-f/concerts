@@ -1,0 +1,137 @@
+#!/bin/sh
+# Operates the concerts service as its own user, from its home; installed in ~/bin by make deploy.
+# The only root actions are the sudoers grants written by install.sh.
+set -eu
+umask 077
+cd "$HOME"
+
+usage='usage:
+  admin deploy                 install bin/concerts.new (snapshot taken by the old binary), restart, check
+  admin rollback               previous binary and pre-deploy database back
+  admin restore <backups/…>    restore a snapshot
+  admin logs [-f]              last 200 journal lines, or follow
+  admin <concerts subcommand>  e.g. new-group "Gig buddies", list-groups, rotate-secret <id>'
+
+SNAP=backups/pre-deploy.db
+# Written before a deploy's restart, removed once healthz passes (deploy, rollback or restore).
+FAILED=$SNAP.deploy-failed
+SYSTEMCTL='sudo -n /usr/bin/systemctl'
+
+# The service's own environment (root-written unit and drop-in): one source for the configuration.
+eval "export $(systemctl show -P Environment concerts.service)"
+: "${CONCERTS_BASE_URL:?missing from concerts.service: rerun make install}"
+: "${CONCERTS_DB:?missing from concerts.service}"
+
+logs() {
+	sudo -n /usr/bin/journalctl -u concerts.service -u concerts-backup.service -n 200 --no-pager
+}
+
+# Through Caddy on loopback: the deployer cannot open the socket, and no hairpin NAT or DNS.
+# --max-time: the socket accepts connections even when the service is down.
+check() {
+	hostport=${CONCERTS_BASE_URL#*://}
+	hostport=${hostport%%/*}
+	case $hostport in
+	*:*) ;;
+	*) hostport=$hostport:443 ;;
+	esac
+	curl -fsS --max-time 5 --resolve "$hostport:127.0.0.1" "$CONCERTS_BASE_URL/healthz" >/dev/null
+}
+
+healthz() {
+	for _ in $(seq 20); do
+		if check; then
+			rm -f "$FAILED"
+			echo "healthz ok"
+			return
+		fi
+		sleep 1
+	done
+	echo "healthz failed:" >&2
+	systemctl status --no-pager concerts.socket concerts.service >&2 || true
+	logs >&2
+	return 1
+}
+
+# Nothing may open the database while it is swapped: a request would start the service,
+# a backup would create an empty database or delete the new one's -wal on close.
+stop_all() {
+	trap 'echo "failed with the service stopped: fix the cause, then $SYSTEMCTL start concerts.socket concerts-backup.timer" >&2' EXIT
+	$SYSTEMCTL stop concerts.socket concerts.service concerts-backup.timer concerts-backup.service
+}
+
+start_all() {
+	$SYSTEMCTL reset-failed concerts.service concerts.socket
+	$SYSTEMCTL start concerts.socket concerts-backup.timer
+	trap - EXIT
+}
+
+# Moves the live database aside (writes made since stay in it, with its -wal) and installs $1.
+swap_db() {
+	ts=$(date +%Y%m%dT%H%M%S)
+	for s in "" -wal -shm; do
+		if [ -e "$CONCERTS_DB$s" ]; then mv "$CONCERTS_DB$s" "$CONCERTS_DB.pre-$2-$ts$s"; fi
+	done
+	cp "$1" "$CONCERTS_DB.new"
+	mv "$CONCERTS_DB.new" "$CONCERTS_DB"
+	echo "previous database kept as $CONCERTS_DB.pre-$2-$ts"
+}
+
+case ${1-} in
+deploy)
+	test -x bin/concerts.new || { echo "bin/concerts.new missing: run make deploy" >&2; exit 1; }
+	if [ -e "$FAILED" ] && [ -s "$SNAP" ] && [ -x bin/concerts.prev ] && ! check 2>/dev/null; then
+		# After a failed deploy the installed binary is the broken one: keep the last good pair.
+		echo "last deploy failed: keeping its pre-deploy snapshot and bin/concerts.prev" >&2
+	elif [ -x bin/concerts ]; then
+		# The old binary takes the snapshot: the new one would first migrate the live database.
+		rm -f "$SNAP.new"
+		bin/concerts backup "$SNAP.new"
+		mv "$SNAP.new" "$SNAP"
+		ln -f bin/concerts bin/concerts.prev
+		touch "$FAILED"
+	fi
+	mv bin/concerts.new bin/concerts
+	$SYSTEMCTL reset-failed concerts.service concerts.socket
+	$SYSTEMCTL restart concerts.service
+	healthz
+	;;
+rollback)
+	test -x bin/concerts.prev || { echo "no bin/concerts.prev: nothing to roll back to" >&2; exit 1; }
+	test -s "$SNAP" || { echo "no $SNAP: nothing to roll back to" >&2; exit 1; }
+	stop_all
+	swap_db "$SNAP" rollback
+	ln -f bin/concerts.prev bin/concerts.tmp
+	mv bin/concerts.tmp bin/concerts
+	start_all
+	healthz
+	echo "the restored database has the secrets of its time: rerun rotate-secret if a link leaked since"
+	;;
+restore)
+	[ $# = 2 ] || { echo "$usage" >&2; exit 2; }
+	case $2 in
+	*..*) echo "$2: pick a snapshot in backups/" >&2; exit 2 ;;
+	backups/*.db | "$HOME"/backups/*.db) ;;
+	*) echo "$2: pick a snapshot in backups/" >&2; exit 2 ;;
+	esac
+	test -f "$2" && test -s "$2" || { echo "$2: missing or empty" >&2; exit 1; }
+	stop_all
+	swap_db "$2" restore
+	start_all
+	healthz
+	echo "the restored database has the secrets of its time: rerun rotate-secret if a link leaked since"
+	;;
+logs)
+	case ${2-} in
+	"") logs ;;
+	-f) exec sudo -n /usr/bin/journalctl -f -u concerts.service -u concerts-backup.service --no-pager ;;
+	*) echo "$usage" >&2; exit 2 ;;
+	esac
+	;;
+"" | -h | --help | help)
+	echo "$usage"
+	;;
+*)
+	exec bin/concerts "$@"
+	;;
+esac
