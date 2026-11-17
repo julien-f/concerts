@@ -53,7 +53,7 @@ func scan(r io.Reader, withTexts bool) page {
 	z := html.NewTokenizer(r)
 	var class string
 	var block bool
-	var headings, hidden int // open h1–h6; open svg or template, whose text is not shown as is
+	var headings, hidden int // open h1–h6; open svg or template, whose text and title are not the page's
 	depth := func(tag string) *int {
 		switch tag {
 		case "h1", "h2", "h3", "h4", "h5", "h6":
@@ -111,7 +111,7 @@ func scan(r io.Reader, withTexts bool) page {
 					p.meta[key] = content
 				}
 			case "title":
-				if z.Next() == html.TextToken && p.title == "" {
+				if hidden == 0 && z.Next() == html.TextToken && p.title == "" { // not an svg's
 					p.title = string(z.Text())
 				}
 			case "script":

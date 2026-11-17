@@ -270,6 +270,7 @@ func TestParseEdgeCases(t *testing.T) {
 		{"ItemList of events", `<script type="application/ld+json">{"@type":"ItemList","itemListElement":[{"item":{"@type":"MusicEvent","name":"Listed"}}]}</script>`,
 			Result{Artist: "Listed"}},
 		{"title fallback, cut at the first separator", `<title>Artiste &amp; Co - Salle | Site</title>`, Result{Artist: "Artiste & Co"}},
+		{"an icon's svg title is not the page's", `<svg><title>Icône</title></svg><title>Artiste - Salle</title>`, Result{Artist: "Artiste"}},
 		{"og:title 'null' skipped", `<meta property="og:title" content="null"><meta name="twitter:title" content="Tw @ Venue">`, Result{Artist: "Tw"}},
 		{"address as a string", `<script type="application/ld+json">{"@type":"MusicEvent","name":"A","location":{"name":"S","address":" 1 rue X, Lyon "}}</script>`,
 			Result{Artist: "A", Venue: "S", Address: "1 rue X, Lyon"}},
