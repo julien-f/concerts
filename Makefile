@@ -5,7 +5,7 @@ GOVULNCHECK_VERSION := v1.9.0
 ADDR ?= :8080
 DEMO_DB ?= demo.db
 
-.PHONY: run test lint fmt vuln check build demo verify-ui measure install uninstall deploy rollback
+.PHONY: run test lint fmt vuln check build demo verify-ui measure-scroll measure install uninstall deploy rollback
 
 run:
 	CONCERTS_BASE_URL=http://localhost:8080 go run ./cmd/concerts serve
@@ -36,6 +36,11 @@ demo: build
 # axe-core, vnu and page weight on every screen of `make demo`; downloads its tools once.
 verify-ui:
 	scripts/verify-ui.sh
+
+# Scroll smoothness of style.css at REF vs the working tree's, on a phone on the same network.
+REF ?= main
+measure-scroll:
+	scripts/measure-scroll.sh $(REF)
 
 # Go lines, binary size and `make check` duration, logged per slice.
 measure:
