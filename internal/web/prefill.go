@@ -95,10 +95,11 @@ func fitParagraphs(v string, maxRunes int) string {
 	if utf8.RuneCountInString(v) <= maxRunes {
 		return v
 	}
-	cut := string([]rune(v)[:maxRunes-1])
+	rs := []rune(v)
+	cut := string(rs[:maxRunes-1])
 	if i := max(strings.LastIndex(cut, "\n"), strings.LastIndex(cut, ". ")+1); i > 0 {
 		cut = cut[:i]
-	} else if i := strings.LastIndex(cut, " "); i > 0 {
+	} else if i := strings.LastIndex(cut, " "); i > 0 && rs[maxRunes-1] != ' ' { // else the cut ends a word
 		cut = cut[:i]
 	}
 	return strings.TrimSpace(cut) + "…"

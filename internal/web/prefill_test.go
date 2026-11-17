@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 // ticketSite serves the prefill fixtures, plus a blocked page and a hostile one.
@@ -57,8 +58,8 @@ func TestPrefill(t *testing.T) {
 		{"long description cut at a sentence end", site.URL + "/long", []string{
 			`maxlength="2000">` + strings.Repeat("Une phrase de vingt-neuf car. ", 65) + "Une phrase de vingt-neuf car.…</textarea>"}},
 		{"nothing found", site.URL + "/empty", []string{"Rien trouvé sur cette page\u202f: remplis", `aria-describedby="prefill-msg" autofocus`}},
-		// Too long: dropped; an invisible character: stripped by prefill, the rest kept.
 		{"nothing acceptable", site.URL + "/rejected", []string{"Rien trouvé sur cette page"}},
+		// Too long: dropped; an invisible character: stripped by prefill, the rest kept.
 		{"hostile values dropped", site.URL + "/hostile", []string{`id="artist" name="artist" type="text" value=""`, `id="venue" name="venue" type="text" value="Salle"`, `id="address" name="address" type="text" value=""`, `value="2026-07-01"`}},
 		{"not a web link", "javascript:alert(1)", []string{"Lien invalide\u202f: il doit",
 			`id="url" name="url" type="url" value="javascript:alert(1)" maxlength="2000" inputmode="url" aria-invalid="true" aria-describedby="prefill-msg" autofocus`}},
@@ -187,7 +188,13 @@ func TestFetchLimiter(t *testing.T) {
 // TestFitParagraphsWordCut: without a line or sentence end to cut at, the cut falls between words.
 func TestFitParagraphsWordCut(t *testing.T) {
 	t.Parallel()
-	if got, want := fitParagraphs(strings.Repeat("mot ", 600), 2000), strings.Repeat("mot ", 498)+"mot…"; got != want {
-		t.Errorf("fitParagraphs = …%q, want …%q", got[len(got)-12:], want[len(want)-12:])
+	for _, tt := range []struct{ in, want string }{
+		{strings.Repeat("motus ", 400), strings.Repeat("motus ", 332) + "motus…"}, // the cut falls inside a word
+		{strings.Repeat("mot ", 600), strings.Repeat("mot ", 499) + "mot…"},       // the cut ends a word: kept
+	} {
+		if got := fitParagraphs(tt.in, 2000); got != tt.want {
+			t.Errorf("fitParagraphs: %d runes ending %q, want %d ending %q", utf8.RuneCountInString(got),
+				string([]rune(got)[max(0, utf8.RuneCountInString(got)-8):]), utf8.RuneCountInString(tt.want), string([]rune(tt.want)[utf8.RuneCountInString(tt.want)-8:]))
+		}
 	}
 }
