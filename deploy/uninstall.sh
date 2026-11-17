@@ -1,35 +1,37 @@
 #!/bin/sh
-# Removes everything install.sh created, backups included; run as root by make uninstall.
+# Removes everything install.sh created for <name>, backups included; run as root by make uninstall.
 set -eu
-H=/home/concerts
+cd "$(dirname "$0")"
+. ./lib.sh
 
-die() { echo "uninstall: $*" >&2; exit 1; }
+[ $# = 1 ] || die "usage: uninstall.sh <name>"
+NAME=$1
+H=/home/$NAME
 
 [ "$(id -u)" = 0 ] || die "run as root"
-# A missing import fails every site's reload.
-if grep -Eq '^[[:space:]]*import[[:space:]]+(/etc/caddy/)?concerts\.caddy' /etc/caddy/Caddyfile 2>/dev/null; then
-	die "remove the concerts.caddy import from /etc/caddy/Caddyfile first"
-fi
-printf 'This deletes %s, backups included. Type "concerts" to confirm: ' $H
+check_name name "$NAME"
+# Before any action: a wrong name must not kill or delete anything of another user.
+installed "$NAME" || die "no service $NAME installed by concerts"
+[ "$(stat -c %U:%G "$H" 2>/dev/null)" = "root:$NAME" ] || die "$H is not the root:$NAME home install.sh creates"
+
+printf 'Remove the %s site from the reverse proxy first (its socket goes away).\nThis deletes %s, backups included. Type "%s" to confirm: ' "$NAME" "$H" "$NAME"
 read -r answer
-[ "$answer" = concerts ] || die "aborted"
+[ "$answer" = "$NAME" ] || die "aborted"
 
-systemctl disable --now concerts.socket concerts-backup.timer 2>/dev/null || true
-systemctl stop concerts.service concerts-backup.service 2>/dev/null || true
-loginctl terminate-user concerts 2>/dev/null || true
-pkill -KILL -u concerts 2>/dev/null || true
-if id concerts >/dev/null 2>&1; then userdel concerts; fi
+systemctl disable --now "$NAME.socket" "$NAME-backup.timer" 2>/dev/null || true
+systemctl stop "$NAME.service" "$NAME-backup.service" 2>/dev/null || true
+loginctl terminate-user "$NAME" 2>/dev/null || true
+pkill -KILL -u "$NAME" 2>/dev/null || true
+userdel "$NAME"
 # userdel -r refuses a home its user does not own.
-rm -rf --one-file-system $H
+rm -rf --one-file-system "$H"
 
-rm -f /etc/systemd/system/concerts.socket /etc/systemd/system/concerts.service \
-	/etc/systemd/system/concerts-backup.service /etc/systemd/system/concerts-backup.timer \
-	/etc/sudoers.d/concerts /etc/caddy/concerts.caddy /run/concerts.sock
-rm -rf /etc/systemd/system/concerts.service.d
+for s in $UNITS; do rm -f "/etc/systemd/system/$NAME$s"; done
+rm -rf "/etc/systemd/system/$NAME.service.d"
+rm -f "/etc/sudoers.d/$NAME" "/run/$NAME.sock"
 if command -v selinuxenabled >/dev/null && selinuxenabled && semanage fcontext -l | grep -q "^$H/bin(/\.\*)?"; then
 	semanage fcontext -d "$H/bin(/.*)?"
 fi
 systemctl daemon-reload
-systemctl reset-failed concerts.service concerts.socket concerts-backup.service concerts-backup.timer 2>/dev/null || true
-systemctl reload caddy
-echo "uninstalled; journal entries stay until journald rotates them"
+for s in $UNITS; do systemctl reset-failed "$NAME$s" 2>/dev/null || true; done
+echo "uninstalled $NAME; journal entries stay until journald rotates them"

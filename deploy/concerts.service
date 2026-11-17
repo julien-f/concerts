@@ -1,24 +1,25 @@
+# Installed by concerts install.sh, which replaces the NAME and PROXY_GROUP placeholders.
 [Unit]
-Description=concerts web app
-Requires=concerts.socket
-After=concerts.socket
+Description=@NAME@ web app
+Requires=@NAME@.socket
+After=@NAME@.socket
 
-# No [Install]: concerts.socket starts it on the first request.
+# No [Install]: @NAME@.socket starts it on the first request.
 [Service]
 Type=exec
-ExecStart=/home/concerts/bin/concerts serve
-User=concerts
-Group=concerts
-WorkingDirectory=/home/concerts/data
-# CONCERTS_BASE_URL comes from concerts.service.d/base-url.conf, written by install.sh.
-Environment=CONCERTS_DB=/home/concerts/data/concerts.db GOMEMLIMIT=160MiB
+ExecStart=/home/@NAME@/bin/concerts serve
+User=@NAME@
+Group=@NAME@
+WorkingDirectory=/home/@NAME@/data
+# CONCERTS_BASE_URL comes from @NAME@.service.d/base-url.conf, written by install.sh.
+Environment=CONCERTS_DB=/home/@NAME@/data/concerts.db GOMEMLIMIT=160MiB
 Restart=on-failure
 RestartSec=1s
 
 # An empty /home but for these: the service cannot write its binary, the backups or authorized_keys.
 ProtectHome=tmpfs
-BindReadOnlyPaths=/home/concerts/bin
-BindPaths=/home/concerts/data
+BindReadOnlyPaths=/home/@NAME@/bin
+BindPaths=/home/@NAME@/data
 
 NoNewPrivileges=yes
 ProtectSystem=strict

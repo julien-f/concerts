@@ -1,8 +1,0 @@
-# Installed as /etc/caddy/concerts.caddy by install.sh, which sets the host.
-# No log directive: request paths hold group secrets.
-# Keep the original Host (no header_up Host): cross-origin protection compares it with Origin.
-concerts.example.com {
-	encode zstd gzip
-	header Strict-Transport-Security "max-age=31536000"
-	reverse_proxy unix//run/concerts.sock
-}
