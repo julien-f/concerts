@@ -128,7 +128,7 @@ func validTicketURL(s string) bool {
 		return false
 	}
 	u, err := url.Parse(s)
-	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" &&
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Hostname() != "" &&
 		!strings.ContainsFunc(u.Host, func(r rune) bool { return r > '~' })
 }
 

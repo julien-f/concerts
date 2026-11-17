@@ -167,6 +167,7 @@ func TestConcertValidation(t *testing.T) {
 		{"javascript link", "ticket_url", "javascript:alert(1)"},
 		{"ftp link", "ticket_url", "ftp://x.example/f"},
 		{"relative link", "ticket_url", "/billets"},
+		{"link without a host name", "ticket_url", "https://:443/billets"},
 		{"non-ASCII host", "ticket_url", "https://x.example\u202e/a"},
 		{"invalid UTF-8 link", "ticket_url", "https://x.example/\x80\x80"},
 		{"address too long", "address", strings.Repeat("a", 101)},
