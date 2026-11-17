@@ -36,12 +36,12 @@ web
 - [x] Stale comments: « three buttons » (`statuses.go:25`), `done` and ErrLimit.
 
 templates + CSS
-- [ ] Dead `.htmx-indicator` rules; unused `class="edit"` in history.
-- [ ] Duplicated facts/about/meta markup between `concert.html` and `public.html`: partials.
-- [ ] CSS duplicates: notches, perforation border, repeated selectors, `.inline` min-height, pressed look.
+- [x] Dead `.htmx-indicator` rules; unused `class="edit"` in history (kept: removing it changes the HTML).
+- [x] Duplicated facts/about/meta markup between `concert.html` and `public.html`: partials.
+- [x] CSS duplicates: notches, perforation border, repeated selectors, `.inline` min-height, pressed look.
 
 prefill
-- [ ] Price range widening written twice (`sites.go:121`, `parse.go:296`); dead `cmp.Or(res.Time, …)`; inner `walk` shadows package `walk`; `Parse` unexported; stale comments (`sites.go:14`, package doc).
+- [x] Price range widening written twice (`sites.go:121`, `parse.go:296`); dead `cmp.Or(res.Time, …)`; inner `walk` shadows package `walk`; `Parse` unexported; stale comments (`sites.go:14`, package doc).
 
 cmd
 - [ ] Base-URL command list stated twice (`main.go:38,86`); `demo` reads `time.Now` itself; usage says « empty database »; `backup` error unwrapped.

@@ -1,4 +1,5 @@
-// Package prefill reads a concert from a ticketing page: Open Graph and JSON-LD.
+// Package prefill reads a concert from a ticketing page: Open Graph, JSON-LD and, for a few
+// sites, rules on the visible text.
 package prefill
 
 import (
@@ -130,8 +131,8 @@ func scan(r io.Reader, withTexts bool) page {
 	}
 }
 
-// Parse extracts a Result from a page of host; now is in Europe/Paris and drops past on-sale dates.
-func Parse(r io.Reader, host string, now time.Time) Result {
+// parse extracts a Result from a page of host; now is in Europe/Paris and drops past on-sale dates.
+func parse(r io.Reader, host string, now time.Time) Result {
 	rule := siteRule(host)
 	p := scan(r, rule != nil)
 	var res Result
@@ -144,7 +145,7 @@ func Parse(r io.Reader, host string, now time.Time) Result {
 	// A date from JSON-LD means an event was found: do not mix in another source.
 	if rule != nil && res.Date == "" {
 		site := rule(p.texts)
-		res.Date, res.Time = site.Date, cmp.Or(res.Time, site.Time)
+		res.Date, res.Time = site.Date, site.Time // JSON-LD sets a time only with a date
 		res.Venue, res.Address = cmp.Or(res.Venue, site.Venue), cmp.Or(res.Address, site.Address)
 		res.Price, res.Description = cmp.Or(res.Price, site.Price), cmp.Or(res.Description, site.Description)
 	}
@@ -300,28 +301,26 @@ func Invisible(r rune) bool {
 // applies to the offers within, and none means euros. "" when there is none.
 func price(offers any) string {
 	var lo, hi float64
-	var walk func(v any, currency string)
-	walk = func(v any, currency string) {
+	var visit func(v any, currency string)
+	visit = func(v any, currency string) {
 		switch v := v.(type) {
 		case []any:
 			for _, e := range v {
-				walk(e, currency)
+				visit(e, currency)
 			}
 		case map[string]any:
 			currency = cmp.Or(clean(str(v["priceCurrency"])), currency)
 			if strings.EqualFold(cmp.Or(currency, "EUR"), "EUR") {
 				for _, k := range []string{"price", "lowPrice", "highPrice"} {
-					if p := amount(v[k]); p > 0 {
-						lo, hi = cmp.Or(min(lo, p), p), max(hi, p)
-					}
+					lo, hi = widen(lo, hi, amount(v[k]))
 				}
 			}
 			for _, k := range slices.Sorted(maps.Keys(v)) {
-				walk(v[k], currency)
+				visit(v[k], currency)
 			}
 		}
 	}
-	walk(offers, "")
+	visit(offers, "")
 	return formatPrice(lo, hi)
 }
 
@@ -342,6 +341,14 @@ func amount(v any) float64 {
 }
 
 // formatPrice writes « 32 € » or « 29–32 € », with cents only when there are some (« 39,90 € »); "" for no price.
+// widen extends the price range lo–hi (0–0 when empty) to p, unless p is not positive.
+func widen(lo, hi, p float64) (float64, float64) {
+	if p <= 0 {
+		return lo, hi
+	}
+	return cmp.Or(min(lo, p), p), max(hi, p)
+}
+
 func formatPrice(lo, hi float64) string {
 	euros := func(p float64) string {
 		if p == math.Trunc(p) {

@@ -63,8 +63,8 @@ func TestParseFixtures(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.file+"@"+tt.host, func(t *testing.T) {
 			t.Parallel()
-			if got := Parse(strings.NewReader(fixture(t, tt.file)), tt.host, now); got != tt.want {
-				t.Fatalf("Parse = %+v\nwant    %+v", got, tt.want)
+			if got := parse(strings.NewReader(fixture(t, tt.file)), tt.host, now); got != tt.want {
+				t.Fatalf("parse = %+v\nwant    %+v", got, tt.want)
 			}
 		})
 	}
@@ -212,8 +212,8 @@ func TestParseSiteRules(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := Parse(strings.NewReader(tt.html(t)), tt.host, now); got != tt.want {
-				t.Fatalf("Parse = %+v\nwant    %+v", got, tt.want)
+			if got := parse(strings.NewReader(tt.html(t)), tt.host, now); got != tt.want {
+				t.Fatalf("parse = %+v\nwant    %+v", got, tt.want)
 			}
 		})
 	}
@@ -291,8 +291,8 @@ func TestParseEdgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := Parse(strings.NewReader(tt.html), "", now); got != tt.want {
-				t.Fatalf("Parse = %+v, want %+v", got, tt.want)
+			if got := parse(strings.NewReader(tt.html), "", now); got != tt.want {
+				t.Fatalf("parse = %+v, want %+v", got, tt.want)
 			}
 		})
 	}
