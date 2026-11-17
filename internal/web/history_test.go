@@ -4,27 +4,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-
-	"concerts/internal/store"
 )
-
-// location is the path and query a 303 points to.
-func location(t *testing.T, resp *http.Response) string {
-	t.Helper()
-	if resp.StatusCode != http.StatusSeeOther {
-		t.Fatalf("status = %d, want 303", resp.StatusCode)
-	}
-	return resp.Header.Get("Location")
-}
-
-func assertLacks(t *testing.T, body string, unwanted ...string) {
-	t.Helper()
-	for _, s := range unwanted {
-		if strings.Contains(body, s) {
-			t.Errorf("body has %q:\n%s", s, body)
-		}
-	}
-}
 
 // TestEditHistory walks edit, undo from the banner and going back from the history page.
 func TestEditHistory(t *testing.T) {
@@ -145,9 +125,7 @@ func TestRevertErrors(t *testing.T) {
 	ts.exec(t, "UPDATE concert_revisions SET ticket_url = NULL WHERE id = 1")
 
 	// Going back to a future date counts against the limit.
-	ts.exec(t, `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?)
-		INSERT INTO concerts (group_id, token, artist, date, venue, created_at)
-		SELECT 1, lower(hex(randomblob(12))), 'A', '2026-06-01', 'V', '2026-01-01T00:00:00Z' FROM n`, store.MaxConcerts)
+	ts.fillUpcoming(t)
 	if resp, _ := b.post(t, g+"/concerts/1/revisions/1/revert", nil); resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Errorf("revert past the limit: status = %d, want 422", resp.StatusCode)
 	}

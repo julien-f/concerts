@@ -7,35 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"concerts/internal/store"
 )
-
-func concertValues(artist, date, tm, venue, ticket, onSale string) url.Values {
-	return url.Values{"artist": {artist}, "date": {date}, "time": {tm}, "venue": {venue},
-		"ticket_url": {ticket}, "on_sale_date": {onSale}}
-}
-
-// validConcert is a minimal valid concert form.
-func validConcert() url.Values { return concertValues("A", "2026-07-01", "", "V", "", "") }
-
-// member returns a browser identified as name in a fresh group, and the group secret.
-func (ts *testServer) member(t *testing.T, name string) (*browser, string) {
-	t.Helper()
-	secret := ts.newGroup(t, "g")
-	b := ts.browser(t)
-	b.join(t, secret, name)
-	return b, secret
-}
-
-func assertContains(t *testing.T, body string, want ...string) {
-	t.Helper()
-	for _, s := range want {
-		if !strings.Contains(body, s) {
-			t.Errorf("body lacks %q:\n%s", s, body)
-		}
-	}
-}
 
 // TestConcertLifecycle walks add, show, edit, delete and undo as a browser without JS.
 func TestConcertLifecycle(t *testing.T) {
@@ -436,9 +408,7 @@ func TestUpcomingLimit(t *testing.T) {
 	b, secret := ts.member(t, "Léa")
 	g := "/g/" + secret
 	b.postRedirect(t, g+"/concerts", concertValues("Past", "2026-05-31", "", "V", "", "")) // id 1
-	ts.exec(t, `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?)
-		INSERT INTO concerts (group_id, token, artist, date, venue, created_at)
-		SELECT 1, lower(hex(randomblob(12))), 'A', '2026-06-01', 'V', '2026-01-01T00:00:00Z' FROM n`, store.MaxConcerts)
+	ts.fillUpcoming(t)
 	for name, path := range map[string]string{"create": g + "/concerts", "edit into the future": g + "/concerts/1"} {
 		resp, body := b.post(t, path, validConcert())
 		if resp.StatusCode != http.StatusUnprocessableEntity {
