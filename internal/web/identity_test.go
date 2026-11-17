@@ -140,7 +140,9 @@ func TestBaseURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
-	for _, bad := range []string{"", "concerts.example", "ftp://concerts.example", "https://"} {
+	// Links append /g/<secret> to it, and the proxy sends the whole host to the app.
+	for _, bad := range []string{"", "concerts.example", "ftp://concerts.example", "https://", "https://h/sub",
+		"https://h/?x", "https://h#x", "https://u@h"} {
 		if _, err := New(st, slog.New(slog.DiscardHandler), Config{BaseURL: bad, Now: time.Now}); err == nil {
 			t.Errorf("New(%q): want an error", bad)
 		}

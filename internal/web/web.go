@@ -66,10 +66,12 @@ type Config struct {
 	Fetch   *http.Client // for ticketing pages; prefill.NewClient() if nil
 }
 
-// ParseBaseURL accepts only http(s)://host, the form every absolute link is built on.
+// ParseBaseURL accepts only http(s)://host, optionally with a trailing slash: absolute links
+// append their path to it, and the app serves the whole host.
 func ParseBaseURL(s string) (*url.URL, error) {
 	u, err := url.Parse(s)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil ||
+		(u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" {
 		return nil, fmt.Errorf("base URL %q: want http(s)://host", s)
 	}
 	return u, nil

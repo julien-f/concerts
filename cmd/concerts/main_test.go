@@ -164,7 +164,7 @@ func TestNewGroupCleansName(t *testing.T) {
 // before rotate-secret kills the old link. Not parallel: t.Setenv.
 func TestRunChecksBaseURL(t *testing.T) {
 	t.Setenv("CONCERTS_DB", filepath.Join(t.TempDir(), "c.db"))
-	for _, u := range []string{"", "x", "ftp://h"} {
+	for _, u := range []string{"", "x", "ftp://h", "https://h/?x"} {
 		t.Setenv("CONCERTS_BASE_URL", u)
 		if err := run([]string{"rotate-secret", "1"}, slog.New(slog.DiscardHandler)); err == nil || !strings.Contains(err.Error(), "CONCERTS_BASE_URL") {
 			t.Errorf("base URL %q: err = %v, want one naming CONCERTS_BASE_URL", u, err)

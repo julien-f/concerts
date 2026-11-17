@@ -25,6 +25,7 @@ check_url() {
 	esac
 	case $1 in
 	*[!A-Za-z0-9._~:/-]*) die "base URL '$1': letters, digits and . _ ~ : / - only" ;;
+	https:///* | https://*/?*) die "base URL '$1': https://host only, no path" ;;
 	esac
 }
 
