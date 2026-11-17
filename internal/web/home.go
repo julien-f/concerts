@@ -100,7 +100,7 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 		return nil
 	}
 	if p.Added = find("added"); p.Added != nil {
-		p.Share, p.Notice = s.shareURL(gr, *p.Added), "Concert ajouté"
+		p.Share, p.Notice = s.shareURL(*p.Added), "Concert ajouté"
 	}
 	if p.Restored = find("restored"); p.Restored != nil {
 		p.Notice = "Concert rétabli"

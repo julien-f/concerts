@@ -74,14 +74,14 @@ func ics(groupID int64, c store.Concert, stamp time.Time) string {
 	return b.String()
 }
 
-// agenda serves one concert as an .ics download, for « Ajouter à mon agenda ».
-func (s *server) agenda(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
-	c, ok := s.concert(w, r, gr)
+// agenda serves one concert as an .ics download, for « Ajouter à mon agenda »; public, like the card.
+func (s *server) agenda(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "private, no-store")
+	groupID, c, ok := s.byToken(w, r)
 	if !ok {
 		return
 	}
 	w.Header().Set("Content-Type", "text/calendar; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="concert.ics"`)
-	w.Header().Set("Cache-Control", "private, no-store")
-	_, _ = w.Write([]byte(ics(gr.Group.ID, c, s.now())))
+	_, _ = w.Write([]byte(ics(groupID, c, s.now())))
 }

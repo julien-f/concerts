@@ -1,6 +1,6 @@
 {{define "title"}}Historique · {{.Artist}} · {{.Group.Name}}{{end}}
 {{define "content"}}
-<p><a class="back" href="{{.Base}}/concerts/{{.ID}}">← Retour au concert</a></p>
+<p><a class="back" href="/c/{{.Token}}">← Retour au concert</a></p>
 <h1>Historique : {{.Artist}}</h1>
 {{range .Edits}}
 <section class="edit" aria-labelledby="rev{{.RevID}}">

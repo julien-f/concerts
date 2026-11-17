@@ -25,7 +25,7 @@
 {{define "card"}}<li><article class="card" id="c{{.ID}}">
 {{with stub .Date}}<div class="stub {{stubStyle $.Artist}}" aria-hidden="true"><span class="date"><span>{{.Weekday}}</span><b>{{.Day}}</b><span>{{.Month}}</span></span></div>{{end}}
 <div class="body">
-<h3 class="artist"><a href="{{.Base}}/concerts/{{.ID}}">{{.Artist}}</a></h3>
+<h3 class="artist"><a href="/c/{{.Token}}">{{.Artist}}</a></h3>
 <p class="meta"><time datetime="{{datetime .Concert}}">{{when .Concert}}</time> · {{.Venue}}{{with .Price}} <span class="price">· {{.}}</span>{{end}}{{with .AddedBy}} <span class="by">ajouté par {{.}}</span>{{end}}</p>
 {{template "statuses" .Statuses}}
 </div>
@@ -35,7 +35,7 @@
 {{- /* Link preview tags of the pages a previewer reaches: the picker and concert pages
 (it never has the identity cookie). Same image everywhere: og:title already names the page. */}}
 {{define "ogCommon"}}<meta property="og:type" content="website">
-<meta property="og:site_name" content="Concerts · {{.Group.Name}}">
+<meta property="og:site_name" content="Concerts{{with .Group.Name}} · {{.}}{{end}}">
 <meta property="og:image" content="{{abs (static "og.png")}}">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">

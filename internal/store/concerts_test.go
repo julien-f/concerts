@@ -48,6 +48,15 @@ func TestConcerts(t *testing.T) {
 	if cs[0].AddedBy != "Léa" || cs[0].OnSaleDate != "2026-12-01" || cs[1].Time != "" || cs[1].TicketURL == "" {
 		t.Fatalf("fields = %+v", cs[:2])
 	}
+	if len(cs[0].Token) != 24 || cs[0].Token == cs[1].Token {
+		t.Fatalf("tokens = %q, %q: want distinct, 24 hex digits", cs[0].Token, cs[1].Token)
+	}
+	if gid, id, err := s.ConcertByToken(ctx, cs[0].Token); err != nil || gid != g.ID || id != early {
+		t.Fatalf("ConcertByToken = %d, %d, %v", gid, id, err)
+	}
+	if _, _, err := s.ConcertByToken(ctx, "unknown"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("ConcertByToken(unknown): %v", err)
+	}
 
 	upd := Concert{Artist: "Later", Date: "2027-04-01", Venue: "W"}
 	if _, err := s.UpdateConcert(ctx, g.ID, lea.ID, late, upd, testToday); err != nil {
@@ -133,8 +142,8 @@ func TestConcertLimit(t *testing.T) {
 	fill := func(n int, date string) {
 		t.Helper()
 		if _, err := s.db.ExecContext(ctx, `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?)
-			INSERT INTO concerts (group_id, artist, date, venue, created_at)
-			SELECT ?, 'A', ?, 'V', '2026-01-01T00:00:00Z' FROM n`, n, g.ID, date); err != nil {
+			INSERT INTO concerts (group_id, token, artist, date, venue, created_at)
+			SELECT ?, lower(hex(randomblob(12))), 'A', ?, 'V', '2026-01-01T00:00:00Z' FROM n`, n, g.ID, date); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -38,9 +38,9 @@ func TestEditHistory(t *testing.T) {
 	revert := func(rev string) string { return c1 + "/revisions/" + rev + "/revert" }
 	lea.postRedirect(t, g+"/concerts", concertValues("A", "2026-07-01", "", "V", "", ""))
 
-	_, body := lea.get(t, c1)
+	_, body := lea.follow(t, c1)
 	assertLacks(t, body, "modifié", "/history")
-	_, body = lea.get(t, c1+"/history")
+	_, body = lea.follow(t, c1+"/history")
 	assertContains(t, body, "<title>Historique · A · g</title>", "Aucune modification.")
 
 	// An edit records who changed what; the banner offers to undo it.
@@ -48,9 +48,9 @@ func TestEditHistory(t *testing.T) {
 	if got := location(t, resp); got != c1+"?saved=1" {
 		t.Fatalf("after an edit: Location = %q, want ?saved=1", got)
 	}
-	_, body = tom.get(t, c1+"?saved=1")
+	_, body = tom.follow(t, c1+"?saved=1")
 	assertContains(t, body, "Modifications enregistrées.", `action="`+revert("1")+`"`, "modifié par Tom · ", `href="`+c1+`/history"`)
-	_, body = tom.get(t, c1+"/history")
+	_, body = tom.follow(t, c1+"/history")
 	assertContains(t, body, "Tom · lun. 1 juin à 22\u00a0h",
 		"<li>Heure\u202f: (vide) → 20\u00a0h\u00a030</li>", "<li>Salle\u202f: V → W</li>",
 		`action="`+revert("1")+`"`, "Revenir avant cette modification")
@@ -63,7 +63,7 @@ func TestEditHistory(t *testing.T) {
 	}
 	// The banner offers undo only for the concert's newest revision.
 	for q, want := range map[string]bool{"?saved": false, "?saved=abc": false, "?saved=99": false, "?reverted=1": true} {
-		_, body = tom.get(t, c1+q)
+		_, body = tom.follow(t, c1+q)
 		if got := strings.Contains(body, `action="`+revert("1")+`"`); got != want {
 			t.Errorf("%s: undo form shown = %v, want %v", q, got, want)
 		}
@@ -71,7 +71,7 @@ func TestEditHistory(t *testing.T) {
 
 	// Once someone else edits, the old banner no longer offers to undo.
 	lea.postRedirect(t, c1, concertValues("B", "2026-07-01", "20:30", "W", "", ""))
-	_, body = tom.get(t, c1+"?saved=1")
+	_, body = tom.follow(t, c1+"?saved=1")
 	assertContains(t, body, "Modifications enregistrées.")
 	assertLacks(t, body, "/revert")
 
@@ -80,7 +80,7 @@ func TestEditHistory(t *testing.T) {
 	if got := location(t, resp); got != c1+"?reverted=3" {
 		t.Fatalf("after undo: Location = %q, want ?reverted=3", got)
 	}
-	_, body = lea.get(t, c1+"?reverted=3")
+	_, body = lea.follow(t, c1+"?reverted=3")
 	assertContains(t, body, "<title>Version rétablie – ", "Version rétablie.", "<h1>A</h1>", `action="`+revert("3")+`"`, "modifié par Léa")
 
 	// Going back before Tom's edit also undoes the newer ones.
@@ -90,10 +90,10 @@ func TestEditHistory(t *testing.T) {
 
 	// Without an identity: history readable, no buttons; going back needs a first name.
 	anon := ts.browser(t)
-	_, body = anon.get(t, c1+"/history")
+	_, body = anon.follow(t, c1+"/history")
 	assertContains(t, body, "Tom · ")
 	assertLacks(t, body, "/revert")
-	_, body = anon.get(t, c1+"?saved=4")
+	_, body = anon.follow(t, c1+"?saved=4")
 	assertLacks(t, body, "/revert")
 	resp, _ = anon.post(t, revert("1"), nil)
 	if got := location(t, resp); got != g {
@@ -104,7 +104,7 @@ func TestEditHistory(t *testing.T) {
 	if err := ts.store.DeleteMember(t.Context(), 1, "Tom"); err != nil {
 		t.Fatal(err)
 	}
-	_, body = lea.get(t, c1+"/history")
+	_, body = lea.follow(t, c1+"/history")
 	assertContains(t, body, "Ancien membre · ")
 }
 
@@ -146,12 +146,12 @@ func TestRevertErrors(t *testing.T) {
 
 	// Going back to a future date counts against the limit.
 	ts.exec(t, `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?)
-		INSERT INTO concerts (group_id, artist, date, venue, created_at)
-		SELECT 1, 'A', '2026-06-01', 'V', '2026-01-01T00:00:00Z' FROM n`, store.MaxConcerts)
+		INSERT INTO concerts (group_id, token, artist, date, venue, created_at)
+		SELECT 1, lower(hex(randomblob(12))), 'A', '2026-06-01', 'V', '2026-01-01T00:00:00Z' FROM n`, store.MaxConcerts)
 	if resp, _ := b.post(t, g+"/concerts/1/revisions/1/revert", nil); resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Errorf("revert past the limit: status = %d, want 422", resp.StatusCode)
 	}
-	if _, body := b.get(t, g+"/concerts/1"); !strings.Contains(body, "<h1>B</h1>") {
+	if _, body := b.follow(t, g+"/concerts/1"); !strings.Contains(body, "<h1>B</h1>") {
 		t.Errorf("refused revert changed the concert")
 	}
 

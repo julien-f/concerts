@@ -25,7 +25,7 @@ func TestStatusWithoutJS(t *testing.T) {
 
 	// Same answer twice is harmless; the pressed button (empty status) clears it.
 	resp, _ := sam.post(t, g+"/concerts/1/status", url.Values{"status": {"going"}, "back": {"concert"}})
-	if loc := resp.Header.Get("Location"); loc != g+"/concerts/1" {
+	if loc := resp.Header.Get("Location"); loc != ts.concertURL(t, secret, 1) {
 		t.Fatalf("back=concert: Location = %q", loc)
 	}
 	_, body = sam.postRedirect(t, g+"/concerts/1/status", url.Values{"status": {""}, "back": {"concert"}})
@@ -40,7 +40,7 @@ func TestStatusWithoutJS(t *testing.T) {
 	}
 
 	// Without identity, names show but no buttons.
-	_, body = ts.browser(t).get(t, g+"/concerts/1")
+	_, body = ts.browser(t).follow(t, g+"/concerts/1")
 	assertContains(t, body, "Y va : Marc")
 	if strings.Contains(body, `name="status"`) {
 		t.Errorf("status buttons offered without identity")

@@ -88,7 +88,7 @@ func (s *server) setStatus(w http.ResponseWriter, r *http.Request, gr *groupRequ
 	back, target := "list", fmt.Sprintf("%s#c%d", gr.Base, c.ID)
 	switch r.PostForm.Get("back") {
 	case "concert":
-		back, target = "concert", fmt.Sprintf("%s/concerts/%d", gr.Base, c.ID)
+		back, target = "concert", "/c/"+c.Token
 	case "mine":
 		back, target = "mine", fmt.Sprintf("%s?mine=1#c%d", gr.Base, c.ID)
 	}

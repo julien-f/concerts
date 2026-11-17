@@ -124,7 +124,7 @@ func TestRefreshConcert(t *testing.T) {
 	}
 
 	// Nothing is saved before « Enregistrer ».
-	if _, body := b.get(t, g+"/concerts/1"); strings.Contains(body, "GRENOBLE") || !strings.Contains(body, "2027-01-25") {
+	if _, body := b.follow(t, g+"/concerts/1"); strings.Contains(body, "GRENOBLE") || !strings.Contains(body, "2027-01-25") {
 		t.Errorf("refresh saved the concert:\n%s", body)
 	}
 	if _, body := b.get(t, g+"/concerts/new"); strings.Contains(body, "Relire") {
