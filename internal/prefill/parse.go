@@ -411,10 +411,16 @@ func performers(v any) string {
 }
 
 // str is a JSON-LD string with HTML entities decoded: WordPress encodes them (« &#8217; », « &amp; »).
-// Only entities closed by « ; »: html.UnescapeString alone would read « Salle&regie » as « Salle®ie ».
+// Only whole entities closed by « ; »: html.UnescapeString alone reads « Salle&regie » and
+// « Salle&regie; » as « Salle®ie… », decoding the longest entity name a word starts with.
 func str(v any) string {
 	s, _ := v.(string)
-	return entity.ReplaceAllStringFunc(s, html.UnescapeString)
+	return entity.ReplaceAllStringFunc(s, func(e string) string {
+		if d := html.UnescapeString(e); d == ";" || !strings.HasSuffix(d, ";") {
+			return d
+		}
+		return e
+	})
 }
 
 var entity = regexp.MustCompile(`&(?:#[0-9]+|#[xX][0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);`)
