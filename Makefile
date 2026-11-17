@@ -33,7 +33,7 @@ demo: build
 	CONCERTS_DB=$(DEMO_DB) CONCERTS_BASE_URL=http://localhost:8080 bin/concerts demo
 	CONCERTS_DB=$(DEMO_DB) CONCERTS_BASE_URL=http://localhost:8080 CONCERTS_ADDR=$(ADDR) bin/concerts serve
 
-# axe-core, vnu and page weight on every screen of `make demo`; downloads its tools once.
+# axe-core and vnu on every screen of `make demo`, plus the group page's weight; downloads its tools once.
 verify-ui:
 	scripts/verify-ui.sh
 
