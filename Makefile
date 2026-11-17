@@ -49,7 +49,7 @@ $(GOLANGCI_LINT):
 	GOBIN=$(CURDIR)/bin go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 	mv bin/golangci-lint $@
 
-# Deployment: README.md "Deploy". No default host, so nothing goes to a machine by accident.
+# Deployment: docs/operations.md. No default host, so nothing goes to a machine by accident.
 # install/uninstall run deploy/*.sh as root (ADMIN_HOST: an account with sudo);
 # deploy/rollback log in as the service user (DEPLOY_HOST=<name>@<server>) and need no root.
 NAME ?= concerts

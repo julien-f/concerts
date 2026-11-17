@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Design, threat model and roadmap: [docs/design.md](docs/design.md). Decisions: [docs/decisions/](docs/decisions/).
+Design, threat model and later work: [docs/design.md](docs/design.md). Operations: [docs/operations.md](docs/operations.md). Decisions: [docs/decisions/](docs/decisions/).
 
 ## Stack
 
@@ -16,7 +16,7 @@ Design, threat model and roadmap: [docs/design.md](docs/design.md). Decisions: [
 - `internal/store/`: SQLite, migrations (`migrations/NNNN_*.sql`, applied at startup), hand-written SQL.
 - `internal/web/`: handlers, templates (parsed at startup), static files.
 - `internal/prefill/`: ticketing-page parser (fixtures in `testdata/`) and SSRF-safe client.
-- `deploy/`: templates of the systemd units and Caddy site (`@NAME@`, `@PROXY_USER@`, `@HOST@`: nothing server-specific), `install.sh`/`uninstall.sh` (root) with `lib.sh`, and `admin` (run on the server as the service user). `docs/`: design and ADRs. `scripts/`: dev tooling (`verify-ui`).
+- `deploy/`: templates of the systemd units and Caddy site (`@NAME@`, `@PROXY_USER@`, `@HOST@`: nothing server-specific), `install.sh`/`uninstall.sh` (root) with `lib.sh`, and `admin` (run on the server as the service user). `docs/`: design, operations and ADRs. `scripts/`: dev tooling (`verify-ui`, `measure`).
 - No interface without a second implementation, no speculative layers.
 
 ## Conventions
@@ -25,7 +25,7 @@ Design, threat model and roadmap: [docs/design.md](docs/design.md). Decisions: [
 - The group secret never reaches logs or the database (only its SHA-256); request logs record the matched route pattern, never the raw path.
 - Every `/g/{secret}` handler goes through `inGroup` (`internal/web/identity.go`); user input goes through `parseForm` and `cleanText` (`internal/web/form.go`).
 - Every slice's HTTP tests reuse `newTestServer(t)` (`internal/web/testserver_test.go`): temp DB, fake clock, real router, `t.Parallel()`; table tests for several cases.
-- One vertical slice per branch (roadmap in `docs/design.md`), with its migration, handlers, tests and an update of `docs/design.md`; merged with `--no-ff`.
+- One vertical slice per branch (slices in `docs/design.md`), with its migration, handlers, tests and an update of `docs/design.md`; merged with `--no-ff`.
 - New schema change = new migration file; never edit a committed one.
 - Templates link static files with `{{static "name"}}`, which returns a content-hashed URL served with `Cache-Control: immutable`.
 - htmx attributes are written `data-hx-*` (valid HTML for vnu); every htmx form also works as a plain POST with a 303. Shared fragments live in `templates/partials.html`.
@@ -34,7 +34,7 @@ Design, threat model and roadmap: [docs/design.md](docs/design.md). Decisions: [
 
 - `make fmt` after editing Go files. `make run`, `make test` (`go test -race ./...`), `make lint`, `make vuln` (needs network), `make check` (lint + vuln + test; the pre-commit hook runs it when `go.mod`/`go.sum` are staged, else lint + test; `make deploy` runs vuln), `make build`.
 - Single test: `go test -race -run TestName ./internal/web`.
-- `make demo`: fresh `demo.db` with sample data, then serves it. `make verify-ui`: axe-core, vnu and page weight on every demo screen; run before merging a UI change ([ADR 0006](docs/decisions/0006-scripted-ui-verification.md)).
+- `make demo`: fresh `demo.db` with sample data, then serves it. `make verify-ui`: axe-core, vnu and page weight on every demo screen; run before merging a UI change ([ADR 0006](docs/decisions/0006-scripted-ui-verification.md)). `make measure`: Go lines, binary size and `make check` duration, logged per slice.
 
 ## Pitfalls
 
