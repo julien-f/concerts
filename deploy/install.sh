@@ -52,11 +52,14 @@ systemctl daemon-reload
 id "$NAME" >/dev/null 2>&1 || useradd -r -U -d "$H" -s /bin/sh "$NAME"
 usermod -p '*' "$NAME" # no password; not "!", which OpenSSH without PAM treats as locked
 [ ! -L "$H" ] || die "$H is a symlink"
+# A leftover home (a deleted user's, a reused UID) would be adopted with whatever it holds.
+[ ! -e "$H" ] || [ "$(stat -c %U:%G "$H")" = "root:$NAME" ] || die "$H exists and is not the root:$NAME home install.sh creates: move it away first"
 install -d -o root -g "$NAME" -m 0750 "$H"
 for d in bin data backups; do
 	[ ! -L "$H/$d" ] || die "$H/$d is a symlink"
 	install -d -o "$NAME" -g "$NAME" -m 0700 "$H/$d"
 done
+[ ! -L "$H/.ssh" ] || die "$H/.ssh is a symlink"
 install -d -o root -g root -m 0755 "$H/.ssh"
 # restrict: no forwarding, agent or pty. Root-owned, so the key holder cannot lift it.
 printf 'restrict %s\n' "$(cat "$key")" >"$H/.ssh/authorized_keys.new"
