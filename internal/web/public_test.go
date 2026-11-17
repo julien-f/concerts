@@ -22,6 +22,7 @@ func TestPublicCard(t *testing.T) {
 
 	_, body := outsider.get(t, c)
 	assertContains(t, body, "<title>Zaz · Concerts</title>", `<span class="brand">Concerts</span>`, "<h1>Zaz</h1>",
+		`<span class="stub-label" aria-hidden="true"><span>mer.</span><b>1</b><span>juil.</span><span class="hour">20`+"\u00a0h\u00a0"+`30</span></span>`,
 		"20 €", ">Écouter<",
 		"Olympia", "Mise en vente : ", `href="https://tickets.example/z"`, `href="`+c+`/agenda.ics"`,
 		"Tu fais partie du groupe ?")
