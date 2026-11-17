@@ -98,9 +98,9 @@ func fitParagraphs(v string, maxRunes int) string {
 	rs := []rune(v)
 	win := string(rs[:maxRunes]) // one rune past the cut, telling whether the cut ends a line, sentence or word
 	cut := win[:len(win)-utf8.RuneLen(rs[maxRunes-1])]
-	if i := max(strings.LastIndex(win, "\n"), strings.LastIndex(win, ". ")+1); i > len(win)/2 {
+	if i := max(strings.LastIndex(win, "\n"), strings.LastIndex(win, ". ")+1); i > 0 && utf8.RuneCountInString(win[:i]) > maxRunes/2 {
 		cut = win[:i]
-	} else if i := strings.LastIndex(win, " "); i > 0 {
+	} else if i := strings.LastIndexAny(win, " \n"); i > 0 {
 		cut = win[:i]
 	}
 	return strings.TrimSpace(cut) + "…"

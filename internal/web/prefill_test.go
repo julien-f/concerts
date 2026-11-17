@@ -197,6 +197,8 @@ func TestFitParagraphsWordCut(t *testing.T) {
 		{"aaaa bbbb\ncc", "aaaa bbbb…", 10},                                                              // ended by a line feed too
 		{"Un. Deux trois quatre\nfin", "Un. Deux trois quatre…", 22},                                     // a whole line, not the sentence before it
 		{"Concert\n" + strings.Repeat("mot ", 30), "Concert\n" + strings.Repeat("mot ", 7) + "mot…", 40}, // a line end too early: between words
+		{"Concert de rock\nhttps://example.com/" + strings.Repeat("x", 60), "Concert de rock…", 40},      // no space after an early line end: cut there
+		{strings.Repeat("a", 22) + "\n" + strings.Repeat("é ", 20), strings.Repeat("a", 22) + "…", 40},   // past half in runes, not in bytes
 	} {
 		if got := fitParagraphs(tt.in, tt.max); got != tt.want {
 			t.Errorf("fitParagraphs: %d runes ending %q, want %d ending %q", utf8.RuneCountInString(got),
