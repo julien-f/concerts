@@ -72,9 +72,9 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 │ ── Pas dans la liste ? ───── │
 │ Ton prénom [______________]  │
 │ Marc est déjà dans la liste :│  on duplicate: aria-invalid,
-│ si c'est toi, [C'est moi :   │  aria-describedby, autofocus,
-│ Marc] ; sinon ajoute une     │  field refilled "Marc "
-│ initiale (ex. « Marc D. »)   │
+│ si c'est toi, [C'est moi] ;  │  aria-describedby, autofocus,
+│ sinon ajoute une initiale    │  field refilled "Marc "
+│ (ex. « Marc D. »)            │
 │ [        Rejoindre         ] │
 └──────────────────────────────┘
 ```
@@ -86,7 +86,7 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 │ Les copains   Léa · Ce n'est │
 │ du concert          pas moi  │
 │ ✓ Concert ajouté [Partager]  │  banner after add / delete
-│   (or [Annuler])             │
+│ or [Annuler la suppression]  │
 │ (Tous) ( Mes concerts )      │  filter links, aria-current
 │ MARS 2027                    │  h2 per month (h1 = group)
 │ ┌────┬─────────────────────┐ │
@@ -100,7 +100,8 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 │ │    ┆ [✓ J'y vais]        │ │  aria-pressed, stable ids,
 │ │    ┆                     │ │  flex-wrap
 │ └────┴─────────────────────┘ │
-│ ▸ Passés (3)                 │  <details>, names only
+│ PASSÉS (3)                   │  h2, then a <details>: summary
+│ ▸ Afficher les concerts…     │  « Afficher les concerts passés », names only
 │ [   + Ajouter un concert   ] │  fixed bar, main screen only
 └──────────────────────────────┘
 ```
@@ -165,7 +166,7 @@ Without identity: statuses shown, buttons and edit/delete replaced by « Choisis
 ┌──────────────────────────────┐
 │ ← Annuler                    │
 │ Ajouter un concert           │
-│ Lien de billetterie          │  own GET form (new only),
+│ Lien de la billetterie       │  own GET form (new only),
 │ [https://…        ][Pré-remplir]│ hx-sync drop, role=status
 │ (Impossible de lire cette    │  « Lecture de la page… »;
 │  page : essaie le lien de la │  failure/limit: described-by
@@ -176,6 +177,7 @@ Without identity: statuses shown, buttons and edit/delete replaced by « Choisis
 │ Date*  [jj/mm/aaaa] Heure [--:--]│
 │ Salle*        [____________] │
 │ Adresse       [____________] │  autocomplete=off
+│ Lien de billetterie [_______]│  the prefilled URL (main form)
 │ Mise en vente [jj/mm/aaaa]   │
 │ Prix          [____________] │  free text (« Prix libre »)
 │ Description   [____________] │  textarea, 6 rows
@@ -320,7 +322,7 @@ One slice per branch, merged with `--no-ff`. All shipped (v1).
    - History page: one entry per edit (« Tom · mar. 3 mars à 18 h 05 », Paris time), only the fields it changed as « Salle : V → W » (reads aloud, no `<mark>`), and « Revenir avant cette modification » (also undoes newer edits; « Rétablir » names undelete); « Aucune modification. » if never edited.
    - Out of scope: detecting concurrent edits, history of statuses and deletes, history on the list's cards.
 10. **Public concert link** ([ADR 0009](decisions/0009-public-concert-link.md)): members share what they see, so the concert page moved to a secret-free `/c/<token>` (see the threat model) instead of adding a share button.
-   - Old concert URLs, the picker's `next` and post-edit redirects reach it through a 303. Cards, `og:url`, `<link rel="canonical">` (Chrome on Android shares it), « Prévenir le groupe », the history page and `.ics` link to it directly.
+   - Old concert URLs, the picker's `next` and post-edit redirects reach it through a 303. Cards, `og:url`, `<link rel="canonical">` (Chrome on Android shares it), « Prévenir le groupe » and the history page link to it directly; the `.ics` moved under it (`/c/<token>/agenda.ics`).
    - Out of scope: secret-free list and forms (their addresses still hold the secret), revoking one concert's link.
 11. **Lighter concert page**: one orange button (« Billetterie »); the date and title move into the patterned head; « Écouter » becomes one pill per artist, « Ajouter à mon agenda » a link among the facts, « Prévenir le groupe », here and in the « Concert ajouté » banner, a secondary « Partager » opening the share sheet ([ADR 0010](decisions/0010-share-sheet.md)).
 
