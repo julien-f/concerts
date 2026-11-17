@@ -47,10 +47,10 @@ func paragraphs(v string) string {
 	return strings.TrimRight(strings.Join(lines, "\n"), "\n")
 }
 
-// valid returns v, invalid UTF-8 replaced, and whether it is valid UTF-8 of 1 to maxRunes
-// runes without prefill.Invisible characters other than line feeds.
+// valid returns v and whether it is valid UTF-8 of 1 to maxRunes runes without
+// prefill.Invisible characters other than line feeds.
 func valid(v string, maxRunes int) (string, bool) {
-	return strings.ToValidUTF8(v, "\uFFFD"), utf8.ValidString(v) && v != "" && utf8.RuneCountInString(v) <= maxRunes &&
+	return v, utf8.ValidString(v) && v != "" && utf8.RuneCountInString(v) <= maxRunes &&
 		!strings.ContainsFunc(v, func(r rune) bool { return r != '\n' && prefill.Invisible(r) })
 }
 

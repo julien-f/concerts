@@ -52,6 +52,7 @@ func newConcertForm(gr *groupRequest, c store.Concert, errs map[string]string) *
 	focused := false
 	for i := range f.Fields {
 		fd := &f.Fields[i]
+		fd.Value = strings.ToValidUTF8(fd.Value, "\uFFFD") // a rejected value comes back as typed, the page stays UTF-8
 		fd.Error = errs[fd.Name]
 		if fd.Error != "" && !focused {
 			fd.Autofocus, focused = true, true

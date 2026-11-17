@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 // TestConcertLifecycle walks add, show, edit, delete and undo as a browser without JS.
@@ -208,9 +209,14 @@ func TestConcertFormKeepsInput(t *testing.T) {
 	assertContains(t, body, `value="Foo`+"\u200b"+`Bar"`, `value="`+long+`"`, ">Ex\u00ademple</textarea>")
 
 	// Invalid UTF-8 comes back replaced, so the page stays valid UTF-8.
-	form.Set("artist", "ab\xffcd")
-	_, body = b.post(t, "/g/"+secret+"/concerts", form)
-	assertContains(t, body, `value="ab`+"\ufffd"+`cd"`)
+	for _, field := range []string{"artist", "time", "ticket_url"} {
+		form := validConcert()
+		form.Set(field, "ab\xffcd")
+		_, body = b.post(t, "/g/"+secret+"/concerts", form)
+		if !utf8.ValidString(body) {
+			t.Errorf("%s with invalid UTF-8: the page is not valid UTF-8", field)
+		}
+	}
 }
 
 // TestDuplicateConcert: a live concert with the same artist and date asks before adding another.
