@@ -252,21 +252,92 @@ func listenLinks(artist string) []listenLink {
 	return links
 }
 
+// showConcert redirects to the public link, banner query kept, so the address bar never shows the secret.
 func (s *server) showConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
-	c, ok := s.concert(w, r, gr)
+	if c, ok := s.concert(w, r, gr); ok {
+		target := "/c/" + c.Token
+		if r.URL.RawQuery != "" {
+			target += "?" + r.URL.RawQuery
+		}
+		// The target is a token from the database: the query cannot change the host.
+		http.Redirect(w, r, target, http.StatusSeeOther) //nolint:gosec // G710: see above
+	}
+}
+
+// byToken loads the live concert named by the {token} path value, else answers the same plain 404 for every miss.
+func (s *server) byToken(w http.ResponseWriter, r *http.Request) (groupID int64, c store.Concert, ok bool) {
+	groupID, id, err := s.store.ConcertByToken(r.Context(), r.PathValue("token"))
+	if err == nil {
+		c, err = s.store.Concert(r.Context(), groupID, id)
+	}
+	if errors.Is(err, store.ErrNotFound) || c.Deleted {
+		http.Error(w, "Concert introuvable : il a été supprimé ou ce lien est incomplet.", http.StatusNotFound)
+		return 0, c, false
+	}
+	if err != nil {
+		s.fail(w, r, err)
+		return 0, c, false
+	}
+	return groupID, c, true
+}
+
+// publicPage is a concert as anyone holding its public link sees it: no group, no first names.
+type publicPage struct {
+	*groupRequest // empty: the layout reads its fields
+	store.Concert
+	URL    string
+	Map    string
+	Listen []listenLink
+	Going  int // members answering « J'y vais »
+}
+
+// publicConcert is /c/{token}: the full concert page for a member of its group, else the public card.
+func (s *server) publicConcert(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "private, no-cache")
+	w.Header().Set("Vary", "Cookie")
+	groupID, c, ok := s.byToken(w, r)
 	if !ok {
 		return
 	}
+	gr, err := s.fromCookie(r, groupID)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	if gr != nil {
+		s.showConcertPage(w, r, gr, c)
+		return
+	}
+	ss, err := s.store.Statuses(r.Context(), groupID, c.ID)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	p := &publicPage{groupRequest: &groupRequest{}, Concert: c, URL: s.pageURL(c), Map: mapURL(c), Listen: listenLinks(c.Artist)}
+	for _, st := range ss {
+		if st.Status == store.Going {
+			p.Going++
+		}
+	}
+	s.render(w, r, http.StatusOK, "public", p)
+}
+
+// mapURL is the OpenStreetMap search for the venue, "" without an address.
+func mapURL(c store.Concert) string {
+	if c.Address == "" {
+		return ""
+	}
+	return "https://www.openstreetmap.org/search?query=" + url.QueryEscape(c.Venue+", "+c.Address)
+}
+
+func (s *server) showConcertPage(w http.ResponseWriter, r *http.Request, gr *groupRequest, c store.Concert) {
 	ss, err := s.store.Statuses(r.Context(), gr.Group.ID, c.ID)
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
 	p := &concertPage{groupRequest: gr, Concert: c, Statuses: newStatusBlock(gr, c, ss, "concert", s.upcoming(c)),
-		URL: s.pageURL(gr, c), Share: s.shareURL(gr, c), Listen: listenLinks(c.Artist)}
-	if c.Address != "" {
-		p.Map = "https://www.openstreetmap.org/search?query=" + url.QueryEscape(c.Venue+", "+c.Address)
-	}
+		URL: s.pageURL(c), Share: s.shareURL(c), Map: mapURL(c), Listen: listenLinks(c.Artist)}
 	q := r.URL.Query()
 	var rev string
 	switch {
@@ -380,14 +451,14 @@ func (s *server) restoreConcert(w http.ResponseWriter, r *http.Request, gr *grou
 	}
 }
 
-// pageURL is the absolute link of a concert page.
-func (s *server) pageURL(gr *groupRequest, c store.Concert) string {
-	return s.abs(fmt.Sprintf("%s/concerts/%d", gr.Base, c.ID))
+// pageURL is the absolute public link of a concert page, safe to hand outside the group.
+func (s *server) pageURL(c store.Concert) string {
+	return s.abs("/c/" + c.Token)
 }
 
 // shareURL is the « Prévenir le groupe » link: WhatsApp with the concert and its page.
-func (s *server) shareURL(gr *groupRequest, c store.Concert) string {
-	text := fmt.Sprintf("%s, %s, %s\n%s", c.Artist, s.when(c), c.Venue, s.pageURL(gr, c))
+func (s *server) shareURL(c store.Concert) string {
+	text := fmt.Sprintf("%s, %s, %s\n%s", c.Artist, s.when(c), c.Venue, s.pageURL(c))
 	// %20, not +: WhatsApp shows a literal + otherwise.
 	return "https://wa.me/?text=" + strings.ReplaceAll(url.QueryEscape(text), "+", "%20")
 }

@@ -26,23 +26,29 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 - **Secret**: 16 bytes from `crypto/rand` (128 bits), base64url without padding; guessing is infeasible.
 - **Storage**: only the SHA-256 of the secret, under a unique index; lookup by hash. A database leak does not reveal working links.
 - **Leaks through the browser**: `Referrer-Policy: no-referrer`; `X-Robots-Tag: noindex`; group pages send `Cache-Control: private, no-cache`.
-- **Leaks through the server**: request logs record the matched route pattern (`GET /g/{secret}/concerts/{id}`), never the raw path, so no spelling (`//g/…`, `/./g/…`) can leak the secret; no IP addresses. The reverse proxy writes no access log for the site. Its error log does record the path when the app cannot answer: not on a deploy (requests wait in the socket), but during a rollback, a restore, a crash loop or an install; it goes to the journal, readable by root and, depending on the distro, the `adm`, `wheel` or `systemd-journal` groups.
+- **Leaks through the server**: request logs record the matched route pattern (`GET /g/{secret}/concerts/{id}`, `GET /c/{token}`), never the raw path, so no spelling (`//g/…`, `/./g/…`) can leak the secret; no IP addresses. The reverse proxy writes no access log for the site. Its error log does record the path when the app cannot answer: not on a deploy (requests wait in the socket), but during a rollback, a restore, a crash loop or an install; it goes to the journal, readable by root and, depending on the distro, the `adm`, `wheel` or `systemd-journal` groups.
 - **Leaks through features**: the `.ics` holds no page URL; preview images are static files, outside `/g/`; the prefill fetcher sends no cookie or `Referer`; the « Voir sur la carte » link sends only venue and address to OpenStreetMap; « Écouter » sends only the artist to YouTube; absolute URLs come from `CONCERTS_BASE_URL` (required by `serve`), never from `Host`.
 - **Identity cookie**: `HttpOnly`, `SameSite=Lax`, `Path=/g/<secret>`, `Secure` when the base URL is https (`serve` logs a warning for a plain-http one outside localhost), `Max-Age` 400 days. It holds the member id, checked against the group on every request.
+- **Public concert link** ([ADR 0009](decisions/0009-public-concert-link.md)): a concert page's address is `/c/<token>`, so what members copy or share (address bar, share sheet, « Prévenir le groupe ») never holds the secret.
+  - Token: 12 random bytes in hex (96 bits), per concert, stored in clear (it must be rendered into links); a database leak exposes only public cards. It never rotates: deleting the concert is the only revocation.
+  - Without a valid group cookie, the page is the public card: concert facts and a count of members going, no group name, first names or link into the group. Unknown and deleted tokens give the same plain 404, cookie or not; the response varies on `Cookie`.
+  - Group cookie `g<group id>`: `<secret>.<member id>`, `Path=/c`, other attributes as the identity cookie; refreshed by every GET under `/g/<secret>`. It is a bearer credential like the link; the proxy logs no cookies. On `/c` it is parsed strictly, resolved like the link and must name the concert's group, else the card. The member page it unlocks holds the secret in its links and forms, never in its address.
+  - Links sent before this slice carry the secret: rotate once after deploying it.
 - **CSRF**: every state change is a POST behind `http.CrossOriginProtection` (lets GET through; trusts `Sec-Fetch-Site`, else compares `Origin` with `Host`, so the proxy must keep `Host`). The prefill GET triggers an outbound fetch but needs the secret and is rate-limited.
 - **Abuse with a leaked link**: per-group caps (see Data model) bound what it can store. At the row cap a create purges old concerts, so a leaked link can flush the undo history and the past, as deleting everything then creating and deleting already could; likewise 20 edits flush a concert's edit history. Backups are the remedy. Server read, write and idle timeouts; request bodies capped at 64 kB.
 - **SSRF** (prefill): the resolved IP of every connection, redirects included, must be public unicast (IPv6 within `2000::/3`, special-purpose ranges excluded) on port 80 or 443; no proxy, no keep-alive, 3 redirects, 8 s, 1 MB of `text/html`; visible text is kept only for a host with a site rule (exact match on the final host, after redirects), at most 5,000 nodes; fetch errors are logged with the host only (a pasted group link must not reach the logs); one fetch in flight and 10 a minute per group, 2 in flight overall.
-- **Accepted risks**: anyone with the link can join and act as any first name; members are friends, so impersonation is social, not technical. « Prévenir le groupe » (`wa.me`) and link previews in other messengers hand the link to the messaging provider (Telegram, Discord, Slack fetch it from their servers), and with it the picker or concert page, first names (answers, « ajouté par », « modifié par ») included. Both are fixed by rotating the secret.
+- **Accepted risks**: anyone with the link can join and act as any first name; members are friends, so impersonation is social, not technical. Link previews in other messengers hand the link to the messaging provider (Telegram, Discord, Slack fetch it from their servers): for the group link, the picker and its first names, fixed by rotating the secret; for a concert link, only the public card. Anyone given a concert link sees the card for as long as the concert exists.
 
 ## User journeys
 
-1. **Join**: tap the link in WhatsApp → picker screen → tap « C'est moi » on one's name, or type a new first name → main screen. Later visits skip the picker (cookie). From a shared concert link without identity, the concert page shows « Choisis ton prénom pour répondre », and the picker returns to that concert (`next`).
+1. **Join**: tap the link in WhatsApp → picker screen → tap « C'est moi » on one's name, or type a new first name → main screen. Later visits skip the picker (cookie). Opening a concert link after the group link but without identity, the concert page shows « Choisis ton prénom pour répondre », and the picker returns to that concert (`next`).
 2. **Add**: tap « Ajouter un concert » (fixed at the bottom on a phone, beside the filters on a computer) → paste a ticket URL, tap « Pré-remplir » → check or type the fields → « Enregistrer » → main screen with a banner « Concert ajouté » and « Prévenir le groupe » (opens WhatsApp with artist, date and the concert link).
 3. **Respond**: on a card, tap « Ça m'intéresse » or « J'y vais »; tapping the active one clears it. The status block updates in place (htmx) or after a full reload (no JS).
 4. **Plan**: filter « Mes concerts »; open a concert → « Écouter » searches the artist on YouTube (one « Écouter <artiste> » per artist of a line-up written with a spaced « + » or « / », the separator prefill joins the performers with); « Ajouter à mon agenda » downloads its `.ics`; « Billetterie » opens the ticket link.
 5. **Fix**: open a concert → « Modifier » (banner with « Annuler ») or « Supprimer » (banner « Concert supprimé » with « Annuler la suppression »). A bad edit noticed later: « Voir l'historique » → « Revenir avant cette modification ».
 6. **Shared phone**: « Ce n'est pas moi » in every page header → picker again.
-7. **Operator**: [operations.md](operations.md).
+7. **Invite a friend to one concert**: copy the concert page's address (or share it) → the friend sees the public card: the concert, « Billetterie », « Ajouter à mon agenda » and how many members go, nothing of the group. A member whose browser never opened the group link sees the same card, with a hint to open it once.
+8. **Operator**: [operations.md](operations.md).
 
 ## Screens
 
@@ -106,7 +112,7 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 - Empty list: « Aucun concert pour l'instant. Ajoute le premier ! »; empty filter: « Tu n'as encore réagi à aucun concert. »
 - Banners come from the URL but show only while true: `?added=<id>` and `?restored=<id>` if that concert is in the list, `?deleted=<id>` (« Annuler la suppression ») if it is still deleted. An edit returns to the concert page with `?saved=<rev>`, going back to a revision with `?reverted=<rev>` (no `=<rev>` when nothing changed); their « Annuler » shows only while `<rev>` is the concert's newest revision.
 
-### Concert (`/g/<secret>/concerts/<id>`)
+### Concert (`/c/<token>`, with the group cookie)
 
 ```
 ┌──────────────────────────────┐
@@ -130,6 +136,21 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 ```
 
 Without identity: statuses shown, buttons and edit/delete replaced by « Choisis ton prénom pour répondre » (picker with `next`, accepted only as `/concerts/<id>`). The year is shown when it differs from the current one.
+
+### Public card (`/c/<token>`, without the group cookie)
+
+```
+┌──────────────────────────────┐
+│ Concerts                     │  no group name
+│ Fontaines D.C.               │  h1
+│ sam. 14 mars · 20 h          │
+│ Zénith Paris                 │
+│ Mise en vente : ven. 3 oct.  │  if set
+│ 3 personnes du groupe y vont │  « J'y vais », if any
+│ [Billetterie ↗] [Agenda]     │
+│ Tu fais partie du groupe ? … │  open the group link once
+└──────────────────────────────┘
+```
 
 ### Concert form (`/concerts/new`, `/concerts/<id>/edit`)
 
@@ -213,7 +234,7 @@ concert_revisions (id PK, concert_id → concerts ON DELETE CASCADE,
 
 ## Routes
 
-All under `/g/{secret}` (written `…`); unknown secret → 404. Every POST: `CrossOriginProtection`, then 303 (Post/Redirect/Get) — htmx requests get a fragment instead where noted.
+All under `/g/{secret}` (written `…`) but the first two and the last two; unknown secret → 404. Every POST: `CrossOriginProtection`, then 303 (Post/Redirect/Get) — htmx requests get a fragment instead where noted.
 
 | Method | Path | Role | Response |
 |---|---|---|---|
@@ -224,7 +245,7 @@ All under `/g/{secret}` (written `…`); unknown secret → 404. Every POST: `Cr
 | POST | `…/logout` | « Ce n'est pas moi »: clears cookie | 303 `…` |
 | GET | `…/concerts/new` | add form; `?url=` pre-fills from the ticket page | page; htmx swaps the form (`hx-select`) |
 | POST | `…/concerts` | create; `anyway=1` skips the duplicate check | 303 `…?added=<id>`; 422 form (invalid or duplicate) |
-| GET | `…/concerts/{id}` | concert page | page |
+| GET | `…/concerts/{id}` | old and internal concert URL; sets the group cookie | 303 `/c/<token>`, query kept |
 | GET | `…/concerts/{id}/edit` | edit form | page |
 | POST | `…/concerts/{id}/refresh` | « Relire la billetterie »: fills the posted form's empty fields from its ticket link, saves nothing | form page (200, as htmx swaps no 4xx) |
 | POST | `…/concerts/{id}` | update, recording a revision | 303 `…/concerts/{id}?saved=<rev>`; 422 form |
@@ -233,9 +254,11 @@ All under `/g/{secret}` (written `…`); unknown secret → 404. Every POST: `Cr
 | POST | `…/concerts/{id}/delete` | soft delete | 303 `…?deleted=<id>` |
 | POST | `…/concerts/{id}/restore` | undo delete | 303 `…?restored=<id>#c<id>`; 422 if the group is full |
 | POST | `…/concerts/{id}/status` | set `status` (empty clears); `back` = `list`, `mine` or `concert` | htmx: status block fragment; else 303 to `…#c<id>`, `…?mine=1#c<id>` or the concert page |
-| GET | `…/concerts/{id}/agenda.ics` | one-event calendar | `text/calendar` |
+| GET | `/c/{token}` | concert page with the group cookie (`?saved`, `?reverted` banners), else public card | page; 404 plain |
+| GET | `/c/{token}/agenda.ics` | one-event calendar, public | `text/calendar` |
 
-- Routes needing an identity (all but the picker, `/me`, the concert page and `agenda.ics`) redirect to `…` (303) without a valid member cookie.
+- Every GET under `…` refreshes the group cookie `g<group id>` (`Path=/c`).
+- Routes needing an identity (all but the picker, `/me`, the concert page and history) redirect to `…` (303) without a valid member cookie.
 - htmx requests get `HX-Redirect` instead of a 303 (htmx would swap the target page into the fragment) and `HX-Refresh` with a 404 (htmx swaps no 4xx).
 - Errors: 404 for unknown concert or a concert of another group: inside a group, a page « Concert introuvable » with the group header and « ← Tous les concerts » (htmx gets `HX-Refresh`, then that page); an unknown secret (rotated, truncated or never issued) gets the same plain « Page introuvable. », which reveals nothing, plus a hint to ask whoever runs the group (not the members: a rotation cuts off the leaker); other unmatched paths get Go's default 404; 500 is a generic page, details only in logs. Pages render into a buffer first, so a template error never sends a truncated 200.
 
@@ -244,7 +267,7 @@ All under `/g/{secret}` (written `…`); unknown secret → 404. Every POST: `Cr
 - **Duplicate first name** (same `name_key`): 422 picker offering « C'est moi : Marc » (likely a lost cookie) or an initial, field refilled with the name + space. Two concurrent creates: the unique index decides, the loser sees the same message.
 - **Lost cookie** (new phone, cleared browser): the picker lists existing names; tapping one restores identity. No data is tied to the cookie itself.
 - **Stale cookie** (member deleted, or from another group): treated as no identity → picker.
-- **Secret rotation**: the old link 404s; the cookie path changes with the secret, so everyone re-picks their name from the list; data is untouched.
+- **Secret rotation**: the old link 404s; the cookie path changes with the secret, so everyone re-picks their name from the list; data is untouched. Concert links keep working: the old group cookie no longer resolves, so they show the public card until the new link is opened.
 - **Concert without time**: card and page show the date only; `.ics` becomes an all-day event; sorting puts it before timed concerts the same day.
 - **Past concerts**: a concert moves to « Passés » the day after its date (Europe/Paris), newest first.
 - **Delete and undo**: delete sets `deleted_at`; the main page banner offers « Annuler la suppression » (POST restore). Deleted concerts are hidden everywhere; their pages, edits and status writes 404 (stale tab); statuses kept for undo, until the 1000-row cap purges the oldest deleted ones.
@@ -280,7 +303,7 @@ One slice per branch, merged with `--no-ff`. All shipped (v1).
 6. **« Ajouter à mon agenda »**: one concert's `.ics`, no feed, so the secret never reaches a calendar provider.
    - Hand-written RFC 5545: no METHOD (Outlook would see an invitation); UID `concert-<group>-<id>` (no host, RFC 7986); timed concerts in UTC with a 3 h end (no VTIMEZONE), date-only ones `VALUE=DATE` with an exclusive next-day end; SUMMARY, LOCATION (« venue, address »), DESCRIPTION « Billets : <link> » only.
    - TEXT escaping (a field cannot start a property line), folding at 75 octets on rune boundaries, CRLF; golden files. `attachment; filename="concert.ics"`, `private, no-store`. An edited concert re-imported on iOS is not updated (known limit).
-7. **Link previews** (WhatsApp, Signal, iMessage, Telegram…): the previewer (the sender's phone for WhatsApp, Signal and iMessage, the provider's servers for the others) never has the identity cookie, so it gets the picker for the group link and the concert page for a concert link, never the list.
+7. **Link previews** (WhatsApp, Signal, iMessage, Telegram…): the previewer (the sender's phone for WhatsApp, Signal and iMessage, the provider's servers for the others) never has the identity cookie, so it gets the picker for the group link and, since slice 10, the public card for a concert link, never the list.
    - Concert page: `og:title` (artist), `og:description` (date · venue); picker: `og:title` (group name) and a generic `og:description`, no first name. Both: `og:url` (from `CONCERTS_BASE_URL`), `og:site_name`, `og:type`, `twitter:card` (Discord's large layout), shared in partial `ogCommon`.
    - One static `og:image` for every page (1200×630, no text, stub in the central square that WhatsApp's thumbnail keeps) and a 180×180 `apple-touch-icon` (iMessage and Signal fall back to it; no SVG support). A per-concert image would need a font and a new dependency to repeat `og:title`.
    - Previewers need the https base URL and must not be blocked: never add a disallow-all `robots.txt`. A preview travels with the message, so a change never reaches links already sent.
@@ -289,6 +312,9 @@ One slice per branch, merged with `--no-ff`. All shipped (v1).
    - « modifié par X · Voir l'historique » on the concert page; the banner after an edit offers « Annuler ».
    - History page: one entry per edit (« Tom · mar. 3 mars à 18 h 05 », Paris time), only the fields it changed as « Salle : V → W » (reads aloud, no `<mark>`), and « Revenir avant cette modification » (also undoes newer edits; « Rétablir » names undelete); « Aucune modification. » if never edited.
    - Out of scope: detecting concurrent edits, history of statuses and deletes, history on the list's cards.
+10. **Public concert link** ([ADR 0009](decisions/0009-public-concert-link.md)): members share what they see, so the concert page moved to a secret-free `/c/<token>` (see the threat model) instead of adding a share button.
+   - Old concert URLs, the picker's `next` and post-edit redirects reach it through a 303. Cards, `og:url`, `<link rel="canonical">` (Chrome on Android shares it), « Prévenir le groupe », the history page and `.ics` link to it directly.
+   - Out of scope: secret-free list and forms (their addresses still hold the secret), revoking one concert's link.
 
 Also in v1: `make install`, `make deploy`, `make rollback` ([operations.md](operations.md)).
 

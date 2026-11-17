@@ -48,9 +48,9 @@ func TestConcertLifecycle(t *testing.T) {
 	assertContains(t, body, "<!doctype html>", "<title>Concert ajouté – ", "Concert ajouté\u202f: Fontaines D.C.",
 		"sam. 13 juin · 20\u00a0h\u00a030", "Zénith Paris", "ajouté par Léa",
 		// The share text holds the absolute concert link, %20-encoded.
-		"https://wa.me/?text=Fontaines%20D.C.%2C%20sam.%2013%20juin", "http%3A%2F%2Fexample.test%2Fg%2F"+secret+"%2Fconcerts%2F1")
+		"https://wa.me/?text=Fontaines%20D.C.%2C%20sam.%2013%20juin", "http%3A%2F%2Fexample.test"+strings.ReplaceAll(ts.concertURL(t, secret, 1), "/", "%2F"))
 
-	_, body = b.get(t, g+"/concerts/1")
+	_, body = b.follow(t, g+"/concerts/1")
 	assertContains(t, body, "<h1>Fontaines D.C.</h1>", `href="https://tickets.example/f?a=1&amp;b=2"`, "Mise en vente\u202f: ", "ven. 5 juin", "Modifier",
 		`class="band `+stubStyle("Fontaines D.C.")+`"`)
 
@@ -101,14 +101,14 @@ func TestConcertAddress(t *testing.T) {
 	form := concertValues("Zaz", "2026-06-13", "", "L'Olympia", "", "")
 	form.Set("address", " 28 bd des Capucines & co, Paris ")
 	b.postRedirect(t, g+"/concerts", form)
-	_, body := b.get(t, g+"/concerts/1")
+	_, body := b.follow(t, g+"/concerts/1")
 	assertContains(t, body, "<p>28 bd des Capucines &amp; co, Paris<br>",
 		`href="https://www.openstreetmap.org/search?query=L%27Olympia%2C&#43;28&#43;bd&#43;des&#43;Capucines&#43;%26&#43;co%2C&#43;Paris"`)
 	_, body = b.get(t, g+"/concerts/1/edit")
 	assertContains(t, body, `id="address" name="address" type="text" value="28 bd des Capucines &amp; co, Paris" maxlength="100" autocomplete="off"`)
 
 	b.postRedirect(t, g+"/concerts/1", concertValues("Zaz", "2026-06-13", "", "L'Olympia", "", ""))
-	if _, body = b.get(t, g+"/concerts/1"); strings.Contains(body, "openstreetmap") {
+	if _, body = b.follow(t, g+"/concerts/1"); strings.Contains(body, "openstreetmap") {
 		t.Errorf("map link shown without an address")
 	}
 }
@@ -120,13 +120,13 @@ func TestConcertListenLink(t *testing.T) {
 	g := "/g/" + secret
 
 	b.postRedirect(t, g+"/concerts", concertValues("Simon & Garfunkel", "2026-06-13", "", "L'Olympia", "", ""))
-	_, body := b.get(t, g+"/concerts/1")
+	_, body := b.follow(t, g+"/concerts/1")
 	assertContains(t, body,
 		`href="https://www.youtube.com/results?search_query=Simon&#43;%26&#43;Garfunkel" rel="noopener noreferrer">Écouter<span class="visually-hidden"> sur YouTube</span></a>`)
 
 	// Several artists: one link each, named; « AC/DC » is not split.
 	b.postRedirect(t, g+"/concerts", concertValues("Les Hiboux + AC/DC /  Zaz +", "2026-06-14", "", "L'Olympia", "", ""))
-	_, body = b.get(t, g+"/concerts/2")
+	_, body = b.follow(t, g+"/concerts/2")
 	assertContains(t, body,
 		`href="https://www.youtube.com/results?search_query=Les&#43;Hiboux" rel="noopener noreferrer">Écouter Les Hiboux<span class="visually-hidden"> sur YouTube</span></a>`,
 		`href="https://www.youtube.com/results?search_query=AC%2FDC" rel="noopener noreferrer">Écouter AC/DC<span class="visually-hidden"> sur YouTube</span></a>`,
@@ -146,7 +146,7 @@ func TestConcertDescriptionPrice(t *testing.T) {
 
 	_, body := b.get(t, g)
 	assertContains(t, body, `L&#39;Olympia <span class="price">· 29–32 €</span>`)
-	_, body = b.get(t, g+"/concerts/1")
+	_, body = b.follow(t, g+"/concerts/1")
 	assertContains(t, body, "<p>Prix : 29–32 €</p>",
 		"<details class=\"about\"><summary>En savoir plus</summary>\n<p>Première &lt;b&gt;ligne&lt;/b&gt;\n\nDeux &amp; trois</p></details>")
 	_, body = b.get(t, g+"/concerts/1/edit")
@@ -155,7 +155,7 @@ func TestConcertDescriptionPrice(t *testing.T) {
 
 	b.postRedirect(t, g+"/concerts/1", concertValues("Zaz", "2026-06-13", "", "L'Olympia", "", ""))
 	for path, absent := range map[string]string{g: `class="price"`, g + "/concerts/1": "Prix :"} {
-		if _, body = b.get(t, path); strings.Contains(body, absent) || strings.Contains(body, `class="about"`) {
+		if _, body = b.follow(t, path); strings.Contains(body, absent) || strings.Contains(body, `class="about"`) {
 			t.Errorf("%s: price or description shown once cleared", path)
 		}
 	}
@@ -163,7 +163,7 @@ func TestConcertDescriptionPrice(t *testing.T) {
 	_, body = b.get(t, g+"/concerts/1/history")
 	assertContains(t, body, "<li>Prix : 29–32 € → (vide)</li>")
 	b.postRedirect(t, g+"/concerts/1/revisions/1/revert", nil)
-	_, body = b.get(t, g+"/concerts/1")
+	_, body = b.follow(t, g+"/concerts/1")
 	assertContains(t, body, "<p>Prix : 29–32 €</p>", `<details class="about">`)
 }
 
@@ -277,7 +277,7 @@ func TestConcertAccess(t *testing.T) {
 		{"anonymous create", anon, "POST", g + "/concerts", http.StatusSeeOther},
 		{"anonymous edit", anon, "GET", g + "/concerts/1/edit", http.StatusSeeOther},
 		{"anonymous delete", anon, "POST", g + "/concerts/1/delete", http.StatusSeeOther},
-		{"anonymous concert page", anon, "GET", g + "/concerts/1", http.StatusOK},
+		{"anonymous concert page", anon, "GET", g + "/concerts/1", http.StatusSeeOther}, // to the public link
 		{"other group's concert", intruder, "GET", "/g/" + other + "/concerts/1", http.StatusNotFound},
 		{"other group's delete", intruder, "POST", "/g/" + other + "/concerts/1/delete", http.StatusNotFound},
 		{"other group's restore", intruder, "POST", "/g/" + other + "/concerts/1/restore", http.StatusNotFound},
@@ -317,7 +317,7 @@ func TestPickerReturnsToConcert(t *testing.T) {
 	b.postRedirect(t, g+"/concerts", validConcert())
 
 	newcomer := ts.browser(t)
-	_, body := newcomer.get(t, g+"/concerts/1")
+	_, body := newcomer.follow(t, g+"/concerts/1")
 	assertContains(t, body, `href="`+g+`?next=/concerts/1"`, "Choisis ton prénom")
 	if strings.Contains(body, "Modifier") {
 		t.Errorf("edit offered without identity")
@@ -338,15 +338,15 @@ func TestPickerReturnsToConcert(t *testing.T) {
 }
 
 // TestOpenGraph: a link previewer never has the identity cookie, so the group link gives it
-// the picker and a concert link the concert page; both carry preview tags, escaped.
+// the picker and a concert link the public card; both carry preview tags, escaped.
 func TestOpenGraph(t *testing.T) {
 	t.Parallel()
 	ts := newTestServer(t)
 	b, secret := ts.member(t, "Léa")
 	g := "/g/" + secret
 	b.postRedirect(t, g+"/concerts", concertValues(`Les "Rita" <Mitsouko>`, "2026-06-13", "20:30", "Zénith", "", ""))
+	c := ts.concertURL(t, secret, 1)
 	common := []string{
-		`<meta property="og:site_name" content="Concerts · g">`,
 		`<meta property="og:image:width" content="1200">`,
 		`<meta name="twitter:card" content="summary_large_image">`,
 	}
@@ -358,19 +358,22 @@ func TestOpenGraph(t *testing.T) {
 		get  func() (*http.Response, string)
 		want []string
 	}{
-		{"concert page", func() (*http.Response, string) { return previewer.get(t, g+"/concerts/1") }, []string{
+		{"concert link", func() (*http.Response, string) { return previewer.get(t, c) }, []string{
+			`<meta property="og:site_name" content="Concerts">`,
+			`<link rel="canonical" href="http://example.test` + c + `">`,
 			`<meta property="og:title" content="Les &#34;Rita&#34; &lt;Mitsouko&gt;">`,
 			"<meta property=\"og:description\" content=\"sam. 13 juin · 20\u00a0h\u00a030 · Zénith\">",
-			`<meta property="og:url" content="http://example.test` + g + `/concerts/1">`,
+			`<meta property="og:url" content="http://example.test` + c + `">`,
 		}},
 		{"group link", func() (*http.Response, string) { return previewer.get(t, g) }, []string{
+			`<meta property="og:site_name" content="Concerts · g">`,
 			`<meta property="og:title" content="g">`,
 			"<meta property=\"og:description\" content=\"Qui va à quel concert\u202f? Ouvre le lien et choisis ton prénom.\">",
 			`<meta property="og:url" content="http://example.test` + g + `">`,
 		}},
 		{"picker after an error", func() (*http.Response, string) {
 			return previewer.post(t, g+"/me", url.Values{"name": {""}})
-		}, []string{`<meta property="og:title" content="g">`}},
+		}, []string{`<meta property="og:site_name" content="Concerts · g">`, `<meta property="og:title" content="g">`}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			_, body := tt.get()
@@ -397,8 +400,8 @@ func TestUpcomingLimit(t *testing.T) {
 	g := "/g/" + secret
 	b.postRedirect(t, g+"/concerts", concertValues("Past", "2026-05-31", "", "V", "", "")) // id 1
 	ts.exec(t, `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?)
-		INSERT INTO concerts (group_id, artist, date, venue, created_at)
-		SELECT 1, 'A', '2026-06-01', 'V', '2026-01-01T00:00:00Z' FROM n`, store.MaxConcerts)
+		INSERT INTO concerts (group_id, token, artist, date, venue, created_at)
+		SELECT 1, lower(hex(randomblob(12))), 'A', '2026-06-01', 'V', '2026-01-01T00:00:00Z' FROM n`, store.MaxConcerts)
 	for name, path := range map[string]string{"create": g + "/concerts", "edit into the future": g + "/concerts/1"} {
 		resp, body := b.post(t, path, validConcert())
 		if resp.StatusCode != http.StatusUnprocessableEntity {

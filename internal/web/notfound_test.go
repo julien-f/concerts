@@ -41,7 +41,6 @@ func TestConcertNotFoundPage(t *testing.T) {
 	for _, tt := range []struct{ name, method, path string }{
 		{"deleted concert", "GET", g + "/concerts/1"},
 		{"edit form", "GET", g + "/concerts/1/edit"},
-		{"agenda", "GET", g + "/concerts/1/agenda.ics"},
 		{"another group's concert", "GET", g + "/concerts/2"},
 		{"not a number", "GET", g + "/concerts/abc"},
 		{"update", "POST", g + "/concerts/1"},

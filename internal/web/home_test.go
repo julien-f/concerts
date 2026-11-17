@@ -53,7 +53,7 @@ func TestHomeMonthsAndPast(t *testing.T) {
 	if strings.Contains(past, `name="status"`) {
 		t.Errorf("past concerts offer status buttons")
 	}
-	if _, page := b.get(t, g+"/concerts/3"); strings.Contains(page, `name="status"`) {
+	if _, page := b.follow(t, g+"/concerts/3"); strings.Contains(page, `name="status"`) {
 		t.Errorf("a past concert page offers status buttons")
 	}
 
@@ -110,8 +110,8 @@ func TestHomePastShown(t *testing.T) {
 	g := "/g/" + secret
 	// Concert i is i days ago, so ids run newest first; Léa answered all but the first.
 	ts.exec(t, `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 32)
-		INSERT INTO concerts (id, group_id, artist, date, venue, created_at)
-		SELECT i, 1, 'A', date('2026-06-01', '-' || i || ' days'), 'V', '2026-01-01T00:00:00Z' FROM n`)
+		INSERT INTO concerts (id, group_id, token, artist, date, venue, created_at)
+		SELECT i, 1, lower(hex(randomblob(12))), 'A', date('2026-06-01', '-' || i || ' days'), 'V', '2026-01-01T00:00:00Z' FROM n`)
 	ts.exec(t, "INSERT INTO statuses SELECT id, 1, 'going' FROM concerts WHERE id > 1")
 	cards := regexp.MustCompile(`id="c\d+"`)
 

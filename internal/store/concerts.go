@@ -2,7 +2,9 @@ package store
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 )
 
@@ -15,6 +17,7 @@ const MaxConcerts = 500
 // Concert is a gig shared in a group. Optional fields are "" when unset.
 type Concert struct {
 	ID          int64
+	Token       string // of the public link /c/<token>
 	Artist      string
 	Date        string // YYYY-MM-DD, Europe/Paris
 	Time        string // HH:MM or ""
@@ -31,13 +34,13 @@ type Concert struct {
 }
 
 // concertSelect matches concertFields.
-const concertSelect = `SELECT c.id, c.artist, c.date, coalesce(c.time, ''), c.venue,
+const concertSelect = `SELECT c.id, c.token, c.artist, c.date, coalesce(c.time, ''), c.venue,
 	coalesce(c.address, ''), coalesce(c.ticket_url, ''), coalesce(c.on_sale_date, ''),
 	coalesce(c.price, ''), coalesce(c.description, ''), coalesce(m.name, ''), c.deleted_at IS NOT NULL
 	FROM concerts c LEFT JOIN members m ON m.id = c.created_by`
 
 func concertFields(c *Concert) []any {
-	return []any{&c.ID, &c.Artist, &c.Date, &c.Time, &c.Venue, &c.Address, &c.TicketURL, &c.OnSaleDate, &c.Price, &c.Description, &c.AddedBy, &c.Deleted}
+	return []any{&c.ID, &c.Token, &c.Artist, &c.Date, &c.Time, &c.Venue, &c.Address, &c.TicketURL, &c.OnSaleDate, &c.Price, &c.Description, &c.AddedBy, &c.Deleted}
 }
 
 // Concerts returns the group's live concerts in chronological order (no time first within a day).
@@ -64,6 +67,23 @@ func (s *Store) Concert(ctx context.Context, groupID, id int64) (Concert, error)
 		err = nil
 	}
 	return c, err
+}
+
+// ConcertByToken returns the group and id of the concert whose public link holds token,
+// deleted or not, or ErrNotFound.
+func (s *Store) ConcertByToken(ctx context.Context, token string) (groupID, id int64, err error) {
+	err = s.db.QueryRowContext(ctx, "SELECT group_id, id FROM concerts WHERE token = ?", token).Scan(&groupID, &id)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = ErrNotFound
+	}
+	return groupID, id, err
+}
+
+// newToken returns a public link token: 12 random bytes in hex, like the migration's backfill.
+func newToken() string {
+	b := make([]byte, 12)
+	_, _ = rand.Read(b) // never fails, see crypto/rand.Read
+	return hex.EncodeToString(b)
 }
 
 // SameConcert returns the group's oldest live concert dated date whose artist matches artist
@@ -127,9 +147,9 @@ func (s *Store) CreateConcert(ctx context.Context, groupID, memberID int64, c Co
 		return 0, err
 	}
 	res, err := tx.ExecContext(ctx, `INSERT INTO concerts
-		(group_id, artist, date, time, venue, address, ticket_url, on_sale_date, price, description, created_by, created_at)
-		VALUES (?, ?, ?, nullif(?, ''), ?, nullif(?, ''), nullif(?, ''), nullif(?, ''), nullif(?, ''), nullif(?, ''), ?, ?)`,
-		groupID, c.Artist, c.Date, c.Time, c.Venue, c.Address, c.TicketURL, c.OnSaleDate, c.Price, c.Description, memberID, s.timestamp())
+		(group_id, token, artist, date, time, venue, address, ticket_url, on_sale_date, price, description, created_by, created_at)
+		VALUES (?, ?, ?, ?, nullif(?, ''), ?, nullif(?, ''), nullif(?, ''), nullif(?, ''), nullif(?, ''), nullif(?, ''), ?, ?)`,
+		groupID, newToken(), c.Artist, c.Date, c.Time, c.Venue, c.Address, c.TicketURL, c.OnSaleDate, c.Price, c.Description, memberID, s.timestamp())
 	if err != nil {
 		return 0, err
 	}

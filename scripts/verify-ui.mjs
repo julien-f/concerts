@@ -136,6 +136,21 @@ const screens = [
   },
   // The concert deleted above, as reached from a shared link: 404 page.
   { name: "not-found", go: (p) => p.goto(`${groupURL}/concerts/1`) },
+  // A live concert's public link opened by an outsider (last: it drops the cookies).
+  {
+    name: "public",
+    go: async (p) => {
+      await p.goto(groupURL);
+      const href = await p.getAttribute(".card h3 a", "href");
+      await p.context().clearCookies();
+      return p.goto(new URL(href, groupURL).href);
+    },
+    check: async (p) => {
+      const html = await p.content();
+      if (!html.includes("Tu fais partie du groupe")) return "not the public card";
+      return html.includes("/g/") ? "the public card links to the group" : null;
+    },
+  },
 ];
 
 mkdirSync(htmlDir, { recursive: true });

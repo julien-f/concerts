@@ -114,6 +114,21 @@ func (ts *testServer) newGroup(t *testing.T, name string) string {
 	return secret
 }
 
+// concertURL is the public link path of the group's concert id.
+func (ts *testServer) concertURL(t *testing.T, secret string, id int64) string {
+	t.Helper()
+	ctx := context.Background()
+	g, err := ts.store.GroupBySecret(ctx, secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := ts.store.Concert(ctx, g.ID, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return "/c/" + c.Token
+}
+
 func (ts *testServer) get(t *testing.T, path string) (*http.Response, string) {
 	t.Helper()
 	return ts.browser(t).get(t, path)
@@ -161,6 +176,19 @@ func (b *browser) get(t *testing.T, path string) (*http.Response, string) {
 	return b.do(t, req)
 }
 
+// follow gets path and follows its redirects, e.g. a group concert URL to its public link.
+func (b *browser) follow(t *testing.T, path string) (*http.Response, string) {
+	t.Helper()
+	resp, body := b.get(t, path)
+	for i := 0; resp.StatusCode == http.StatusSeeOther; i++ {
+		if i == 3 {
+			t.Fatalf("GET %s: too many redirects", path)
+		}
+		resp, body = b.get(t, resp.Header.Get("Location"))
+	}
+	return resp, body
+}
+
 // postRequest builds a form submission.
 func (b *browser) postRequest(t *testing.T, path string, form url.Values) *http.Request {
 	t.Helper()
@@ -184,7 +212,7 @@ func (b *browser) postRedirect(t *testing.T, path string, form url.Values) (*htt
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("POST %s: status = %d, want 303; body:\n%s", path, resp.StatusCode, body)
 	}
-	return b.get(t, resp.Header.Get("Location"))
+	return b.follow(t, resp.Header.Get("Location"))
 }
 
 // join picks or creates a first name in the group and returns the resulting page.

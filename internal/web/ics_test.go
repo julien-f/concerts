@@ -102,11 +102,12 @@ func TestAgendaRoute(t *testing.T) {
 	b.postRedirect(t, g+"/concerts", validConcert())
 	b.postRedirect(t, g+"/concerts/2/delete", nil)
 
-	_, page := b.get(t, g+"/concerts/1")
-	assertContains(t, page, `href="`+g+`/concerts/1/agenda.ics">Ajouter à mon agenda`)
+	c := ts.concertURL(t, secret, 1)
+	_, page := b.follow(t, g+"/concerts/1")
+	assertContains(t, page, `href="`+c+`/agenda.ics">Ajouter à mon agenda`)
 
-	// No identity needed: the link is the access, like the concert page.
-	resp, body := ts.browser(t).get(t, g+"/concerts/1/agenda.ics")
+	// Public, like the card: it shows nothing more.
+	resp, body := ts.browser(t).get(t, c+"/agenda.ics")
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
@@ -124,13 +125,9 @@ func TestAgendaRoute(t *testing.T) {
 		t.Errorf("the calendar holds the group link:\n%s", body)
 	}
 
-	for path, want := range map[string]int{
-		g + "/concerts/2/agenda.ics":                   http.StatusNotFound, // deleted
-		g + "/concerts/9/agenda.ics":                   http.StatusNotFound,
-		"/g/" + NewSecret() + "/concerts/1/agenda.ics": http.StatusNotFound,
-	} {
-		if resp, _ := b.get(t, path); resp.StatusCode != want {
-			t.Errorf("GET %s: status = %d, want %d", path, resp.StatusCode, want)
+	for _, path := range []string{ts.concertURL(t, secret, 2) + "/agenda.ics", "/c/unknown/agenda.ics"} {
+		if resp, _ := b.get(t, path); resp.StatusCode != http.StatusNotFound {
+			t.Errorf("GET %s: status = %d, want 404", path, resp.StatusCode)
 		}
 	}
 }

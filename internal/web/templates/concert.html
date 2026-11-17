@@ -3,6 +3,7 @@
 {{define "meta"}}{{template "ogCommon" .}}<meta property="og:title" content="{{.Artist}}">
 <meta property="og:description" content="{{when .Concert}} · {{.Venue}}">
 <meta property="og:url" content="{{.URL}}">
+<link rel="canonical" href="{{.URL}}">
 {{end}}
 {{define "content"}}
 <p><a class="back" href="{{.Base}}#c{{.ID}}">← Tous les concerts</a></p>
@@ -30,7 +31,7 @@
 {{with .TicketURL}}<a class="button" href="{{.}}" rel="noopener noreferrer">Billetterie</a>{{end}}
 {{range .Listen}}<a class="button" href="{{.URL}}" rel="noopener noreferrer">Écouter{{with .Name}} {{.}}{{end}}<span class="visually-hidden"> sur YouTube</span></a>
 {{end}}
-<a class="button" href="{{.Base}}/concerts/{{.ID}}/agenda.ics">Ajouter à mon agenda</a>
+<a class="button" href="/c/{{.Token}}/agenda.ics">Ajouter à mon agenda</a>
 <a class="button" href="{{.Share}}" rel="noreferrer">Prévenir le groupe<span class="visually-hidden"> sur WhatsApp</span></a>
 </p>
 {{template "statuses" .Statuses}}

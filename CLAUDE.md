@@ -23,7 +23,7 @@ Design, threat model and later work: [docs/design.md](docs/design.md). Operation
 
 - Time comes from an injected clock (`now func() time.Time`), never `time.Now()` in `internal/`.
 - The group secret never reaches logs or the database (only its SHA-256); request logs record the matched route pattern, never the raw path.
-- Every `/g/{secret}` handler goes through `inGroup` (`internal/web/identity.go`); user input goes through `parseForm` and `cleanText` (`internal/web/form.go`).
+- Every `/g/{secret}` handler goes through `inGroup` (`internal/web/identity.go`), and a `/c/{token}` handler resolves the group cookie through `fromCookie`; user input goes through `parseForm` and `cleanText` (`internal/web/form.go`).
 - Every slice's HTTP tests reuse `newTestServer(t)` (`internal/web/testserver_test.go`): temp DB, fake clock, real router, `t.Parallel()`; table tests for several cases.
 - One vertical slice per branch (slices in `docs/design.md`), with its migration, handlers, tests and an update of `docs/design.md`; merged with `--no-ff`.
 - New schema change = new migration file; never edit a committed one.

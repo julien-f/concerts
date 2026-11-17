@@ -40,7 +40,7 @@ func TestStatusWithoutJS(t *testing.T) {
 	}
 
 	// Without identity, names show but no buttons.
-	_, body = ts.browser(t).get(t, g+"/concerts/1")
+	_, body = ts.browser(t).follow(t, g+"/concerts/1")
 	assertContains(t, body, "Y va : Marc")
 	if strings.Contains(body, `name="status"`) {
 		t.Errorf("status buttons offered without identity")

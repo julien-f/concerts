@@ -1,0 +1,33 @@
+{{define "title"}}{{.Artist}} · Concerts{{end}}
+{{- /* Anyone holding the link sees this: nothing about the group but a count. */}}
+{{define "meta"}}{{template "ogCommon" .}}<meta property="og:title" content="{{.Artist}}">
+<meta property="og:description" content="{{when .Concert}} · {{.Venue}}">
+<meta property="og:url" content="{{.URL}}">
+<link rel="canonical" href="{{.URL}}">
+{{end}}
+{{define "brand"}}<span class="brand">Concerts</span>{{end}}
+{{define "content"}}
+<article class="ticket">
+<div class="band {{stubStyle .Artist}}" aria-hidden="true"></div>
+<h1>{{.Artist}}</h1>
+<div class="facts">
+<p class="when"><time datetime="{{datetime .Concert}}">{{when .Concert}}</time></p>
+<p>{{.Venue}}</p>
+{{with .Map}}<p>{{$.Address}}<br><a href="{{.}}" rel="noopener noreferrer">Voir sur la carte<span class="visually-hidden"> OpenStreetMap</span></a></p>{{end}}
+{{with .Price}}<p>Prix : {{.}}</p>{{end}}
+{{with .OnSaleDate}}<p>Mise en vente : <time datetime="{{.}}">{{frdate .}}</time></p>{{end}}
+{{with .Going}}<p class="meta">{{.}} {{if eq . 1}}personne du groupe y va{{else}}personnes du groupe y vont{{end}}</p>{{end}}
+{{with .Description}}<details class="about"><summary>En savoir plus</summary>
+<p>{{.}}</p></details>{{end}}
+</div>
+<div class="side">
+<p class="actions">
+{{with .TicketURL}}<a class="button" href="{{.}}" rel="noopener noreferrer">Billetterie</a>{{end}}
+{{range .Listen}}<a class="button" href="{{.URL}}" rel="noopener noreferrer">Écouter{{with .Name}} {{.}}{{end}}<span class="visually-hidden"> sur YouTube</span></a>
+{{end}}
+<a class="button" href="/c/{{.Token}}/agenda.ics">Ajouter à mon agenda</a>
+</p>
+</div>
+</article>
+<p class="meta">Tu fais partie du groupe ? Ouvre une fois le lien du groupe dans WhatsApp, puis reviens sur cette page.</p>
+{{end}}

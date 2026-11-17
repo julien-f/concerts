@@ -1,11 +1,13 @@
 package web
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
 	"unicode/utf8"
 
 	"concerts/internal/store"
@@ -28,11 +30,35 @@ type groupRequest struct {
 	Notice string // <title> prefix (banner or « Erreur »), heard after a no-JS redirect
 }
 
+// resolve finds the group of secret (store.ErrNotFound if none) and the member named by
+// memberID, ignored unless it is a member of that group.
+func (s *server) resolve(ctx context.Context, secret, memberID string) (*groupRequest, error) {
+	g, err := s.store.GroupBySecret(ctx, secret)
+	if err != nil {
+		return nil, err
+	}
+	// Base only ever holds a secret that matched a group: a plain base64url segment.
+	gr := &groupRequest{Group: g, Base: "/g/" + secret}
+	if id, err := strconv.ParseInt(memberID, 10, 64); err == nil {
+		m, err := s.store.Member(ctx, g.ID, id)
+		switch {
+		case err == nil:
+			gr.Me = &m
+		case !errors.Is(err, store.ErrNotFound):
+			return nil, err
+		}
+	}
+	return gr, nil
+}
+
 // inGroup resolves the secret (404 if unknown) and the identity cookie.
 func (s *server) inGroup(h groupHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		secret := r.PathValue("secret")
-		g, err := s.store.GroupBySecret(r.Context(), secret)
+		var memberID string
+		if c, err := r.Cookie(memberCookie); err == nil {
+			memberID = c.Value
+		}
+		gr, err := s.resolve(r.Context(), r.PathValue("secret"), memberID)
 		if errors.Is(err, store.ErrNotFound) {
 			s.notFound(w, r, nil)
 			return
@@ -42,22 +68,46 @@ func (s *server) inGroup(h groupHandler) http.HandlerFunc {
 			return
 		}
 		w.Header().Set("Cache-Control", "private, no-cache")
-		// Base only ever holds a secret that matched a group: a plain base64url segment.
-		gr := &groupRequest{Group: g, Base: "/g/" + secret}
-		if c, err := r.Cookie(memberCookie); err == nil {
-			if id, err := strconv.ParseInt(c.Value, 10, 64); err == nil {
-				m, err := s.store.Member(r.Context(), g.ID, id)
-				switch {
-				case err == nil:
-					gr.Me = &m
-				case !errors.Is(err, store.ErrNotFound):
-					s.fail(w, r, err)
-					return
-				}
-			}
+		// GET only: every write ends in one, which then records the member it left.
+		if r.Method == http.MethodGet {
+			s.setGroupCookie(w, gr)
 		}
 		h(w, r, gr)
 	}
+}
+
+// setGroupCookie lets /c pages, whose URL lacks the secret, recognise a member: "<secret>.<member id or nothing>".
+func (s *server) setGroupCookie(w http.ResponseWriter, gr *groupRequest) {
+	v := strings.TrimPrefix(gr.Base, "/g/") + "."
+	if gr.Me != nil {
+		v += strconv.FormatInt(gr.Me.ID, 10)
+	}
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure follows the base URL scheme (plain http in development)
+		Name: groupCookie(gr.Group.ID), Value: v, Path: "/c",
+		MaxAge: 400 * 24 * 3600, HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func groupCookie(groupID int64) string { return "g" + strconv.FormatInt(groupID, 10) }
+
+// groupCookieValue matches a well-formed group cookie: a secret as NewSecret makes it, then an optional member id.
+var groupCookieValue = regexp.MustCompile(`^([A-Za-z0-9_-]{22})\.([0-9]*)$`)
+
+// fromCookie resolves the group cookie of groupID; nil if absent, malformed, rotated or another group's.
+func (s *server) fromCookie(r *http.Request, groupID int64) (*groupRequest, error) {
+	c, err := r.Cookie(groupCookie(groupID))
+	if err != nil {
+		return nil, nil
+	}
+	m := groupCookieValue.FindStringSubmatch(c.Value)
+	if m == nil {
+		return nil, nil
+	}
+	gr, err := s.resolve(r.Context(), m[1], m[2])
+	if errors.Is(err, store.ErrNotFound) || (err == nil && gr.Group.ID != groupID) {
+		return nil, nil
+	}
+	return gr, err
 }
 
 type groupHandler = func(http.ResponseWriter, *http.Request, *groupRequest)
