@@ -27,7 +27,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 - **Storage**: only the SHA-256 of the secret, under a unique index; lookup by hash. A database leak does not reveal working links.
 - **Leaks through the browser**: `Referrer-Policy: no-referrer`; `X-Robots-Tag: noindex`; group pages send `Cache-Control: private, no-cache`.
 - **Leaks through the server**: request logs record the matched route pattern (`GET /g/{secret}/concerts/{id}`), never the raw path, so no spelling (`//g/…`, `/./g/…`) can leak the secret; no IP addresses. The reverse proxy writes no access log for the site. Its error log does record the path when the app cannot answer: not on a deploy (requests wait in the socket), but during a rollback, a restore, a crash loop or an install; it goes to the journal, readable by root and, depending on the distro, the `adm`, `wheel` or `systemd-journal` groups.
-- **Leaks through features**: the `.ics` holds no page URL; preview images are static files, outside `/g/`; the prefill fetcher sends no cookie or `Referer`; the « Voir sur la carte » link sends only venue and address to OpenStreetMap; absolute URLs come from `CONCERTS_BASE_URL` (required by `serve`), never from `Host`.
+- **Leaks through features**: the `.ics` holds no page URL; preview images are static files, outside `/g/`; the prefill fetcher sends no cookie or `Referer`; the « Voir sur la carte » link sends only venue and address to OpenStreetMap; « Écouter » sends only the artist to YouTube; absolute URLs come from `CONCERTS_BASE_URL` (required by `serve`), never from `Host`.
 - **Identity cookie**: `HttpOnly`, `SameSite=Lax`, `Path=/g/<secret>`, `Secure` when the base URL is https (`serve` logs a warning for a plain-http one outside localhost), `Max-Age` 400 days. It holds the member id, checked against the group on every request.
 - **CSRF**: every state change is a POST behind `http.CrossOriginProtection` (lets GET through; trusts `Sec-Fetch-Site`, else compares `Origin` with `Host`, so the proxy must keep `Host`). The prefill GET triggers an outbound fetch but needs the secret and is rate-limited.
 - **Abuse with a leaked link**: per-group caps (see Data model) bound what it can store. At the row cap a create purges old concerts, so a leaked link can flush the undo history and the past, as deleting everything then creating and deleting already could; likewise 20 edits flush a concert's edit history. Backups are the remedy. Server read, write and idle timeouts; request bodies capped at 64 kB.
@@ -39,7 +39,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 1. **Join**: tap the link in WhatsApp → picker screen → tap « C'est moi » on one's name, or type a new first name → main screen. Later visits skip the picker (cookie). From a shared concert link without identity, the concert page shows « Choisis ton prénom pour répondre », and the picker returns to that concert (`next`).
 2. **Add**: tap « Ajouter un concert » (fixed at the bottom on a phone, beside the filters on a computer) → paste a ticket URL, tap « Pré-remplir » → check or type the fields → « Enregistrer » → main screen with a banner « Concert ajouté » and « Prévenir le groupe » (opens WhatsApp with artist, date and the concert link).
 3. **Respond**: on a card, tap « Ça m'intéresse » or « J'y vais »; tapping the active one clears it. The status block updates in place (htmx) or after a full reload (no JS).
-4. **Plan**: filter « Mes concerts »; open a concert → « Ajouter à mon agenda » downloads its `.ics`; « Billetterie » opens the ticket link.
+4. **Plan**: filter « Mes concerts »; open a concert → « Écouter » searches the artist on YouTube; « Ajouter à mon agenda » downloads its `.ics`; « Billetterie » opens the ticket link.
 5. **Fix**: open a concert → « Modifier » (banner with « Annuler ») or « Supprimer » (banner « Concert supprimé » with « Annuler la suppression »). A bad edit noticed later: « Voir l'historique » → « Revenir avant cette modification ».
 6. **Shared phone**: « Ce n'est pas moi » in every page header → picker again.
 7. **Operator**: [operations.md](operations.md).
@@ -116,7 +116,8 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 │ Mise en vente : ven. 3 oct.  │  if set
 │ ajouté par Léa               │
 │ modifié par Tom · Voir l'his…│  if edited
-│ [Billetterie ↗] [Agenda]     │  ticket link if set; .ics
+│ [Billetterie ↗] [Écouter]    │  ticket link if set; YouTube
+│ [Agenda]                     │  search for the artist; .ics
 │ [Prévenir le groupe]         │
 │ statuses + my 3 buttons      │  same block as the card
 │ [Modifier]   [Supprimer]     │

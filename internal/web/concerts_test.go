@@ -113,6 +113,18 @@ func TestConcertAddress(t *testing.T) {
 	}
 }
 
+func TestConcertListenLink(t *testing.T) {
+	t.Parallel()
+	ts := newTestServer(t)
+	b, secret := ts.member(t, "Léa")
+	g := "/g/" + secret
+
+	b.postRedirect(t, g+"/concerts", concertValues("Simon & Garfunkel", "2026-06-13", "", "L'Olympia", "", ""))
+	_, body := b.get(t, g+"/concerts/1")
+	assertContains(t, body,
+		`href="https://www.youtube.com/results?search_query=Simon&#43;%26&#43;Garfunkel" rel="noopener noreferrer">Écouter<span class="visually-hidden"> sur YouTube</span></a>`)
+}
+
 func TestConcertValidation(t *testing.T) {
 	t.Parallel()
 	ts := newTestServer(t)

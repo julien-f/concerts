@@ -215,6 +215,7 @@ type concertPage struct {
 	URL      string // absolute page URL, for Open Graph
 	Share    string // « Prévenir le groupe » link
 	Map      string // OpenStreetMap search for the venue, "" without an address
+	Listen   string // YouTube search for the artist
 	Saved    bool   // banner after an edit
 	Reverted bool   // banner after going back to a revision
 	UndoRev  int64  // revision the banner offers to go back to, 0 for none
@@ -231,7 +232,8 @@ func (s *server) showConcert(w http.ResponseWriter, r *http.Request, gr *groupRe
 		return
 	}
 	p := &concertPage{groupRequest: gr, Concert: c, Statuses: newStatusBlock(gr, c, ss, "concert", s.upcoming(c)),
-		URL: s.pageURL(gr, c), Share: s.shareURL(gr, c)}
+		URL: s.pageURL(gr, c), Share: s.shareURL(gr, c),
+		Listen: "https://www.youtube.com/results?search_query=" + url.QueryEscape(c.Artist)}
 	if c.Address != "" {
 		p.Map = "https://www.openstreetmap.org/search?query=" + url.QueryEscape(c.Venue+", "+c.Address)
 	}
