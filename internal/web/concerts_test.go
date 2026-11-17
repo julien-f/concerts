@@ -234,6 +234,11 @@ func TestConcertFormKeepsInput(t *testing.T) {
 	form.Set("description", "Ex\u00ademple")
 	_, body := b.post(t, "/g/"+secret+"/concerts", form)
 	assertContains(t, body, `value="Foo`+"\u200b"+`Bar"`, `value="`+long+`"`, ">Ex\u00ademple</textarea>")
+
+	// Invalid UTF-8 comes back replaced, so the page stays valid UTF-8.
+	form.Set("artist", "ab\xffcd")
+	_, body = b.post(t, "/g/"+secret+"/concerts", form)
+	assertContains(t, body, `value="ab`+"\ufffd"+`cd"`)
 }
 
 // TestDuplicateConcert: a live concert with the same artist and date asks before adding another.
