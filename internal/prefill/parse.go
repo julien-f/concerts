@@ -226,8 +226,44 @@ func fromEvent(ev map[string]any, now time.Time) Result {
 	}
 	res.OnSaleDate = onSale(ev["offers"], now)
 	res.Price = price(ev["offers"])
-	res.Description = prose(str(ev["description"]))
+	res.Description = unglue(prose(str(ev["description"])))
 	return res
+}
+
+// unglue separates words that a site glued by stripping the markup between them: a capitalised
+// word after a run of capitals goes on its own line (« SNIPERGroupe »), and so does such a heading
+// after a sentence end (« énergie.KENZOriginaire »); another sentence start gets a space
+// (« détermination.En », « 2027.KENZ revient », « D.C.Le »). Initials (« U.S.A. ») and names
+// like « McCartney » are left alone.
+func unglue(s string) string {
+	r := []rune(s)
+	is := func(i int, f func(rune) bool) bool { return i >= 0 && i < len(r) && f(r[i]) }
+	upper := func(i int) bool { return is(i, unicode.IsUpper) }
+	lower := func(i int) bool { return is(i, unicode.IsLower) }
+	word := func(i int) bool { return is(i, unicode.IsLetter) || is(i, unicode.IsDigit) }
+	// gluedHeading: a run of capitals from i glued to a capitalised word.
+	gluedHeading := func(i int) bool {
+		j := i
+		for upper(j) {
+			j++
+		}
+		return j-i >= 3 && lower(j)
+	}
+	var b strings.Builder
+	for i, c := range r {
+		switch {
+		case upper(i) && lower(i+1) && upper(i-1) && upper(i-2):
+			b.WriteByte('\n')
+		case upper(i) && is(i-1, func(p rune) bool { return strings.ContainsRune(".!?", p) }) && word(i-2) && (word(i-3) || lower(i+1)):
+			if gluedHeading(i) {
+				b.WriteByte('\n')
+			} else {
+				b.WriteByte(' ')
+			}
+		}
+		b.WriteRune(c)
+	}
+	return b.String()
 }
 
 // prose makes a JSON-LD description plain text: entities decoded (WordPress encodes them),

@@ -70,6 +70,29 @@ func TestParseFixtures(t *testing.T) {
 	}
 }
 
+// TestUnglue: sites that strip markup from JSON-LD descriptions glue the words around it.
+func TestUnglue(t *testing.T) {
+	t.Parallel()
+	tests := []struct{ in, want string }{
+		// La Belle Électrique, Sniper + Kenz: an artist heading glued to its paragraph, and to the previous one.
+		{"SNIPERGroupe fondateur du rap", "SNIPER\nGroupe fondateur du rap"},
+		{"et l’énergie.KENZOriginaire de Grenoble", "et l’énergie.\nKENZ\nOriginaire de Grenoble"},
+		{"de détermination.En 2024, elle", "de détermination. En 2024, elle"},
+		{"prévue pour 2027.KENZ revient sur scène", "prévue pour 2027. KENZ revient sur scène"},
+		{"Fontaines D.C.Le groupe", "Fontaines D.C. Le groupe"},
+		{"Quoi?Rien!Enfin", "Quoi? Rien! Enfin"},
+		// Left alone: initials, acronyms, names with an inner capital, spaced text.
+		{"U.S.A. et R.E.M.", "U.S.A. et R.E.M."},
+		{"Paul McCartney et LeBron", "Paul McCartney et LeBron"},
+		{"Le DJ Boudj. Puis AC/DC", "Le DJ Boudj. Puis AC/DC"},
+	}
+	for _, tt := range tests {
+		if got := unglue(tt.in); got != tt.want {
+			t.Errorf("unglue(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
 func TestPrice(t *testing.T) {
 	t.Parallel()
 	tests := []struct{ name, offers, want string }{
