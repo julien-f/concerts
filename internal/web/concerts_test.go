@@ -86,7 +86,7 @@ func TestConcertLifecycle(t *testing.T) {
 	}
 
 	_, body = b.postRedirect(t, g+"/concerts/1/delete", nil)
-	assertContains(t, body, "Concert supprimé\u202f: Fontaines D.C.", "/concerts/1/restore", "Aucun concert")
+	assertContains(t, body, "Concert supprimé\u202f: Fontaines D.C.", `/concerts/1/restore"><button class="button secondary">Annuler la suppression</button>`, "Aucun concert")
 	if resp, _ := b.get(t, g+"/concerts/1"); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("deleted concert page: status = %d, want 404", resp.StatusCode)
 	}

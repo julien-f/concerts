@@ -9,7 +9,7 @@
 {{with .Restored}}<div class="banner" role="status"><p>Concert rétabli : {{.Artist}}.</p></div>{{end}}
 {{with .Deleted}}<div class="banner" role="status">
 <p>Concert supprimé : {{.Artist}}.</p>
-<form method="post" action="{{$.Base}}/concerts/{{.ID}}/restore"><button class="button">Annuler la suppression</button></form>
+<form method="post" action="{{$.Base}}/concerts/{{.ID}}/restore"><button class="button secondary">Annuler la suppression</button></form>
 </div>{{end}}
 <div class="toolbar">
 <nav class="filters" aria-label="Filtre">
