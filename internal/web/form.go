@@ -55,8 +55,8 @@ func valid(v string, maxRunes int) (string, bool) {
 }
 
 // cleanName is cleanText for first names, which must also start with a letter or digit.
-func cleanName(v string, maxRunes int) (string, bool) {
-	v, ok := cleanText(v, maxRunes)
+func cleanName(v string) (string, bool) {
+	v, ok := cleanText(v, maxNameRunes)
 	r, _ := utf8.DecodeRuneInString(v)
 	return v, ok && unicode.In(r, unicode.L, unicode.N)
 }

@@ -19,7 +19,7 @@ const (
 )
 
 // CleanName applies the picker's first-name rules, for the operator's rename-member.
-func CleanName(v string) (string, bool) { return cleanName(v, maxNameRunes) }
+func CleanName(v string) (string, bool) { return cleanName(v) }
 
 // CleanGroupName applies the concert form's text rules to the operator's new-group.
 func CleanGroupName(v string) (string, bool) { return cleanText(v, maxTextRunes) }
@@ -192,7 +192,7 @@ func (s *server) join(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 	}
 
 	p := &pickerPage{groupRequest: gr, Next: next, Name: r.PostForm.Get("name")}
-	name, ok := cleanName(p.Name, maxNameRunes)
+	name, ok := cleanName(p.Name)
 	if !ok {
 		p.Error = fmt.Sprintf("Indique un prénom de 1 à %d caractères, commençant par une lettre.", maxNameRunes)
 		s.picker(w, r, http.StatusUnprocessableEntity, p)
