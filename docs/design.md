@@ -203,7 +203,7 @@ All under `/g/{secret}` (written `…`); unknown secret → 404. Every POST: `Cr
 | POST | `…/me` | pick `member_id` or create `name`; sets cookie | 303 `next` (a path inside the group) or `…`; 422 picker |
 | POST | `…/logout` | « Ce n'est pas moi »: clears cookie | 303 `…` |
 | GET | `…/concerts/new` | add form; `?url=` pre-fills from the ticket page | page; htmx swaps the form (`hx-select`) |
-| POST | `…/concerts` | create | 303 `…?added=<id>`; 422 form |
+| POST | `…/concerts` | create; `anyway=1` skips the duplicate check | 303 `…?added=<id>`; 422 form (invalid or duplicate) |
 | GET | `…/concerts/{id}` | concert page | page |
 | GET | `…/concerts/{id}/edit` | edit form | page |
 | POST | `…/concerts/{id}/refresh` | « Relire la billetterie »: fills the posted form's empty fields from its ticket link, saves nothing | form page (200, as htmx swaps no 4xx) |
@@ -229,7 +229,8 @@ All under `/g/{secret}` (written `…`); unknown secret → 404. Every POST: `Cr
 - **Group at the cap** (1000 rows, no deleted concert left): each add silently purges the oldest past concert and its answers.
 - **Deleted member**: their statuses go (cascade); their concerts stay, shown without « ajouté par ».
 - **Ticket URL**: only `http`/`https`; rendered with `rel="noopener noreferrer"`.
-- **Double submit**: status writes are idempotent (the form sends the target state, not a toggle); creating twice creates two concerts (accepted; delete fixes it).
+- **Double submit**: status writes are idempotent (the form sends the target state, not a toggle); a second create asks first, as for any duplicate concert.
+- **Duplicate concert** (add only): a live concert of the group with the same date and artist (case ignored, as first names) re-renders the form with 422, fields kept: « <artist>, <date>, est déjà dans la liste (<venue>, ajouté par X). Voir ce concert », focus on that link; « Ajouter quand même » (`anyway=1`) comes after « Enregistrer », which stays the button Enter submits. A warning, not a constraint: an artist may play twice a day, and two concurrent adds both pass. An edit is not checked.
 
 ## Slices
 
