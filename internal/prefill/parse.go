@@ -415,6 +415,9 @@ func performers(v any) string {
 // « Salle&regie; » as « Salle®ie… », decoding the longest entity name a word starts with.
 func str(v any) string {
 	s, _ := v.(string)
+	if !strings.Contains(s, "&") {
+		return s
+	}
 	return entity.ReplaceAllStringFunc(s, func(e string) string {
 		if d := html.UnescapeString(e); d == ";" || !strings.HasSuffix(d, ";") {
 			return d
