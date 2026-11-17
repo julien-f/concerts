@@ -68,8 +68,7 @@ func (s *server) inGroup(h groupHandler) http.HandlerFunc {
 			return
 		}
 		w.Header().Set("Cache-Control", "private, no-cache")
-		// Every write ends in a GET, so join, logout and rotation reach this cookie
-		// there; the stale member id a POST would write is not worth a second writer.
+		// GET only: every write ends in one, which then records the member it left.
 		if r.Method == http.MethodGet {
 			s.setGroupCookie(w, gr)
 		}
@@ -77,8 +76,7 @@ func (s *server) inGroup(h groupHandler) http.HandlerFunc {
 	}
 }
 
-// setGroupCookie lets /c/{token} pages recognise a member without the secret in their URL:
-// it holds "<secret>.<member id>" (no id without identity) and is sent to /c only.
+// setGroupCookie lets /c pages, whose URL lacks the secret, recognise a member: "<secret>.<member id or nothing>".
 func (s *server) setGroupCookie(w http.ResponseWriter, gr *groupRequest) {
 	v := strings.TrimPrefix(gr.Base, "/g/") + "."
 	if gr.Me != nil {

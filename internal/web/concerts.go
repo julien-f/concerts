@@ -252,8 +252,7 @@ func listenLinks(artist string) []listenLink {
 	return links
 }
 
-// showConcert sends the group's concert URL, which holds the secret, to its public link,
-// banner query included: the address bar then never shows the secret.
+// showConcert redirects to the public link, banner query kept, so the address bar never shows the secret.
 func (s *server) showConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
 	if c, ok := s.concert(w, r, gr); ok {
 		target := "/c/" + c.Token
@@ -265,15 +264,14 @@ func (s *server) showConcert(w http.ResponseWriter, r *http.Request, gr *groupRe
 	}
 }
 
-// byToken loads the live concert named by the {token} path value; it answers 404 and returns false otherwise.
-// Every miss gives the same plain page, so it tells nothing about the token or the visitor.
+// byToken loads the live concert named by the {token} path value, else answers the same plain 404 for every miss.
 func (s *server) byToken(w http.ResponseWriter, r *http.Request) (groupID int64, c store.Concert, ok bool) {
 	groupID, id, err := s.store.ConcertByToken(r.Context(), r.PathValue("token"))
 	if err == nil {
 		c, err = s.store.Concert(r.Context(), groupID, id)
 	}
 	if errors.Is(err, store.ErrNotFound) || c.Deleted {
-		s.notFound(w, r, nil)
+		http.Error(w, "Concert introuvable : il a été supprimé ou ce lien est incomplet.", http.StatusNotFound)
 		return 0, c, false
 	}
 	if err != nil {

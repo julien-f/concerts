@@ -94,6 +94,24 @@ func TestPublicLinkForMembers(t *testing.T) {
 	assertLacks(t, body, secret)
 }
 
+// TestAnswerWithoutGroupCookie: a tab opened before the group cookie existed still lands on the member page.
+func TestAnswerWithoutGroupCookie(t *testing.T) {
+	t.Parallel()
+	ts := newTestServer(t)
+	lea, secret := ts.member(t, "Léa")
+	g := "/g/" + secret
+	lea.postRedirect(t, g+"/concerts", validConcert())
+
+	old := ts.browser(t)
+	u, err := url.Parse(ts.URL + g)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old.client.Jar.SetCookies(u, []*http.Cookie{{Name: memberCookie, Value: "1", Path: g, HttpOnly: true, SameSite: http.SameSiteLaxMode}}) //nolint:gosec // G124: the test server is plain http
+	_, body := old.postRedirect(t, g+"/concerts/1/status", url.Values{"status": {"going"}, "back": {"concert"}})
+	assertContains(t, body, "Ce n'est pas moi", "Y va : Léa")
+}
+
 // TestPublicLinkNotFound: unknown and deleted tokens answer alike, cookie or not.
 func TestPublicLinkNotFound(t *testing.T) {
 	t.Parallel()
@@ -105,6 +123,7 @@ func TestPublicLinkNotFound(t *testing.T) {
 	lea.postRedirect(t, g+"/concerts/1/delete", nil)
 
 	_, want := ts.get(t, "/c/unknown")
+	assertContains(t, want, "Concert introuvable : il a été supprimé")
 	for name, get := range map[string]func() (*http.Response, string){
 		"deleted, outsider": func() (*http.Response, string) { return ts.get(t, deleted) },
 		"deleted, member":   func() (*http.Response, string) { return lea.get(t, deleted) },
