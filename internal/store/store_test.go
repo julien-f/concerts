@@ -22,6 +22,34 @@ func openTest(t *testing.T) *Store {
 	return s
 }
 
+// mustGroup, mustMember and mustConcert create test data, failing the test on any error.
+func mustGroup(t *testing.T, s *Store, name, secret string) Group {
+	t.Helper()
+	g, err := s.CreateGroup(context.Background(), name, secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return g
+}
+
+func mustMember(t *testing.T, s *Store, groupID int64, name string) Member {
+	t.Helper()
+	m, err := s.CreateMember(context.Background(), groupID, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return m
+}
+
+func mustConcert(t *testing.T, s *Store, groupID, memberID int64, c Concert, today string) int64 {
+	t.Helper()
+	id, err := s.CreateConcert(context.Background(), groupID, memberID, c, today)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
 func TestMigrateFromEmpty(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

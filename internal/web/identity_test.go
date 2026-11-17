@@ -6,10 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"concerts/internal/store"
 )
@@ -36,6 +34,8 @@ func TestJoin(t *testing.T) {
 		{"duplicate at the length limit gets no space", url.Values{"name": {long}}, http.StatusUnprocessableEntity,
 			[]string{`value="` + long + `"`}},
 		{"empty", url.Values{"name": {"   "}}, http.StatusUnprocessableEntity, []string{"de 1 à 30 caractères"}},
+		{"punctuation first", url.Values{"name": {"-Marc"}}, http.StatusUnprocessableEntity, []string{"commençant par une lettre ou un chiffre"}},
+		{"a number that is not a digit first", url.Values{"name": {"½Marc"}}, http.StatusUnprocessableEntity, []string{"commençant par une lettre ou un chiffre"}},
 		{"too long", url.Values{"name": {strings.Repeat("é", 31)}}, http.StatusUnprocessableEntity, []string{"de 1 à 30 caractères"}},
 		{"zero-width character", url.Values{"name": {"Ma\u200brc"}}, http.StatusUnprocessableEntity, []string{"de 1 à 30 caractères"}},
 		{"bidi override", url.Values{"name": {"\u202eMarc"}}, http.StatusUnprocessableEntity, []string{"de 1 à 30 caractères"}},
@@ -111,8 +111,15 @@ func TestIdentityCookie(t *testing.T) {
 			req, _ := http.NewRequest(http.MethodGet, ts.URL+"/g/"+secret, nil)
 			req.AddCookie(&http.Cookie{Name: memberCookie, Value: tt.cookie}) //nolint:gosec // G124: request cookie, attributes unused
 			resp, body := ts.browser(t).do(t, req)
-			if got := !strings.Contains(body, "Qui es-tu"); got != tt.identified {
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("status = %d, want 200", resp.StatusCode)
+			}
+			// The header names the member only with an identity; the picker shows otherwise.
+			if got := strings.Contains(body, "Ce n'est pas moi"); got != tt.identified {
 				t.Fatalf("identified = %v, want %v", got, tt.identified)
+			}
+			if picker := strings.Contains(body, "Qui es-tu"); picker == tt.identified {
+				t.Fatalf("picker shown = %v, want %v", picker, !tt.identified)
 			}
 			if cc := resp.Header.Get("Cache-Control"); cc != "private, no-cache" {
 				t.Errorf("Cache-Control = %q", cc)
@@ -121,8 +128,11 @@ func TestIdentityCookie(t *testing.T) {
 	}
 
 	resp, _ := ts.browser(t).post(t, "/g/"+secret+"/me", url.Values{"name": {"Sam"}})
-	c := resp.Cookies()[0]
-	if c.Path != "/g/"+secret || !c.HttpOnly || c.SameSite != http.SameSiteLaxMode || c.Secure || c.MaxAge != 400*24*3600 {
+	cs := resp.Cookies()
+	if len(cs) != 1 || cs[0].Name != memberCookie {
+		t.Fatalf("cookies = %+v, want the member cookie", cs)
+	}
+	if c := cs[0]; c.Path != "/g/"+secret || !c.HttpOnly || c.SameSite != http.SameSiteLaxMode || c.Secure || c.MaxAge != 400*24*3600 {
 		t.Fatalf("cookie = %+v", c)
 	}
 }
@@ -135,13 +145,10 @@ func TestBaseURL(t *testing.T) {
 		t.Fatalf("cookies %+v: want a Secure cookie for an https base URL in any case", c)
 	}
 
-	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "t.db"), time.Now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = st.Close() })
-	for _, bad := range []string{"", "concerts.example", "ftp://concerts.example", "https://"} {
-		if _, err := New(st, slog.New(slog.DiscardHandler), Config{BaseURL: bad, Now: time.Now}); err == nil {
+	// Links append /g/<secret> to it, and the proxy sends the whole host to the app.
+	for _, bad := range []string{"", "concerts.example", "ftp://concerts.example", "https://", "https://h/sub",
+		"https://h/?x", "https://h#x", "https://h#", "https://h:", "https://:443", "https://h:0", "https://h:99999", "https://u@h"} {
+		if _, err := New(ts.store, slog.New(slog.DiscardHandler), Config{BaseURL: bad, Now: ts.clock.Now}); err == nil {
 			t.Errorf("New(%q): want an error", bad)
 		}
 	}

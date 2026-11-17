@@ -33,7 +33,7 @@ demo: build
 	CONCERTS_DB=$(DEMO_DB) CONCERTS_BASE_URL=http://localhost:8080 bin/concerts demo
 	CONCERTS_DB=$(DEMO_DB) CONCERTS_BASE_URL=http://localhost:8080 CONCERTS_ADDR=$(ADDR) bin/concerts serve
 
-# axe-core, vnu and page weight on every screen of `make demo`; downloads its tools once.
+# axe-core and vnu on every screen of `make demo`, plus the group page's weight; downloads its tools once.
 verify-ui:
 	scripts/verify-ui.sh
 
@@ -42,7 +42,7 @@ REF ?= main
 measure-scroll:
 	scripts/measure-scroll.sh $(REF)
 
-# Go lines, binary size and `make check` duration, logged per slice.
+# Go lines, binary size and `make check` duration, for a merge commit's body.
 measure:
 	scripts/measure.sh
 
@@ -82,7 +82,7 @@ ssh -t $(ADMIN_HOST) "sudo sh $$d/$(2); s=\$$?; rm -r $$d; exit \$$s"
 endef
 
 install:
-	@test -n "$(PROXY_USER)" -a -n "$(BASE_URL)" -a -f $(DEPLOY_KEY) || { echo "PROXY_USER, BASE_URL and DEPLOY_KEY (a public key file) are required" >&2; exit 1; }
+	@{ test -n "$(PROXY_USER)" && test -n "$(BASE_URL)" && test -n "$(DEPLOY_KEY)" && test -f $(DEPLOY_KEY); } || { echo "PROXY_USER, BASE_URL and DEPLOY_KEY (a public key file) are required" >&2; exit 1; }
 	$(call as_root,$(DEPLOY_KEY),install.sh $(NAME) $(PROXY_USER) $(BASE_URL) $$d/$(notdir $(DEPLOY_KEY)))
 
 uninstall:

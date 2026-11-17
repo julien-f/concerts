@@ -21,7 +21,7 @@ const screens = [
     name: "picker-duplicate",
     go: async (p) => {
       await p.fill("#name", "marc");
-      return submit(p, "text=Rejoindre");
+      return submit(p, 'button:has-text("Rejoindre")');
     },
   },
   {
@@ -99,7 +99,7 @@ const screens = [
       await p.fill("#ticket_url", "ftp://nope");
       // Skip the browser's own checks to reach the server's error page.
       await p.$eval("form.stack", (f) => (f.noValidate = true));
-      return submit(p, "text=Enregistrer");
+      return submit(p, 'button:has-text("Enregistrer")');
     },
   },
   {
@@ -109,7 +109,7 @@ const screens = [
       await p.fill("#date", "2031-05-17");
       await p.fill("#venue", "Le Trabendo");
       await p.fill("#ticket_url", "");
-      return submit(p, "text=Enregistrer");
+      return submit(p, 'button:has-text("Enregistrer")');
     },
   },
   {
@@ -131,7 +131,7 @@ const screens = [
     name: "deleted",
     go: async (p) => {
       await p.goto(`${groupURL}/concerts/1`);
-      return submit(p, "text=Supprimer");
+      return submit(p, 'button:has-text("Supprimer")');
     },
   },
   // The concert deleted above, as reached from a shared link: 404 page.
@@ -195,8 +195,14 @@ for (const s of screens) {
   console.log(`axe ${s.name}: checked 390 and 768 px, light and dark`);
 }
 
-// Page weight: everything the group page loads with an empty cache, each body gzip -9'd.
-const fresh = await browser.newContext({ storageState: await context.storageState() });
+// Page weight: everything the group page loads with an empty cache, each body gzip -9'd,
+// for a member picked in a context of its own (the screens above may have dropped cookies).
+const login = await browser.newContext();
+const loginPage = await login.newPage();
+await loginPage.goto(groupURL);
+await submit(loginPage, 'button:has-text("Léa")');
+const fresh = await browser.newContext({ storageState: await login.storageState() });
+await login.close();
 const weightPage = await fresh.newPage();
 const sizes = {};
 const pending = [];
@@ -207,6 +213,10 @@ weightPage.on("response", (r) => {
 });
 await weightPage.goto(groupURL, { waitUntil: "networkidle" });
 await Promise.all(pending);
+if (!(await weightPage.content()).includes("Ajouter un concert")) {
+  console.log("page weight: not the group's list");
+  failures++;
+}
 // Headless Chromium skips favicons; fetch the declared icons explicitly.
 for (const href of await weightPage.$$eval("link[rel=icon]", (ls) => ls.map((l) => l.href))) {
   sizes[href] = gzipSync(await (await weightPage.request.get(href)).body(), { level: 9 }).length;

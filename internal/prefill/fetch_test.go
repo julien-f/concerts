@@ -52,13 +52,18 @@ func TestCheckRedirect(t *testing.T) {
 	if err := checkRedirect(req("ftp://b.example"), via); err == nil {
 		t.Error("redirect to ftp accepted")
 	}
-	if err := checkRedirect(req("https://b.example"), append(via, via[0], via[0])); err == nil {
+	// via holds the first request, then one per redirect followed.
+	if err := checkRedirect(req("https://b.example"), append(via, via[0], via[0])); err != nil {
+		t.Errorf("third redirect: %v", err)
+	}
+	if err := checkRedirect(req("https://b.example"), append(via, via[0], via[0], via[0])); err == nil {
 		t.Error("fourth redirect accepted")
 	}
 }
 
-// TestNewClientRefusesLoopback: the real client cannot reach a local server, even by its literal address.
-func TestNewClientRefusesLoopback(t *testing.T) {
+// TestNewClientChecksDial: the real client runs dialControl (here refusing the test server's
+// port; TestDialControl covers the addresses).
+func TestNewClientChecksDial(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("secret")) }))
 	t.Cleanup(srv.Close)
@@ -94,7 +99,7 @@ func TestFetch(t *testing.T) {
 		}
 	}))
 	t.Cleanup(srv.Close)
-	// A plain client: the address checks are TestNewClientRefusesLoopback's job.
+	// A plain client: the dial checks are TestNewClientChecksDial's job.
 	res, err := Fetch(context.Background(), srv.Client(), srv.URL+"/page", now)
 	if err != nil || res.Artist != "Les Hiboux + Nova Test" || res.Date != "2026-11-27" {
 		t.Fatalf("Fetch = %+v, %v", res, err)

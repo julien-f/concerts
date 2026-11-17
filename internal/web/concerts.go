@@ -52,6 +52,7 @@ func newConcertForm(gr *groupRequest, c store.Concert, errs map[string]string) *
 	focused := false
 	for i := range f.Fields {
 		fd := &f.Fields[i]
+		fd.Value = strings.ToValidUTF8(fd.Value, "\uFFFD") // a rejected value comes back as typed, the page stays UTF-8
 		fd.Error = errs[fd.Name]
 		if fd.Error != "" && !focused {
 			fd.Autofocus, focused = true, true
@@ -120,15 +121,13 @@ func validDate(s string) bool {
 	return err == nil && d.Year() >= 2000 && d.Year() < 2100
 }
 
-// validTicketURL accepts only absolute http(s) links with an ASCII host, so no
-// javascript: or data: URL, and no look-alike host, is ever rendered.
+// validTicketURL keeps javascript:, data: and look-alike links (« fnac.com@evil.example », non-ASCII hosts) off pages.
 func validTicketURL(s string) bool {
 	if len(s) > maxURLBytes || !utf8.ValidString(s) || strings.ContainsFunc(s, func(r rune) bool { return r <= ' ' || r == 0x7f }) {
 		return false
 	}
 	u, err := url.Parse(s)
-	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" &&
-		!strings.ContainsFunc(u.Host, func(r rune) bool { return r > '~' })
+	return err == nil && httpURL(u) && !strings.ContainsFunc(u.Host, func(r rune) bool { return r > '~' })
 }
 
 // pathID parses the {id} path value; it answers 404 and returns false if invalid.
@@ -147,7 +146,7 @@ func (s *server) concert(w http.ResponseWriter, r *http.Request, gr *groupReques
 		return store.Concert{}, false
 	}
 	c, err := s.store.Concert(r.Context(), gr.Group.ID, id)
-	if errors.Is(err, store.ErrNotFound) || c.Deleted {
+	if errors.Is(err, store.ErrNotFound) || (err == nil && c.Deleted) {
 		s.notFound(w, r, gr)
 		return c, false
 	}
@@ -158,7 +157,7 @@ func (s *server) concert(w http.ResponseWriter, r *http.Request, gr *groupReques
 	return c, true
 }
 
-// done ends a write: 404 for ErrNotFound, 500 for other errors, else a 303 to target.
+// done ends a write: 404 for ErrNotFound, a plain 422 for ErrLimit, 500 for other errors, else a 303 to target.
 func (s *server) done(w http.ResponseWriter, r *http.Request, gr *groupRequest, err error, target string) {
 	switch {
 	case errors.Is(err, store.ErrNotFound):
@@ -224,15 +223,24 @@ func (s *server) createConcert(w http.ResponseWriter, r *http.Request, gr *group
 
 type concertPage struct {
 	*groupRequest
-	store.Concert
+	concertFacts
 	Statuses statusBlock
-	URL      string // absolute page URL, for Open Graph
 	Share    shareLink
-	Map      string // OpenStreetMap search for the venue, "" without an address
-	Listen   []listenLink
 	Saved    bool  // banner after an edit
 	Reverted bool  // banner after going back to a revision
 	UndoRev  int64 // revision the banner offers to go back to, 0 for none
+}
+
+// concertFacts is what the member page and the public card both show of a concert.
+type concertFacts struct {
+	store.Concert
+	URL    string // absolute page URL, for Open Graph
+	Map    string // OpenStreetMap search for the venue, "" without an address
+	Listen []listenLink
+}
+
+func (s *server) facts(c store.Concert) concertFacts {
+	return concertFacts{Concert: c, URL: s.pageURL(c), Map: mapURL(c), Listen: listenLinks(c.Artist)}
 }
 
 // listenLink is an « Écouter » YouTube search; Name is "" when the concert has a single artist.
@@ -252,8 +260,8 @@ func listenLinks(artist string) []listenLink {
 	return links
 }
 
-// showConcert redirects to the public link, banner query kept, so the address bar never shows the secret.
-func (s *server) showConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
+// redirectToConcert redirects to the public link, banner query kept, so the address bar never shows the secret.
+func (s *server) redirectToConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
 	if c, ok := s.concert(w, r, gr); ok {
 		target := "/c/" + c.Token
 		if r.URL.RawQuery != "" {
@@ -270,7 +278,7 @@ func (s *server) byToken(w http.ResponseWriter, r *http.Request) (groupID int64,
 	if err == nil {
 		c, err = s.store.Concert(r.Context(), groupID, id)
 	}
-	if errors.Is(err, store.ErrNotFound) || c.Deleted {
+	if errors.Is(err, store.ErrNotFound) || (err == nil && c.Deleted) {
 		http.Error(w, "Concert introuvable : il a été supprimé ou ce lien est incomplet.", http.StatusNotFound)
 		return 0, c, false
 	}
@@ -284,11 +292,8 @@ func (s *server) byToken(w http.ResponseWriter, r *http.Request) (groupID int64,
 // publicPage is a concert as anyone holding its public link sees it: no group, no first names.
 type publicPage struct {
 	*groupRequest // empty: the layout reads its fields
-	store.Concert
-	URL    string
-	Map    string
-	Listen []listenLink
-	Going  int // members answering « J'y vais »
+	concertFacts
+	Going int // members answering « J'y vais »
 }
 
 // publicConcert is /c/{token}: the full concert page for a member of its group, else the public card.
@@ -313,7 +318,7 @@ func (s *server) publicConcert(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	p := &publicPage{groupRequest: &groupRequest{}, Concert: c, URL: s.pageURL(c), Map: mapURL(c), Listen: listenLinks(c.Artist)}
+	p := &publicPage{groupRequest: &groupRequest{}, concertFacts: s.facts(c)}
 	for _, st := range ss {
 		if st.Status == store.Going {
 			p.Going++
@@ -336,8 +341,8 @@ func (s *server) showConcertPage(w http.ResponseWriter, r *http.Request, gr *gro
 		s.fail(w, r, err)
 		return
 	}
-	p := &concertPage{groupRequest: gr, Concert: c, Statuses: newStatusBlock(gr, c, ss, "concert", s.upcoming(c)),
-		URL: s.pageURL(c), Share: s.shareLink(c), Map: mapURL(c), Listen: listenLinks(c.Artist)}
+	p := &concertPage{groupRequest: gr, concertFacts: s.facts(c), Statuses: newStatusBlock(gr, c, ss, "concert", s.upcoming(c)),
+		Share: s.shareLink(c)}
 	q := r.URL.Query()
 	var rev string
 	switch {
@@ -366,6 +371,10 @@ func (s *server) updateConcert(w http.ResponseWriter, r *http.Request, gr *group
 	}
 	c, errs := parseConcert(r.PostForm)
 	if len(errs) > 0 {
+		// The store answers a valid edit of a deleted concert with ErrNotFound; an invalid one gets the same 404.
+		if _, ok := s.concert(w, r, gr); !ok {
+			return
+		}
 		c.ID = id
 		s.render(w, r, http.StatusUnprocessableEntity, "form", newConcertForm(gr, c, errs))
 		return
@@ -401,28 +410,18 @@ func (s *server) refreshConcert(w http.ResponseWriter, r *http.Request, gr *grou
 		return
 	}
 	page, problem, _ := s.prefill(r, gr, c.TicketURL)
-	filled := map[string]bool{}
-	if problem == "" {
-		for _, x := range []struct {
-			name string
-			dst  *string
-			src  string
-		}{{"artist", &c.Artist, page.Artist}, {"date", &c.Date, page.Date}, {"time", &c.Time, page.Time},
-			{"venue", &c.Venue, page.Venue}, {"address", &c.Address, page.Address}, {"on_sale_date", &c.OnSaleDate, page.OnSaleDate},
-			{"price", &c.Price, page.Price}, {"description", &c.Description, page.Description}} {
-			if *x.dst == "" && x.src != "" {
-				*x.dst, filled[x.name] = x.src, true
-			}
-		}
-	}
 	f := newConcertForm(gr, c, nil)
 	var labels []string
-	for i := range f.Fields {
-		if fd := &f.Fields[i]; filled[fd.Name] {
-			if labels == nil {
-				fd.Autofocus, fd.DescribedBy = true, "prefill-msg"
+	if problem == "" {
+		fromPage := newConcertForm(nil, page, nil).Fields // same fields, same order
+		for i := range f.Fields {
+			if fd := &f.Fields[i]; fd.Value == "" && fromPage[i].Value != "" {
+				fd.Value = fromPage[i].Value
+				if labels == nil {
+					fd.Autofocus, fd.DescribedBy = true, "prefill-msg"
+				}
+				labels = append(labels, fd.Label)
 			}
-			labels = append(labels, fd.Label)
 		}
 	}
 	switch {

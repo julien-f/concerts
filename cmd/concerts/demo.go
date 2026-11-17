@@ -8,8 +8,8 @@ import (
 )
 
 // demo fills a fresh database with a group for `make demo` and scripts/verify-ui.sh:
-// three members, upcoming and past concerts relative to today.
-func demo(ctx context.Context, st *store.Store, baseURL string) error {
+// three members, upcoming and past concerts relative to now.
+func demo(ctx context.Context, st *store.Store, baseURL string, now time.Time) error {
 	g, err := newGroup(ctx, st, baseURL, "Les copains du concert")
 	if err != nil {
 		return err
@@ -22,7 +22,7 @@ func demo(ctx context.Context, st *store.Store, baseURL string) error {
 		}
 		ids = append(ids, m.ID)
 	}
-	day := func(offset int) string { return time.Now().AddDate(0, 0, offset).Format(time.DateOnly) }
+	day := func(offset int) string { return now.AddDate(0, 0, offset).Format(time.DateOnly) }
 	var concerts []int64
 	seed := []store.Concert{
 		{Artist: "Fontaines D.C. + Kneecap", Date: day(10), Time: "20:00", Venue: "Zénith Paris", Address: "211 av. Jean Jaurès, 75019 Paris", TicketURL: "https://example.com/billets/fontaines",

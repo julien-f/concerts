@@ -71,9 +71,6 @@ func (s *server) prefill(r *http.Request, gr *groupRequest, u string) (c store.C
 		s.log.InfoContext(r.Context(), "prefill failed", "err", err) // host only, see prefill.Fetch
 		return c, "Impossible de lire cette page : essaie le lien de la salle ou de l'organisateur, ou remplis à la main.", false
 	}
-	if res == (prefill.Result{}) {
-		return c, "Rien trouvé sur cette page : remplis à la main.", false
-	}
 	// The page is untrusted input: run it through the form's validation and drop what fails.
 	v := url.Values{"artist": {res.Artist}, "date": {res.Date}, "time": {res.Time},
 		"venue": {res.Venue}, "address": {res.Address}, "ticket_url": {u}, "on_sale_date": {res.OnSaleDate},
@@ -83,21 +80,29 @@ func (s *server) prefill(r *http.Request, gr *groupRequest, u string) (c store.C
 		v.Del(name)
 	}
 	c, _ = parseConcert(v)
+	found := c
+	found.TicketURL = "" // the link is ours, not something found
+	if found == (store.Concert{}) {
+		return c, "Rien trouvé sur cette page : remplis à la main.", false
+	}
 	return c, "", false
 }
 
 // fitParagraphs normalizes v as cleanParagraphs does and, if longer than maxRunes, cuts it
-// at the last line or sentence end (else word) that fits with « … ».
+// at the last line or sentence end, else word end, in the second half of what fits (else at the limit), with « … ».
 func fitParagraphs(v string, maxRunes int) string {
 	v = paragraphs(v)
 	if utf8.RuneCountInString(v) <= maxRunes {
 		return v
 	}
-	cut := string([]rune(v)[:maxRunes-1])
-	if i := max(strings.LastIndex(cut, "\n"), strings.LastIndex(cut, ". ")+1); i > 0 {
-		cut = cut[:i]
-	} else if i := strings.LastIndex(cut, " "); i > 0 {
-		cut = cut[:i]
+	rs := []rune(v)
+	win := string(rs[:maxRunes]) // one rune past the cut, telling whether the cut ends a line, sentence or word
+	cut := win[:len(win)-utf8.RuneLen(rs[maxRunes-1])]
+	late := func(i int) bool { return i > 0 && utf8.RuneCountInString(win[:i]) > maxRunes/2 } // in the second half
+	if i := max(strings.LastIndex(win, "\n"), strings.LastIndex(win, ". ")+1); late(i) {
+		cut = win[:i]
+	} else if i := strings.LastIndexAny(win, " \n"); late(i) {
+		cut = win[:i]
 	}
 	return strings.TrimSpace(cut) + "…"
 }

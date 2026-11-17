@@ -10,13 +10,6 @@ import (
 // MaxMembers bounds a group's size, so a leaked link cannot flood the picker.
 const MaxMembers = 100
 
-var (
-	// ErrDuplicate is returned when a first name is already taken in the group.
-	ErrDuplicate = errors.New("duplicate")
-	// ErrLimit is returned when a group already holds as many rows as allowed.
-	ErrLimit = errors.New("limit reached")
-)
-
 // Member is a first name within a group.
 type Member struct {
 	ID   int64

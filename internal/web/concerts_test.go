@@ -7,35 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"concerts/internal/store"
+	"unicode/utf8"
 )
-
-func concertValues(artist, date, tm, venue, ticket, onSale string) url.Values {
-	return url.Values{"artist": {artist}, "date": {date}, "time": {tm}, "venue": {venue},
-		"ticket_url": {ticket}, "on_sale_date": {onSale}}
-}
-
-// validConcert is a minimal valid concert form.
-func validConcert() url.Values { return concertValues("A", "2026-07-01", "", "V", "", "") }
-
-// member returns a browser identified as name in a fresh group, and the group secret.
-func (ts *testServer) member(t *testing.T, name string) (*browser, string) {
-	t.Helper()
-	secret := ts.newGroup(t, "g")
-	b := ts.browser(t)
-	b.join(t, secret, name)
-	return b, secret
-}
-
-func assertContains(t *testing.T, body string, want ...string) {
-	t.Helper()
-	for _, s := range want {
-		if !strings.Contains(body, s) {
-			t.Errorf("body lacks %q:\n%s", s, body)
-		}
-	}
-}
 
 // TestConcertLifecycle walks add, show, edit, delete and undo as a browser without JS.
 func TestConcertLifecycle(t *testing.T) {
@@ -195,6 +168,8 @@ func TestConcertValidation(t *testing.T) {
 		{"javascript link", "ticket_url", "javascript:alert(1)"},
 		{"ftp link", "ticket_url", "ftp://x.example/f"},
 		{"relative link", "ticket_url", "/billets"},
+		{"link without a host name", "ticket_url", "https://:443/billets"},
+		{"look-alike host before a user part", "ticket_url", "https://www.fnac.com@evil.example/billets"},
 		{"non-ASCII host", "ticket_url", "https://x.example\u202e/a"},
 		{"invalid UTF-8 link", "ticket_url", "https://x.example/\x80\x80"},
 		{"address too long", "address", strings.Repeat("a", 101)},
@@ -219,6 +194,31 @@ func TestConcertValidation(t *testing.T) {
 	}
 	if _, body := b.get(t, "/g/"+secret); !strings.Contains(body, "Aucun concert") {
 		t.Errorf("an invalid form created a concert")
+	}
+}
+
+// TestConcertFormKeepsInput: an invalid text field comes back as typed, not emptied
+// (TestRefreshConcert: and « Relire la billetterie » leaves it alone).
+func TestConcertFormKeepsInput(t *testing.T) {
+	t.Parallel()
+	ts := newTestServer(t)
+	b, secret := ts.member(t, "Léa")
+	long := strings.Repeat("v", 101)
+	form := validConcert()
+	form.Set("artist", "Foo\u200bBar")
+	form.Set("venue", long)
+	form.Set("description", "Ex\u00ademple")
+	_, body := b.post(t, "/g/"+secret+"/concerts", form)
+	assertContains(t, body, `value="Foo`+"\u200b"+`Bar"`, `value="`+long+`"`, ">Ex\u00ademple</textarea>")
+
+	// Invalid UTF-8 comes back replaced, so the page stays valid UTF-8.
+	for _, field := range []string{"artist", "time", "ticket_url"} {
+		form := validConcert()
+		form.Set(field, "ab\xffcd")
+		_, body = b.post(t, "/g/"+secret+"/concerts", form)
+		if !utf8.ValidString(body) {
+			t.Errorf("%s with invalid UTF-8: the page is not valid UTF-8", field)
+		}
 	}
 }
 
@@ -286,18 +286,16 @@ func TestConcertAccess(t *testing.T) {
 		method string
 		path   string
 		status int
+		to     string // Location of a 303, if checked: a successful write redirects too
 	}{
-		{"anonymous add form", anon, "GET", g + "/concerts/new", http.StatusSeeOther},
-		{"anonymous create", anon, "POST", g + "/concerts", http.StatusSeeOther},
-		{"anonymous edit", anon, "GET", g + "/concerts/1/edit", http.StatusSeeOther},
-		{"anonymous delete", anon, "POST", g + "/concerts/1/delete", http.StatusSeeOther},
-		{"anonymous concert page", anon, "GET", g + "/concerts/1", http.StatusSeeOther}, // to the public link
-		{"other group's concert", intruder, "GET", "/g/" + other + "/concerts/1", http.StatusNotFound},
-		{"other group's delete", intruder, "POST", "/g/" + other + "/concerts/1/delete", http.StatusNotFound},
-		{"other group's restore", intruder, "POST", "/g/" + other + "/concerts/1/restore", http.StatusNotFound},
-		{"unknown concert", b, "GET", g + "/concerts/99", http.StatusNotFound},
-		{"non-numeric id", b, "GET", g + "/concerts/abc", http.StatusNotFound},
-		{"unknown secret", b, "GET", "/g/" + NewSecret() + "/concerts/1", http.StatusNotFound},
+		{"anonymous add form", anon, "GET", g + "/concerts/new", http.StatusSeeOther, g},
+		{"anonymous create", anon, "POST", g + "/concerts", http.StatusSeeOther, g},
+		{"anonymous edit", anon, "GET", g + "/concerts/1/edit", http.StatusSeeOther, g},
+		{"anonymous delete", anon, "POST", g + "/concerts/1/delete", http.StatusSeeOther, g},
+		{"anonymous concert page", anon, "GET", g + "/concerts/1", http.StatusSeeOther, ts.concertURL(t, secret, 1)},
+		{"other group's delete", intruder, "POST", "/g/" + other + "/concerts/1/delete", http.StatusNotFound, ""},
+		{"other group's restore", intruder, "POST", "/g/" + other + "/concerts/1/restore", http.StatusNotFound, ""},
+		{"unknown secret", b, "GET", "/g/" + NewSecret() + "/concerts/1", http.StatusNotFound, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -310,6 +308,9 @@ func TestConcertAccess(t *testing.T) {
 			}
 			if resp.StatusCode != tt.status {
 				t.Fatalf("status = %d, want %d", resp.StatusCode, tt.status)
+			}
+			if got := resp.Header.Get("Location"); tt.to != "" && got != tt.to {
+				t.Errorf("Location = %q, want %q", got, tt.to)
 			}
 		})
 	}
@@ -413,9 +414,7 @@ func TestUpcomingLimit(t *testing.T) {
 	b, secret := ts.member(t, "Léa")
 	g := "/g/" + secret
 	b.postRedirect(t, g+"/concerts", concertValues("Past", "2026-05-31", "", "V", "", "")) // id 1
-	ts.exec(t, `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?)
-		INSERT INTO concerts (group_id, token, artist, date, venue, created_at)
-		SELECT 1, lower(hex(randomblob(12))), 'A', '2026-06-01', 'V', '2026-01-01T00:00:00Z' FROM n`, store.MaxConcerts)
+	ts.fillUpcoming(t)
 	for name, path := range map[string]string{"create": g + "/concerts", "edit into the future": g + "/concerts/1"} {
 		resp, body := b.post(t, path, validConcert())
 		if resp.StatusCode != http.StatusUnprocessableEntity {

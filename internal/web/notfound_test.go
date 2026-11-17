@@ -43,6 +43,7 @@ func TestConcertNotFoundPage(t *testing.T) {
 		{"edit form", "GET", g + "/concerts/1/edit"},
 		{"another group's concert", "GET", g + "/concerts/2"},
 		{"not a number", "GET", g + "/concerts/abc"},
+		{"unknown concert", "GET", g + "/concerts/99"},
 		{"update", "POST", g + "/concerts/1"},
 		{"status", "POST", g + "/concerts/1/status"},
 		{"delete again", "POST", g + "/concerts/1/delete"},
@@ -59,6 +60,12 @@ func TestConcertNotFoundPage(t *testing.T) {
 			assertContains(t, body, "Ce n'est pas moi")
 		})
 	}
+
+	// An invalid edit too: the form must not come back for a deleted concert.
+	t.Run("invalid update", func(t *testing.T) {
+		resp, body := b.post(t, g+"/concerts/1", url.Values{"artist": {""}})
+		check(t, resp, body)
+	})
 
 	t.Run("without identity", func(t *testing.T) {
 		resp, body := ts.browser(t).get(t, g+"/concerts/1")

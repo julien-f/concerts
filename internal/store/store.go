@@ -22,8 +22,14 @@ import (
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
-// ErrNotFound is returned when a looked-up row does not exist.
-var ErrNotFound = errors.New("not found")
+var (
+	// ErrNotFound is returned when a looked-up row does not exist.
+	ErrNotFound = errors.New("not found")
+	// ErrDuplicate is returned when a first name is already taken in the group.
+	ErrDuplicate = errors.New("duplicate")
+	// ErrLimit is returned when a write would take a group past MaxMembers or MaxConcerts.
+	ErrLimit = errors.New("limit reached")
+)
 
 // Store wraps the database and the clock used for timestamps.
 type Store struct {

@@ -76,8 +76,8 @@ func TestMembers(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s := openTest(t)
-	g, _ := s.CreateGroup(ctx, "g", "s1")
-	other, _ := s.CreateGroup(ctx, "other", "s2")
+	g := mustGroup(t, s, "g", "s1")
+	other := mustGroup(t, s, "other", "s2")
 
 	for _, name := range []string{"Zoé", "élodie", "Marc"} {
 		if _, err := s.CreateMember(ctx, g.ID, name); err != nil {
@@ -118,11 +118,11 @@ func TestRenameMember(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s := openTest(t)
-	g, _ := s.CreateGroup(ctx, "g", "s1")
-	other, _ := s.CreateGroup(ctx, "other", "s2")
-	lea, _ := s.CreateMember(ctx, g.ID, "lea")
-	_, _ = s.CreateMember(ctx, g.ID, "Zoé")
-	elsewhere, _ := s.CreateMember(ctx, other.ID, "lea")
+	g := mustGroup(t, s, "g", "s1")
+	other := mustGroup(t, s, "other", "s2")
+	lea := mustMember(t, s, g.ID, "lea")
+	mustMember(t, s, g.ID, "Zoé")
+	elsewhere := mustMember(t, s, other.ID, "lea")
 
 	for _, tc := range []struct {
 		from, to string
@@ -152,7 +152,7 @@ func TestGroupsAndRotateSecret(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s := openTest(t)
-	g, _ := s.CreateGroup(ctx, "g", "old")
+	g := mustGroup(t, s, "g", "old")
 	if _, err := s.CreateMember(ctx, g.ID, "Léa"); err != nil {
 		t.Fatal(err)
 	}

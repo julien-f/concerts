@@ -11,18 +11,11 @@ func TestConcerts(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s := openTest(t)
-	g, _ := s.CreateGroup(ctx, "g", "s1")
-	other, _ := s.CreateGroup(ctx, "other", "s2")
-	lea, _ := s.CreateMember(ctx, g.ID, "Léa")
+	g := mustGroup(t, s, "g", "s1")
+	other := mustGroup(t, s, "other", "s2")
+	lea := mustMember(t, s, g.ID, "Léa")
 
-	add := func(c Concert) int64 {
-		t.Helper()
-		id, err := s.CreateConcert(ctx, g.ID, lea.ID, c, testToday)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return id
-	}
+	add := func(c Concert) int64 { t.Helper(); return mustConcert(t, s, g.ID, lea.ID, c, testToday) }
 	late := add(Concert{Artist: "Late", Date: "2027-03-14", Time: "21:00", Venue: "V", Address: "1 rue X, Paris",
 		Price: "29–32 €", Description: "Un.\n\nDeux."})
 	allDay := add(Concert{Artist: "All day", Date: "2027-03-14", Venue: "V", TicketURL: "https://t.example/x"})
@@ -116,12 +109,31 @@ func TestConcerts(t *testing.T) {
 // testToday is the Paris date callers pass; concerts dated before it are past.
 const testToday = "2026-06-01"
 
+// TestConcertErrorIsEmpty: on an error, Concert returns no half-read concert, whose Deleted
+// would make callers answer 404 instead of 500.
+func TestConcertErrorIsEmpty(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s := openTest(t)
+	g := mustGroup(t, s, "g", "s")
+	id := mustConcert(t, s, g.ID, mustMember(t, s, g.ID, "Léa").ID, Concert{Artist: "A", Date: "2026-07-01", Venue: "V"}, testToday)
+	if err := s.DeleteConcert(ctx, g.ID, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.ExecContext(ctx, "DROP TABLE concert_revisions"); err != nil {
+		t.Fatal(err)
+	}
+	if c, err := s.Concert(ctx, g.ID, id); err == nil || c != (Concert{}) {
+		t.Errorf("Concert = %+v, %v; want an empty concert and the error", c, err)
+	}
+}
+
 func TestConcertLimit(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s := openTest(t)
-	g, _ := s.CreateGroup(ctx, "g", "s")
-	m, _ := s.CreateMember(ctx, g.ID, "Léa")
+	g := mustGroup(t, s, "g", "s")
+	m := mustMember(t, s, g.ID, "Léa")
 	const past, later = "2026-05-31", "2026-07-01"
 	create := func(date string) (int64, error) {
 		return s.CreateConcert(ctx, g.ID, m.ID, Concert{Artist: "A", Date: date, Venue: "V"}, testToday)
@@ -189,6 +201,9 @@ func TestConcertLimit(t *testing.T) {
 	if c, _ := s.Concert(ctx, g.ID, pastID); c.Date != past {
 		t.Fatalf("a refused edit still changed the date to %s", c.Date)
 	}
+	if rs, err := s.Revisions(ctx, g.ID, pastID); err != nil || len(rs) != 0 {
+		t.Fatalf("a refused edit recorded %d revisions (%v)", len(rs), err)
+	}
 	if err := update(upcoming, testToday); err != nil {
 		t.Fatalf("edit an upcoming concert at the limit: %v", err)
 	}
@@ -236,16 +251,12 @@ func TestSameConcert(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s := openTest(t)
-	g, _ := s.CreateGroup(ctx, "g", "s1")
-	other, _ := s.CreateGroup(ctx, "other", "s2")
-	lea, _ := s.CreateMember(ctx, g.ID, "Léa")
+	g := mustGroup(t, s, "g", "s1")
+	other := mustGroup(t, s, "other", "s2")
+	lea := mustMember(t, s, g.ID, "Léa")
 	add := func(groupID int64, artist, date string) int64 {
 		t.Helper()
-		id, err := s.CreateConcert(ctx, groupID, lea.ID, Concert{Artist: artist, Date: date, Venue: "V"}, testToday)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return id
+		return mustConcert(t, s, groupID, lea.ID, Concert{Artist: artist, Date: date, Venue: "V"}, testToday)
 	}
 	deleted := add(g.ID, "Émilie Simon", "2027-03-14")
 	if err := s.DeleteConcert(ctx, g.ID, deleted); err != nil {

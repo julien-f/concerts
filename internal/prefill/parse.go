@@ -1,4 +1,5 @@
-// Package prefill reads a concert from a ticketing page: Open Graph and JSON-LD.
+// Package prefill reads a concert from a ticketing page: Open Graph, JSON-LD and, for a few
+// sites, rules on the visible text.
 package prefill
 
 import (
@@ -8,6 +9,7 @@ import (
 	"io"
 	"maps"
 	"math"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -53,7 +55,7 @@ func scan(r io.Reader, withTexts bool) page {
 	z := html.NewTokenizer(r)
 	var class string
 	var block bool
-	var headings, hidden int // open h1–h6; open svg or template, whose text is not shown as is
+	var headings, hidden int // open h1–h6; open svg or template, whose text and title are not the page's
 	depth := func(tag string) *int {
 		switch tag {
 		case "h1", "h2", "h3", "h4", "h5", "h6":
@@ -111,7 +113,7 @@ func scan(r io.Reader, withTexts bool) page {
 					p.meta[key] = content
 				}
 			case "title":
-				if z.Next() == html.TextToken && p.title == "" {
+				if hidden == 0 && z.Next() == html.TextToken && p.title == "" { // not an svg's
 					p.title = string(z.Text())
 				}
 			case "script":
@@ -130,8 +132,8 @@ func scan(r io.Reader, withTexts bool) page {
 	}
 }
 
-// Parse extracts a Result from a page of host; now is in Europe/Paris and drops past on-sale dates.
-func Parse(r io.Reader, host string, now time.Time) Result {
+// parse extracts a Result from a page of host; now is in Europe/Paris and drops past on-sale dates.
+func parse(r io.Reader, host string, now time.Time) Result {
 	rule := siteRule(host)
 	p := scan(r, rule != nil)
 	var res Result
@@ -144,7 +146,7 @@ func Parse(r io.Reader, host string, now time.Time) Result {
 	// A date from JSON-LD means an event was found: do not mix in another source.
 	if rule != nil && res.Date == "" {
 		site := rule(p.texts)
-		res.Date, res.Time = site.Date, cmp.Or(res.Time, site.Time)
+		res.Date, res.Time = site.Date, site.Time // JSON-LD sets a time only with a date
 		res.Venue, res.Address = cmp.Or(res.Venue, site.Venue), cmp.Or(res.Address, site.Address)
 		res.Price, res.Description = cmp.Or(res.Price, site.Price), cmp.Or(res.Description, site.Description)
 	}
@@ -217,7 +219,7 @@ func fromEvent(ev map[string]any, now time.Time) Result {
 	res.Date, res.Time = wallClock(str(ev["startDate"]), now.Location())
 	switch loc := first(ev["location"]).(type) {
 	case string:
-		res.Venue = clean(loc)
+		res.Venue = clean(str(loc))
 	case map[string]any:
 		res.Venue = clean(str(loc["name"]))
 		if a := address(first(loc["address"])); a != res.Venue { // some pages repeat the venue
@@ -266,45 +268,58 @@ func unglue(s string) string {
 	return b.String()
 }
 
-// prose makes a JSON-LD description plain text: entities decoded (WordPress encodes them),
-// line feeds for CR, and invisible characters (soft hyphens, zero-width spaces…) dropped,
-// so the form, which rejects them, does not drop the whole text.
+// prose makes a JSON-LD description plain text: line feeds for CR, then clean.
 func prose(s string) string {
-	s = strings.NewReplacer("\r\n", "\n", "\r", "\n").Replace(html.UnescapeString(s))
-	return strings.TrimSpace(strings.Map(func(r rune) rune {
-		if r != '\n' && unicode.In(r, unicode.Cc, unicode.Cf, unicode.Variation_Selector, unicode.Other_Default_Ignorable_Code_Point) {
+	return clean(strings.NewReplacer("\r\n", "\n", "\r", "\n").Replace(s))
+}
+
+// plain keeps a value's words apart and acceptable to the form, which would reject it
+// whole: line feeds kept, other blanks (tabs, braille blank…) as spaces, other
+// Invisible characters (soft hyphens, zero-width spaces…) dropped.
+func plain(s string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r == '\n':
+			return r
+		case unicode.IsSpace(r) || r == '\u2800':
+			return ' '
+		case Invisible(r):
 			return -1
 		}
 		return r
-	}, strings.ToValidUTF8(s, "")))
+	}, s)
+}
+
+// Invisible reports control, format, variation selector, default-ignorable and braille blank
+// characters: the form rejects them, and plain drops them from every prefilled value.
+func Invisible(r rune) bool {
+	return r == '\u2800' || unicode.In(r, unicode.Cc, unicode.Cf, unicode.Variation_Selector, unicode.Other_Default_Ignorable_Code_Point)
 }
 
 // price formats the range of euro amounts among offers, however nested; a priceCurrency
 // applies to the offers within, and none means euros. "" when there is none.
 func price(offers any) string {
 	var lo, hi float64
-	var walk func(v any, currency string)
-	walk = func(v any, currency string) {
+	var visit func(v any, currency string)
+	visit = func(v any, currency string) {
 		switch v := v.(type) {
 		case []any:
 			for _, e := range v {
-				walk(e, currency)
+				visit(e, currency)
 			}
 		case map[string]any:
 			currency = cmp.Or(clean(str(v["priceCurrency"])), currency)
 			if strings.EqualFold(cmp.Or(currency, "EUR"), "EUR") {
 				for _, k := range []string{"price", "lowPrice", "highPrice"} {
-					if p := amount(v[k]); p > 0 {
-						lo, hi = cmp.Or(min(lo, p), p), max(hi, p)
-					}
+					lo, hi = widen(lo, hi, amount(v[k]))
 				}
 			}
 			for _, k := range slices.Sorted(maps.Keys(v)) {
-				walk(v[k], currency)
+				visit(v[k], currency)
 			}
 		}
 	}
-	walk(offers, "")
+	visit(offers, "")
 	return formatPrice(lo, hi)
 }
 
@@ -322,6 +337,14 @@ func amount(v any) float64 {
 		return 0
 	}
 	return math.Round(p*100) / 100
+}
+
+// widen extends the price range lo–hi (0–0 when empty) to p, unless p is not positive.
+func widen(lo, hi, p float64) (float64, float64) {
+	if p <= 0 {
+		return lo, hi
+	}
+	return cmp.Or(min(lo, p), p), max(hi, p)
 }
 
 // formatPrice writes « 32 € » or « 29–32 € », with cents only when there are some (« 39,90 € »); "" for no price.
@@ -387,7 +410,20 @@ func performers(v any) string {
 	return strings.Join(names, " + ")
 }
 
-func str(v any) string { s, _ := v.(string); return s }
+// str is a JSON-LD string with HTML entities decoded: WordPress encodes them (« &#8217; », « &amp; »).
+// Only whole entities closed by « ; »: html.UnescapeString alone reads « Salle&regie » and
+// « Salle&regie; » as « Salle®ie… », decoding the longest entity name a word starts with.
+func str(v any) string {
+	s, _ := v.(string)
+	return entity.ReplaceAllStringFunc(s, func(e string) string {
+		if d := html.UnescapeString(e); d == ";" || !strings.HasSuffix(d, ";") {
+			return d
+		}
+		return e
+	})
+}
+
+var entity = regexp.MustCompile(`&(?:#[0-9]+|#[xX][0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);`)
 
 func nameOf(v any) string {
 	if m, ok := v.(map[string]any); ok {
@@ -396,12 +432,12 @@ func nameOf(v any) string {
 	return str(v)
 }
 
-// clean trims spaces (no-break ones too) and makes text valid UTF-8.
+// clean makes text valid UTF-8 and plain, then trims spaces (no-break ones too).
 func clean(s string) string {
-	return strings.TrimFunc(strings.ToValidUTF8(s, ""), unicode.IsSpace)
+	return strings.TrimFunc(plain(strings.ToValidUTF8(s, "")), unicode.IsSpace)
 }
 
-var dateLayouts = []string{time.RFC3339Nano, "2006-01-02T15:04:05", "2006-01-02T15:04", time.DateOnly}
+var dateLayouts = []string{time.RFC3339Nano, "2006-01-02T15:04Z07:00", "2006-01-02T15:04:05Z0700", "2006-01-02T15:04Z0700", "2006-01-02T15:04:05Z07", "2006-01-02T15:04Z07", "2006-01-02T15:04:05", "2006-01-02T15:04", time.DateOnly}
 
 // wallClock turns a schema.org date into a date and time in loc ("" for a date alone).
 // A time without offset is already loc's wall clock; one with an offset is converted.

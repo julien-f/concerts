@@ -12,7 +12,6 @@ import (
 // card is a concert in the list with its status block.
 type card struct {
 	store.Concert
-	Base     string
 	Statuses statusBlock
 }
 
@@ -75,7 +74,7 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 			past = append(past, c)
 			continue
 		}
-		cd := card{c, gr.Base, newStatusBlock(gr, c, statuses[c.ID], back, true)}
+		cd := card{c, newStatusBlock(gr, c, statuses[c.ID], back, true)}
 		if c.Date[:7] == lastMonth {
 			p.Months[len(p.Months)-1].Cards = append(p.Months[len(p.Months)-1].Cards, cd)
 		} else {
@@ -116,7 +115,7 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 		p.PastMore, past = past[pastShown].ID, past[:pastShown]
 	}
 	for _, c := range past {
-		p.Past = append(p.Past, card{c, gr.Base, newStatusBlock(gr, c, statuses[c.ID], back, false)})
+		p.Past = append(p.Past, card{c, newStatusBlock(gr, c, statuses[c.ID], back, false)})
 	}
 	if id, err := strconv.ParseInt(q.Get("deleted"), 10, 64); err == nil {
 		c, err := s.store.Concert(r.Context(), gr.Group.ID, id)

@@ -10,15 +10,12 @@ func TestRevisions(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s := openTest(t)
-	g, _ := s.CreateGroup(ctx, "g", "s1")
-	other, _ := s.CreateGroup(ctx, "other", "s2")
-	lea, _ := s.CreateMember(ctx, g.ID, "Léa")
-	tom, _ := s.CreateMember(ctx, g.ID, "Tom")
+	g := mustGroup(t, s, "g", "s1")
+	other := mustGroup(t, s, "other", "s2")
+	lea := mustMember(t, s, g.ID, "Léa")
+	tom := mustMember(t, s, g.ID, "Tom")
 	orig := Concert{Artist: "A", Date: "2027-03-14", Venue: "V"}
-	id, err := s.CreateConcert(ctx, g.ID, lea.ID, orig, testToday)
-	if err != nil {
-		t.Fatal(err)
-	}
+	id := mustConcert(t, s, g.ID, lea.ID, orig, testToday)
 	update := func(by int64, c Concert) int64 {
 		t.Helper()
 		rev, err := s.UpdateConcert(ctx, g.ID, by, id, c, testToday)
@@ -71,15 +68,15 @@ func TestRevisions(t *testing.T) {
 	}
 
 	// Another group, another concert or an unknown id finds nothing.
-	otherID, _ := s.CreateConcert(ctx, other.ID, lea.ID, orig, testToday)
+	otherID := mustConcert(t, s, other.ID, lea.ID, orig, testToday)
 	if _, err := s.Revision(ctx, other.ID, id, first); !errors.Is(err, ErrNotFound) {
 		t.Errorf("revision from another group: %v", err)
 	}
 	if _, err := s.Revision(ctx, other.ID, otherID, first); !errors.Is(err, ErrNotFound) {
 		t.Errorf("revision through another concert: %v", err)
 	}
-	if rs, _ := s.Revisions(ctx, other.ID, id); len(rs) != 0 {
-		t.Errorf("history from another group: %d revisions", len(rs))
+	if rs, err := s.Revisions(ctx, other.ID, id); err != nil || len(rs) != 0 {
+		t.Errorf("history from another group: %d revisions, %v", len(rs), err)
 	}
 
 	// A deleted concert's history is hidden, and back once restored.
@@ -89,8 +86,8 @@ func TestRevisions(t *testing.T) {
 	if _, err := s.Revision(ctx, g.ID, id, first); !errors.Is(err, ErrNotFound) {
 		t.Errorf("revision of a deleted concert: %v", err)
 	}
-	if rs, _ := s.Revisions(ctx, g.ID, id); len(rs) != 0 {
-		t.Errorf("history of a deleted concert: %d revisions", len(rs))
+	if rs, err := s.Revisions(ctx, g.ID, id); err != nil || len(rs) != 0 {
+		t.Errorf("history of a deleted concert: %d revisions, %v", len(rs), err)
 	}
 	if err := s.RestoreConcert(ctx, g.ID, id, testToday); err != nil {
 		t.Fatal(err)
@@ -117,26 +114,5 @@ func TestRevisions(t *testing.T) {
 	rs, _ := s.Revisions(ctx, g.ID, id)
 	if len(rs) != maxRevisions || rs[0].ID != last || rs[len(rs)-1].ID != last-maxRevisions+1 {
 		t.Fatalf("kept %d revisions, ids %d…%d; want the %d newest ending at %d", len(rs), rs[len(rs)-1].ID, rs[0].ID, maxRevisions, last)
-	}
-}
-
-func TestRevisionsAtLimit(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	s := openTest(t)
-	g, _ := s.CreateGroup(ctx, "g", "s")
-	m, _ := s.CreateMember(ctx, g.ID, "Léa")
-	pastID, _ := s.CreateConcert(ctx, g.ID, m.ID, Concert{Artist: "A", Date: "2026-05-31", Venue: "V"}, testToday)
-	for range MaxConcerts {
-		if _, err := s.CreateConcert(ctx, g.ID, m.ID, Concert{Artist: "A", Date: testToday, Venue: "V"}, testToday); err != nil {
-			t.Fatal(err)
-		}
-	}
-	// A refused edit leaves no revision behind.
-	if _, err := s.UpdateConcert(ctx, g.ID, m.ID, pastID, Concert{Artist: "A", Date: testToday, Venue: "V"}, testToday); !errors.Is(err, ErrLimit) {
-		t.Fatalf("edit into the future at the limit: %v", err)
-	}
-	if rs, _ := s.Revisions(ctx, g.ID, pastID); len(rs) != 0 {
-		t.Fatalf("refused edit recorded %d revisions", len(rs))
 	}
 }

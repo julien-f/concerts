@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 // ticketSite serves the prefill fixtures, plus a blocked page and a hostile one.
@@ -23,6 +24,8 @@ func ticketSite(t *testing.T) *httptest.Server {
 		case "/hostile":
 			_, _ = w.Write([]byte(`<script type="application/ld+json">{"@type":"MusicEvent","name":"` +
 				strings.Repeat("x", 101) + `","startDate":"2026-07-01T20:00","location":{"name":"Salle` + "\u200b" + `","address":"` + strings.Repeat("x", 101) + `"}}</script>`))
+		case "/rejected": // something found, but nothing the form accepts
+			_, _ = w.Write([]byte("<title>" + strings.Repeat("Concert ", 20) + "</title>"))
 		case "/long":
 			_, _ = w.Write([]byte(`<script type="application/ld+json">{"@type":"MusicEvent","name":"Long","description":"` +
 				strings.Repeat("Une phrase de vingt-neuf car. ", 70) + `"}</script>`))
@@ -55,7 +58,9 @@ func TestPrefill(t *testing.T) {
 		{"long description cut at a sentence end", site.URL + "/long", []string{
 			`maxlength="2000">` + strings.Repeat("Une phrase de vingt-neuf car. ", 65) + "Une phrase de vingt-neuf car.…</textarea>"}},
 		{"nothing found", site.URL + "/empty", []string{"Rien trouvé sur cette page\u202f: remplis", `aria-describedby="prefill-msg" autofocus`}},
-		{"hostile values dropped", site.URL + "/hostile", []string{`id="artist" name="artist" type="text" value=""`, `id="venue" name="venue" type="text" value=""`, `id="address" name="address" type="text" value=""`, `value="2026-07-01"`}},
+		{"nothing acceptable", site.URL + "/rejected", []string{"Rien trouvé sur cette page"}},
+		// Too long: dropped; an invisible character: stripped by prefill, the rest kept.
+		{"hostile values dropped", site.URL + "/hostile", []string{`id="artist" name="artist" type="text" value=""`, `id="venue" name="venue" type="text" value="Salle"`, `id="address" name="address" type="text" value=""`, `value="2026-07-01"`}},
 		{"not a web link", "javascript:alert(1)", []string{"Lien invalide\u202f: il doit",
 			`id="url" name="url" type="url" value="javascript:alert(1)" maxlength="2000" inputmode="url" aria-invalid="true" aria-describedby="prefill-msg" autofocus`}},
 	}
@@ -102,6 +107,9 @@ func TestRefreshConcert(t *testing.T) {
 		{"price and description filled", concertValues("Mine", "2027-01-25", "21:00", "V", site.URL+"/belle-electrique.html", ""), []string{
 			"Complété depuis la billetterie\u202f: Adresse, Prix, Description.", `value="26–29 €"`,
 			">Une soirée, cinq figures du collectif."}},
+		// The page's artist (Nova Test) does not replace one typed but invalid.
+		{"invalid field kept", concertValues("Mi\u200bne", "2027-01-25", "21:00", "V", zenith, ""), []string{
+			`id="artist" name="artist" type="text" value="Mi` + "\u200b" + `ne"`}},
 		{"nothing to fill", full, []string{
 			"Rien de plus sur la billetterie.", `aria-describedby="prefill-msg" autofocus>Relire la billetterie`}},
 		{"unreadable page", concertValues("Mine", "2027-01-25", "", "V", site.URL+"/blocked", ""), []string{
@@ -174,5 +182,28 @@ func TestFetchLimiter(t *testing.T) {
 		t.Error("fetch after the minute refused")
 	} else {
 		r()
+	}
+}
+
+// TestFitParagraphsCut: a long description is cut at a line or sentence end, else between words,
+// either in the second half of what fits; else at the limit.
+func TestFitParagraphsCut(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		in, want string
+		max      int
+	}{
+		{strings.Repeat("motus ", 400), strings.Repeat("motus ", 332) + "motus…", 2000},                  // the cut falls inside a word
+		{strings.Repeat("mot ", 600), strings.Repeat("mot ", 499) + "mot…", 2000},                        // the cut ends a word: kept
+		{"aaaa bbbb\ncc", "aaaa bbbb…", 10},                                                              // ended by a line feed too
+		{"Un. Deux trois quatre\nfin", "Un. Deux trois quatre…", 22},                                     // a whole line, not the sentence before it
+		{"Concert\n" + strings.Repeat("mot ", 30), "Concert\n" + strings.Repeat("mot ", 7) + "mot…", 40}, // a line end too early: between words
+		{"Concert\n" + strings.Repeat("x", 60), "Concert\n" + strings.Repeat("x", 31) + "…", 40},         // nothing in the second half: at the limit
+		{strings.Repeat("a", 22) + "\n" + strings.Repeat("é ", 20), strings.Repeat("a", 22) + "…", 40},   // past half in runes, not in bytes
+	} {
+		if got := fitParagraphs(tt.in, tt.max); got != tt.want {
+			tail := func(s string) string { r := []rune(s); return string(r[max(0, len(r)-8):]) }
+			t.Errorf("fitParagraphs: %d runes ending %q, want %d ending %q", utf8.RuneCountInString(got), tail(got), utf8.RuneCountInString(tt.want), tail(tt.want))
+		}
 	}
 }

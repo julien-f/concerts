@@ -97,8 +97,13 @@ func TestStatusRejected(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if resp, _ := tt.b.post(t, tt.path, url.Values{"status": {tt.status}}); resp.StatusCode != tt.want {
+			resp, _ := tt.b.post(t, tt.path, url.Values{"status": {tt.status}})
+			if resp.StatusCode != tt.want {
 				t.Fatalf("status = %d, want %d", resp.StatusCode, tt.want)
+			}
+			// An answer saved redirects too: the anonymous one must land on the picker.
+			if got := resp.Header.Get("Location"); tt.want == http.StatusSeeOther && got != g {
+				t.Errorf("Location = %q, want the picker %q", got, g)
 			}
 		})
 	}

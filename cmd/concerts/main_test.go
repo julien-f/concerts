@@ -110,16 +110,29 @@ func testServeSocket(t *testing.T, listenPID string, pidNS bool) {
 	}
 }
 
-func TestRenameMember(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	st, err := store.Open(ctx, filepath.Join(t.TempDir(), "c.db"), time.Now)
+func openStore(t *testing.T) *store.Store {
+	t.Helper()
+	now := func() time.Time { return time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC) }
+	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "c.db"), now)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
-	g, _ := st.CreateGroup(ctx, "g", "s")
-	m, _ := st.CreateMember(ctx, g.ID, "Lea")
+	return st
+}
+
+func TestRenameMember(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	st := openStore(t)
+	g, err := st.CreateGroup(ctx, "g", "s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := st.CreateMember(ctx, g.ID, "Lea")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if err := renameMember(ctx, st, strconv.FormatInt(g.ID, 10), "lea", "\u200bLéa"); err == nil {
 		t.Error("invisible character accepted")
@@ -129,6 +142,51 @@ func TestRenameMember(t *testing.T) {
 	}
 	if got, _ := st.Member(ctx, g.ID, m.ID); got.Name != "Léa B." {
 		t.Errorf("name = %q, want the cleaned %q", got.Name, "Léa B.")
+	}
+}
+
+func TestNewGroupCleansName(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	st := openStore(t)
+	for _, name := range []string{"  ", "a\u200bb"} {
+		if _, err := newGroup(ctx, st, "http://x", name); err == nil {
+			t.Errorf("newGroup(%q) accepted", name)
+		}
+	}
+	g, err := newGroup(ctx, st, "http://x", " Les\tcopains  du concert ")
+	if err != nil || g.Name != "Les copains du concert" {
+		t.Errorf("newGroup = %q, %v; want the cleaned name", g.Name, err)
+	}
+}
+
+// TestRunChecksBaseURL: a command printing a link refuses a base URL serve would refuse,
+// before rotate-secret kills the old link. Not parallel: t.Setenv.
+func TestRunChecksBaseURL(t *testing.T) {
+	t.Setenv("CONCERTS_DB", filepath.Join(t.TempDir(), "c.db"))
+	for _, u := range []string{"", "x", "ftp://h", "https://h/?x"} {
+		t.Setenv("CONCERTS_BASE_URL", u)
+		if err := run([]string{"rotate-secret", "1"}, slog.New(slog.DiscardHandler)); err == nil || !strings.Contains(err.Error(), "CONCERTS_BASE_URL") {
+			t.Errorf("base URL %q: err = %v, want one naming CONCERTS_BASE_URL", u, err)
+		}
+	}
+}
+
+// TestDemo: make demo and verify-ui depend on it; it must keep up with the store.
+func TestDemo(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	st := openStore(t)
+	if err := demo(ctx, st, "http://x", time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	gs, err := st.Groups(ctx)
+	if err != nil || len(gs) != 1 {
+		t.Fatalf("groups = %+v, %v; want the demo group", gs, err)
+	}
+	cs, err := st.Concerts(ctx, gs[0].ID)
+	if err != nil || len(cs) != 34 {
+		t.Errorf("concerts = %d, %v; want 34", len(cs), err)
 	}
 }
 

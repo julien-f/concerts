@@ -26,6 +26,14 @@ check_url() {
 	case $1 in
 	*[!A-Za-z0-9._~:/-]*) die "base URL '$1': letters, digits and . _ ~ : / - only" ;;
 	esac
+	# One trailing slash is allowed (install.sh strips it); after it, host[:port] only.
+	case ${1%/} in
+	https:/ | https:// | https://:*) die "base URL '$1': no host name" ;;
+	https://*/* | *:) die "base URL '$1': https://host[:port] only, no path" ;;
+	https://*:*:* | https://*:*[!0-9]*) die "base URL '$1': the port must be a number" ;;
+	https://*:*) port=${1%/}; port=${port##*:}
+		[ "${#port}" -le 5 ] && [ "$port" -ge 1 ] && [ "$port" -le 65535 ] || die "base URL '$1': port 1 to 65535" ;;
+	esac
 }
 
 # True when $1's units are ours; dies if a unit with that name exists that is not.

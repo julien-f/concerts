@@ -63,10 +63,26 @@ func TestParseFixtures(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.file+"@"+tt.host, func(t *testing.T) {
 			t.Parallel()
-			if got := Parse(strings.NewReader(fixture(t, tt.file)), tt.host, now); got != tt.want {
-				t.Fatalf("Parse = %+v\nwant    %+v", got, tt.want)
+			if got := parse(strings.NewReader(fixture(t, tt.file)), tt.host, now); got != tt.want {
+				t.Fatalf("parse = %+v\nwant    %+v", got, tt.want)
 			}
 		})
+	}
+}
+
+// TestProse: a JSON-LD description comes out as text the form accepts, words kept apart.
+func TestProse(t *testing.T) {
+	t.Parallel()
+	tests := []struct{ in, want string }{
+		{"Un\r\ndeux\rtrois", "Un\ndeux\ntrois"}, // entities are str's job: decoding them here too would decode twice
+		{"Ex\u00ademple\u200b", "Exemple"},
+		{"Un\tduo\u00a0ici", "Un duo ici"},
+		{"Un duo\u2800ici", "Un duo ici"},
+	}
+	for _, tt := range tests {
+		if got := prose(tt.in); got != tt.want {
+			t.Errorf("prose(%q) = %q, want %q", tt.in, got, tt.want)
+		}
 	}
 }
 
@@ -183,6 +199,9 @@ func TestParseSiteRules(t *testing.T) {
 				return `<a>Billetterie</a><p>Prix libre</p><h1>X</h1><p>Un  <a>Suivre</a>  duo.</p><h3>Lieu</h3>`
 			},
 			Result{Description: "Prix libre\n\nX\nUn duo."}},
+		{"invisible characters dropped from the description, as from JSON-LD's", "www.retourdescene.net",
+			func(*testing.T) string { return "<a>Billetterie</a><p>Ex\u00ademple\u200b\tici</p><h3>Lieu</h3>" },
+			Result{Description: "Exemple ici"}},
 		{"price with spaces and cents", "www.retourdescene.net",
 			func(*testing.T) string { return "<a>Billetterie</a><p>12,50 € / 15 €</p><h3>Lieu</h3>" },
 			Result{Price: "12,50–15 €"}},
@@ -193,8 +212,8 @@ func TestParseSiteRules(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := Parse(strings.NewReader(tt.html(t)), tt.host, now); got != tt.want {
-				t.Fatalf("Parse = %+v\nwant    %+v", got, tt.want)
+			if got := parse(strings.NewReader(tt.html(t)), tt.host, now); got != tt.want {
+				t.Fatalf("parse = %+v\nwant    %+v", got, tt.want)
 			}
 		})
 	}
@@ -247,6 +266,18 @@ func TestParseEdgeCases(t *testing.T) {
 	}{
 		{"UTC offset converted to Paris", `<script type="application/ld+json">{"@type":"MusicEvent","name":"A","startDate":"2027-07-04T19:00:00Z"}</script>`,
 			Result{Artist: "A", Date: "2027-07-04", Time: "21:00"}},
+		{"offset without seconds, as ISO 8601 allows", `<script type="application/ld+json">{"@type":"MusicEvent","name":"A","startDate":"2027-07-04T19:00+02:00"}</script>`,
+			Result{Artist: "A", Date: "2027-07-04", Time: "19:00"}},
+		{"offset without a colon, as ISO 8601's basic format writes it", `<script type="application/ld+json">{"@type":"MusicEvent","name":"A","startDate":"2027-07-04T19:00:00+0200"}</script>`,
+			Result{Artist: "A", Date: "2027-07-04", Time: "19:00"}},
+		{"entities decoded in every JSON-LD text, as WordPress encodes them", `<script type="application/ld+json">{"@type":"MusicEvent","performer":{"name":"Lilly Wood &amp; The Prick"},"location":{"name":"L&#8217;Ilyade","address":"1 rue d&#039;Ici"}}</script>`,
+			Result{Artist: "Lilly Wood & The Prick", Venue: "L\u2019Ilyade", Address: "1 rue d'Ici"}},
+		{"a bare-string location decoded too; « & » without « ; » left alone", `<script type="application/ld+json">{"@type":"MusicEvent","name":"Salle&regie &amp; Ben&notre; &semi;","location":"L&#8217;Ilyade"}</script>`,
+			Result{Artist: "Salle&regie & Ben&notre; ;", Venue: "L\u2019Ilyade"}},
+		{"offset in hours only", `<script type="application/ld+json">{"@type":"MusicEvent","name":"A","startDate":"2027-07-04T19:00:00+02"}</script>`,
+			Result{Artist: "A", Date: "2027-07-04", Time: "19:00"}},
+		{"invisible characters dropped from one-line fields", `<script type="application/ld+json">{"@type":"MusicEvent","name":"Fon\u00adtaines","location":{"name":"Salle\u200b\tX"}}</script>`,
+			Result{Artist: "Fontaines", Venue: "Salle X"}},
 		{"date only, no time", `<script type="application/ld+json">{"@type":"Festival","name":"F","startDate":"2027-07-04","location":"Plein air"}</script>`,
 			Result{Artist: "F", Date: "2027-07-04", Venue: "Plein air"}},
 		{"MusicEvent preferred, in @graph", `<script type="APPLICATION/LD+JSON" id="x">{"@graph":[{"@type":"Event","name":"Other"},{"@type":["Thing","MusicEvent"],"name":"Music"}]}</script>`,
@@ -254,6 +285,7 @@ func TestParseEdgeCases(t *testing.T) {
 		{"ItemList of events", `<script type="application/ld+json">{"@type":"ItemList","itemListElement":[{"item":{"@type":"MusicEvent","name":"Listed"}}]}</script>`,
 			Result{Artist: "Listed"}},
 		{"title fallback, cut at the first separator", `<title>Artiste &amp; Co - Salle | Site</title>`, Result{Artist: "Artiste & Co"}},
+		{"an icon's svg title is not the page's", `<svg><title>Icône</title></svg><title>Artiste - Salle</title>`, Result{Artist: "Artiste"}},
 		{"og:title 'null' skipped", `<meta property="og:title" content="null"><meta name="twitter:title" content="Tw @ Venue">`, Result{Artist: "Tw"}},
 		{"address as a string", `<script type="application/ld+json">{"@type":"MusicEvent","name":"A","location":{"name":"S","address":" 1 rue X, Lyon "}}</script>`,
 			Result{Artist: "A", Venue: "S", Address: "1 rue X, Lyon"}},
@@ -269,8 +301,8 @@ func TestParseEdgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := Parse(strings.NewReader(tt.html), "", now); got != tt.want {
-				t.Fatalf("Parse = %+v, want %+v", got, tt.want)
+			if got := parse(strings.NewReader(tt.html), "", now); got != tt.want {
+				t.Fatalf("parse = %+v, want %+v", got, tt.want)
 			}
 		})
 	}

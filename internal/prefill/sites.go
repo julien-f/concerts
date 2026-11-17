@@ -11,7 +11,7 @@ import (
 	"unicode"
 )
 
-// siteRules read Date, Time, Venue, Address from pages without a schema.org Event, by host without "www.".
+// siteRules read a Result from the visible text of pages without a schema.org Event, by host without "www.".
 var siteRules = map[string]func([]text) Result{
 	"lilyade.fr":        lilyade,
 	"retourdescene.net": retourDeScene,
@@ -120,9 +120,7 @@ func retourDeSceneAbout(texts []text) (price, description string) {
 		if b.Len() == 0 && price == "" && rdsPrice.MatchString(t.s) {
 			var lo, hi float64
 			for _, s := range euroAmount.FindAllString(t.s, -1) {
-				if p := amount(s); p > 0 {
-					lo, hi = cmp.Or(min(lo, p), p), max(hi, p)
-				}
+				lo, hi = widen(lo, hi, amount(s))
 			}
 			price, newLine = formatPrice(lo, hi), false
 			continue
@@ -139,7 +137,7 @@ func retourDeSceneAbout(texts []text) (price, description string) {
 		b.WriteString(t.s)
 		newLine = false
 	}
-	return price, b.String()
+	return price, plain(b.String())
 }
 
 // section returns the texts between the heading named name and the next heading.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prints the measures logged per slice: Go lines (non-test), binary size, `make check` duration.
+# Prints the measures for a merge commit's body: Go lines (non-test), binary size, `make check` duration.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 echo "go lines (non-test): $(git ls-files --cached --others --exclude-standard '*.go' ':!:*_test.go' | xargs cat | wc -l)"
