@@ -158,7 +158,7 @@ func (s *server) concert(w http.ResponseWriter, r *http.Request, gr *groupReques
 	return c, true
 }
 
-// done ends a write: 404 for ErrNotFound, 500 for other errors, else a 303 to target.
+// done ends a write: 404 for ErrNotFound, a plain 422 for ErrLimit, 500 for other errors, else a 303 to target.
 func (s *server) done(w http.ResponseWriter, r *http.Request, gr *groupRequest, err error, target string) {
 	switch {
 	case errors.Is(err, store.ErrNotFound):
@@ -261,8 +261,8 @@ func listenLinks(artist string) []listenLink {
 	return links
 }
 
-// showConcert redirects to the public link, banner query kept, so the address bar never shows the secret.
-func (s *server) showConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
+// redirectToConcert redirects to the public link, banner query kept, so the address bar never shows the secret.
+func (s *server) redirectToConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
 	if c, ok := s.concert(w, r, gr); ok {
 		target := "/c/" + c.Token
 		if r.URL.RawQuery != "" {

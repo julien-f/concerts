@@ -118,7 +118,7 @@ func New(st *store.Store, log *slog.Logger, cfg Config) (http.Handler, error) {
 	mux.HandleFunc("POST /g/{secret}/logout", s.inGroup(s.logout))
 	mux.HandleFunc("GET /g/{secret}/concerts/new", s.inGroup(requireMe(s.newConcert)))
 	mux.HandleFunc("POST /g/{secret}/concerts", s.inGroup(requireMe(s.createConcert)))
-	mux.HandleFunc("GET /g/{secret}/concerts/{id}", s.inGroup(s.showConcert))
+	mux.HandleFunc("GET /g/{secret}/concerts/{id}", s.inGroup(s.redirectToConcert))
 	mux.HandleFunc("GET /g/{secret}/concerts/{id}/edit", s.inGroup(requireMe(s.editConcert)))
 	mux.HandleFunc("POST /g/{secret}/concerts/{id}", s.inGroup(requireMe(s.updateConcert)))
 	mux.HandleFunc("POST /g/{secret}/concerts/{id}/refresh", s.inGroup(requireMe(s.refreshConcert)))

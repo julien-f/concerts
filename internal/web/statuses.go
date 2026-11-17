@@ -22,7 +22,7 @@ type statusButton struct {
 	Pressed       bool
 }
 
-// statusBlock is the names per status and, for an identified member, their three buttons;
+// statusBlock is the names per status and, for an identified member, their buttons;
 // the card and the concert page share it, and htmx swaps it alone.
 type statusBlock struct {
 	Base      string
