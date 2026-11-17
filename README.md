@@ -14,7 +14,7 @@ CONCERTS_BASE_URL=http://localhost:8080 go run ./cmd/concerts new-group "Gig bud
 make demo                                                  # or: a fresh demo.db with sample data, served on :8080
 ```
 
-Environment: `CONCERTS_ADDR` (default `127.0.0.1:8080`; ignored when systemd passes a socket), `CONCERTS_DB` (default `concerts.db`), `CONCERTS_BASE_URL` (public URL; required by `serve`, `new-group`, `rotate-secret`). `concerts` without arguments lists the subcommands (`list-groups`, `rotate-secret`, `delete-member`, `backup`…).
+Environment: `CONCERTS_ADDR` (default `127.0.0.1:8080`; ignored when systemd passes a socket), `CONCERTS_DB` (default `concerts.db`), `CONCERTS_BASE_URL` (public URL; required by `serve`, `new-group`, `rotate-secret`, `demo`). `concerts` without arguments lists the subcommands (`list-groups`, `rotate-secret`, `delete-member`, `backup`…).
 
 ## Test
 
@@ -26,7 +26,7 @@ The pre-commit hook runs lint and tests, plus govulncheck when `go.mod` or `go.s
 
 ## Deploy
 
-A system user `<name>` (default `concerts`; the examples below use it) holds everything under `/home/<name>` (`bin/`, `data/`, `backups/`); the reverse proxy reaches the app through `/run/<name>.sock`. Only install and uninstall need root; deploys and admin commands log in as `<name>`. Nothing in `deploy/` is specific to one server: the name and the proxy's group are install parameters. Design and rejected options: [ADR 0008](docs/decisions/0008-deployment-under-a-home-user.md).
+A system user `<name>` (default `concerts`; the examples below use it) holds everything under `/home/<name>` (`bin/`, `data/`, `backups/`); the reverse proxy reaches the app through `/run/<name>.sock`. Only install and uninstall need root; deploys and admin commands log in as `<name>`. Nothing in `deploy/` is specific to one server: the name and the proxy's user are install parameters. Design and rejected options: [ADR 0008](docs/decisions/0008-deployment-under-a-home-user.md).
 
 ### Install (root, once and after any change to `deploy/`)
 

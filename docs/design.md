@@ -246,6 +246,6 @@ Also in v1: `make install`, `make deploy`, `make rollback` ([README](../README.m
 
 Later: off-server backups, nothing set up yet. Leads:
 - First check whether the server is already backed up (host snapshots, a whole-server backup) and covers `/home/<name>/backups`, not the live database.
-- Best fit: another machine pulls nightly with `rsync` and a key limited to `rrsync -ro /home/<name>/backups`; the server holds no credential, so a compromise cannot delete the copies. Retention on the puller: about 14 daily, 8 weekly, 12 monthly.
+- Best fit: another machine pulls nightly with `rsync` and a key limited to `rrsync -ro /home/<name>/backups`; the server holds no credential, so a compromise cannot delete the copies. `make install` rewrites `authorized_keys` with the deploy key only, so it must learn to keep that second key first. Retention on the puller: about 14 daily, 8 weekly, 12 monthly.
 - Without an always-on machine: restic to BorgBase or a storage box in append-only mode, pruned from a trusted machine.
 - A periodic restore test (`PRAGMA integrity_check`, `list-groups`) and an alert when the newest snapshot is over 36 h old.
