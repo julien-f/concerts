@@ -10,16 +10,16 @@ Observable behaviour (routes, HTML, schema, CLI) unchanged except for bugs. Each
 
 ## Bugs (test first, seen failing, separate commit)
 
-- [ ] web: an invalid text field (artist, venue, address, price, description) comes back empty on the 422 form, so what was typed is lost; « Relire la billetterie » then overwrites it (`parseConcert`, `concerts.go:77`).
-- [ ] prefill: `prose` strips a different invisible set than the form (misses U+2800), so one braille blank drops the whole description; share one predicate (`parse.go:275`, `web/form.go:60`).
-- [ ] prefill: `prose` drops tabs, gluing words (« Un\tduo » → « Unduo »).
-- [ ] prefill: 2 redirects followed where the threat model says 3 (`fetch.go:73`, `via` includes the first request); test named « fourth » tests the third.
-- [ ] prefill: an inline SVG `<title>` wins over the page `<title>` (`parse.go:113`).
-- [ ] cmd: `new-group` stores an uncleaned name (blank, tabs break `list-groups`).
-- [ ] cmd: base URL only validated by `serve`; `rotate-secret` with a bad one kills the old link and prints a broken one.
-- [ ] store: `Concert` returns a half-filled struct with an error, so a DB error on a deleted concert gives 404, not 500 (`concerts.go:61`).
-- [ ] Makefile: `install` guard passes with an empty `DEPLOY_KEY` (`test … -a -f` with no operand).
-- [ ] scripts: `measure-scroll.sh` exits silently under `set -e` before « no default route ».
+- [x] web: an invalid text field (artist, venue, address, price, description) comes back empty on the 422 form, so what was typed is lost; « Relire la billetterie » then overwrites it (`parseConcert`, `concerts.go:77`).
+- [x] prefill: `prose` strips a different invisible set than the form (misses U+2800), so one braille blank drops the whole description; share one predicate (`parse.go:275`, `web/form.go:60`).
+- [x] prefill: `prose` drops tabs, gluing words (« Un\tduo » → « Unduo »).
+- [x] prefill: 2 redirects followed where the threat model says 3 (`fetch.go:73`, `via` includes the first request); test named « fourth » tests the third.
+- [x] prefill: an inline SVG `<title>` wins over the page `<title>` (`parse.go:113`).
+- [x] cmd: `new-group` stores an uncleaned name (blank, tabs break `list-groups`).
+- [x] cmd: base URL only validated by `serve`; `rotate-secret` with a bad one kills the old link and prints a broken one.
+- [x] store: `Concert` returns a half-filled struct with an error, so a DB error on a deleted concert gives 404, not 500 (`concerts.go:61`).
+- [x] Makefile: `install` guard passes with an empty `DEPLOY_KEY` (`test … -a -f` with no operand).
+- [x] scripts: `measure-scroll.sh` exits silently under `set -e` before « no default route ».
 
 ## Code, by zone (highest gain/risk first)
 
@@ -76,4 +76,4 @@ docs
 
 ## State
 
-Next: bugs, then zones in the order above.
+Bugs done. Next: zones in the order above, store first.
