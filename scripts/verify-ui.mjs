@@ -1,5 +1,6 @@
 // Driven by verify-ui.sh: visits each screen at 390 px, runs axe-core in light
-// and dark mode, saves the server HTML for vnu and checks the group page weight.
+// and dark mode, runs each screen's own check, saves the server HTML for vnu and
+// checks the group page weight.
 import { createRequire } from "node:module";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
@@ -22,7 +23,20 @@ const screens = [
       return submit(p, "text=Rejoindre");
     },
   },
-  { name: "group", go: (p) => submit(p, 'button:has-text("Léa")') },
+  {
+    name: "group",
+    go: (p) => submit(p, 'button:has-text("Léa")'),
+    // A card's answer buttons once painted over the fixed « Ajouter » bar and took its clicks.
+    check: async (p) => {
+      const top = await p.$eval(".mine button", (b) => b.getBoundingClientRect().top);
+      await p.setViewportSize({ width: 390, height: Math.round(top) + 30 });
+      const hit = await p.$eval(".mine button", (b) => {
+        const r = b.getBoundingClientRect();
+        return document.elementFromPoint(r.left + r.width / 2, r.top + 5)?.closest(".add-bar") !== null;
+      });
+      return hit ? null : "an answer button covers the « Ajouter » bar";
+    },
+  },
   {
     name: "status-htmx",
     go: async (p) => {
@@ -100,6 +114,11 @@ for (const s of screens) {
   const resp = await s.go(page);
   if (resp && resp.status() >= 500) throw new Error(`${s.name}: HTTP ${resp.status()}`);
   writeFileSync(`${htmlDir}/${s.name}.html`, resp ? await resp.text() : await page.content());
+  const problem = await s.check?.(page);
+  if (problem) {
+    failures++;
+    console.log(`check ${s.name}: ${problem}`);
+  }
   // Whole page in view: a fixed bar then covers only the bottom padding, unless content
   // really sits under it (axe would otherwise report the bar's colors as a contrast issue).
   const height = await page.evaluate(() => document.documentElement.scrollHeight);
