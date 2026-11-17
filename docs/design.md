@@ -91,9 +91,9 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 │ MARS 2027                    │  h2 per month (h1 = group)
 │ ┌────┬─────────────────────┐ │
 │ │sam.┆ Fontaines D.C.      │ │  h3 linking to the concert;
-│ │ 14 ┆ sam. 14 mars · 20 h │ │  stub aria-hidden, <time>
-│ │mars┆ · Zénith Paris      │ │  in the body; price if set,
-│ │    ┆ · 29–32 €           │ │  nowrap with its « · »
+│ │ 14 ┆ 20 h · Zénith Paris │ │  stub aria-hidden, so <time>
+│ │mars┆ · 29–32 €           │ │  keeps the date visually hidden;
+│ │    ┆                     │ │  price if set, nowrap with « · »
 │ │    ┆ ✓ Y vont : Léa, Marc│ │  SVG icon + text per status,
 │ │    ┆ ★ Intérêt : Sam     │ │  names alphabetical
 │ │    ┆ [★ Ça m'intéresse]  │ │  role=group "Ma réponse",

@@ -49,6 +49,8 @@ func TestHomeMonthsAndPast(t *testing.T) {
 	if want := `class="stub ` + stubStyle("Juillet") + `"`; !strings.Contains(body, want) {
 		t.Errorf("no %s in the list", want)
 	}
+	// Without a time, the meta line starts with the venue; screen readers still get the date.
+	assertContains(t, body, `<time datetime="2026-07-03"><span class="visually-hidden">ven. 3 juil. · </span></time>V</p>`)
 	past := body[strings.Index(body, "Passés (2)"):]
 	if strings.Contains(past, `name="status"`) {
 		t.Errorf("past concerts offer status buttons")
