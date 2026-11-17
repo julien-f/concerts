@@ -24,8 +24,8 @@ Observable behaviour (routes, HTML, schema, CLI) unchanged except for bugs. Each
 ## Code, by zone (highest gain/risk first)
 
 store
-- [ ] Upcoming limit checked twice (`checkRoom` before insert, `commitWithin` after): keep `commitWithin` only, `checkRoom` → purge only.
-- [ ] Sentinel errors together in `store.go`; `ErrLimit` comment covers concerts; `MaxConcerts` comment « at most twice ».
+- [x] Upcoming limit checked twice (`checkRoom` before insert, `commitWithin` after): keep `commitWithin` only, `checkRoom` → purge only.
+- [x] Sentinel errors together in `store.go`; `ErrLimit` comment covers concerts; `MaxConcerts` comment « at most twice ».
 
 web
 - [ ] `refreshConcert` restates the 8 form fields: walk the form built from the page instead.
