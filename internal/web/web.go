@@ -78,8 +78,7 @@ func ParseBaseURL(s string) (*url.URL, error) {
 	return u, nil
 }
 
-// httpURL reports whether u is an absolute http(s) URL with a host name and no user part,
-// the rule base URLs and ticket links share.
+// httpURL is the rule base URLs and ticket links share.
 func httpURL(u *url.URL) bool {
 	return (u.Scheme == "http" || u.Scheme == "https") && u.Hostname() != "" && u.User == nil
 }

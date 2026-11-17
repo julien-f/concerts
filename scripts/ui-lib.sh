@@ -25,10 +25,10 @@ ensure_tools() {
 start_demo() {
 	work=$(mktemp -d)
 	trap 'stop_demo; rm -rf "$work"' EXIT
-	# Built first, quietly: go's own output stays out of the log $link is read from.
+	# Built first, quietly, and not again (-o build): go's output stays out of the log $link is read from.
 	make -C "$repo" --no-print-directory build >/dev/null
 	# Own process group, so stop_demo also stops the server make started.
-	setsid sh -c 'echo $$ >"$0"; exec make -C "$1" --no-print-directory demo DEMO_DB="$2" ADDR=127.0.0.1:0' \
+	setsid sh -c 'echo $$ >"$0"; exec make -C "$1" --no-print-directory -o build demo DEMO_DB="$2" ADDR=127.0.0.1:0' \
 		"$work/demo.pid" "$repo" "$work/demo.db" >"$work/server.log" 2>&1 &
 	# Until the server listens or exits; 2 min at most, so a stall still reports its log.
 	for _ in $(seq 1200); do

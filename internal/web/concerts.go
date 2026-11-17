@@ -121,8 +121,7 @@ func validDate(s string) bool {
 	return err == nil && d.Year() >= 2000 && d.Year() < 2100
 }
 
-// validTicketURL accepts only absolute http(s) links with an ASCII host and no user part,
-// so no javascript: or data: URL, and no look-alike host (« fnac.com@evil.example »), is ever rendered.
+// validTicketURL keeps javascript:, data: and look-alike links (« fnac.com@evil.example », non-ASCII hosts) off pages.
 func validTicketURL(s string) bool {
 	if len(s) > maxURLBytes || !utf8.ValidString(s) || strings.ContainsFunc(s, func(r rune) bool { return r <= ' ' || r == 0x7f }) {
 		return false
