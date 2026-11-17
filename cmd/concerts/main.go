@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"slices"
 	"strconv"
 	"syscall"
 	"text/tabwriter"
@@ -60,16 +59,20 @@ func run(args []string, log *slog.Logger) error {
 	baseURL := os.Getenv("CONCERTS_BASE_URL")
 
 	var cmd func(*store.Store) error
+	needsURL := false
 	switch {
 	case len(args) == 1 && args[0] == "serve":
+		needsURL = true
 		cmd = func(st *store.Store) error {
 			return serve(ctx, log, st, env("CONCERTS_ADDR", "127.0.0.1:8080"), baseURL)
 		}
 	case len(args) == 2 && args[0] == "new-group":
+		needsURL = true
 		cmd = func(st *store.Store) error { _, err := newGroup(ctx, st, baseURL, args[1]); return err }
 	case len(args) == 1 && args[0] == "list-groups":
 		cmd = func(st *store.Store) error { return listGroups(ctx, st) }
 	case len(args) == 2 && args[0] == "rotate-secret":
+		needsURL = true
 		cmd = func(st *store.Store) error { return rotateSecret(ctx, st, baseURL, args[1]) }
 	case len(args) == 3 && args[0] == "delete-member":
 		cmd = func(st *store.Store) error { return deleteMember(ctx, st, args[1], args[2]) }
@@ -78,13 +81,14 @@ func run(args []string, log *slog.Logger) error {
 	case len(args) == 2 && args[0] == "backup":
 		cmd = func(st *store.Store) error { return st.Backup(ctx, args[1]) }
 	case len(args) == 1 && args[0] == "demo":
+		needsURL = true
 		cmd = func(st *store.Store) error { return demo(ctx, st, baseURL) }
 	default:
 		fmt.Fprint(os.Stderr, usage)
 		return errors.New("invalid arguments")
 	}
-	if baseURL == "" && slices.Contains([]string{"serve", "new-group", "rotate-secret", "demo"}, args[0]) {
-		return errors.New("CONCERTS_BASE_URL is required")
+	if _, err := web.ParseBaseURL(baseURL); needsURL && err != nil {
+		return fmt.Errorf("CONCERTS_BASE_URL: %w", err)
 	}
 
 	st, err := store.Open(ctx, dbPath, time.Now)

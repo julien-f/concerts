@@ -66,11 +66,20 @@ type Config struct {
 	Fetch   *http.Client // for ticketing pages; prefill.NewClient() if nil
 }
 
+// ParseBaseURL accepts only http(s)://host, the form every absolute link is built on.
+func ParseBaseURL(s string) (*url.URL, error) {
+	u, err := url.Parse(s)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return nil, fmt.Errorf("base URL %q: want http(s)://host", s)
+	}
+	return u, nil
+}
+
 // New returns the app's HTTP handler; it fails if a template does not parse.
 func New(st *store.Store, log *slog.Logger, cfg Config) (http.Handler, error) {
-	u, err := url.Parse(cfg.BaseURL)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return nil, fmt.Errorf("base URL %q: want http(s)://host", cfg.BaseURL)
+	u, err := ParseBaseURL(cfg.BaseURL)
+	if err != nil {
+		return nil, err
 	}
 	if h := u.Hostname(); u.Scheme == "http" && !strings.EqualFold(h, "localhost") && !net.ParseIP(h).IsLoopback() {
 		log.Warn("plain http base URL: cookies lack Secure and shared links send the secret in clear; use https",
