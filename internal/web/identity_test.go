@@ -112,8 +112,8 @@ func TestIdentityCookie(t *testing.T) {
 			if resp.StatusCode != http.StatusOK {
 				t.Fatalf("status = %d, want 200", resp.StatusCode)
 			}
-			// The header names the member only with an identity; the picker otherwise.
-			if got := strings.Contains(body, "Ce n'est pas moi"); got != tt.identified {
+			// The header names the member only with an identity; the picker shows otherwise.
+			if got := strings.Contains(body, "Ce n'est pas moi"); got != tt.identified || strings.Contains(body, "Qui es-tu") == got {
 				t.Fatalf("identified = %v, want %v", got, tt.identified)
 			}
 			if cc := resp.Header.Get("Cache-Control"); cc != "private, no-cache" {
