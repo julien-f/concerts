@@ -102,6 +102,9 @@ func TestRefreshConcert(t *testing.T) {
 		{"price and description filled", concertValues("Mine", "2027-01-25", "21:00", "V", site.URL+"/belle-electrique.html", ""), []string{
 			"Complété depuis la billetterie\u202f: Adresse, Prix, Description.", `value="26–29 €"`,
 			">Une soirée, cinq figures du collectif."}},
+		// The page's artist (Nova Test) does not replace one typed but invalid.
+		{"invalid field kept", concertValues("Mi\u200bne", "2027-01-25", "21:00", "V", zenith, ""), []string{
+			`id="artist" name="artist" type="text" value="Mi` + "\u200b" + `ne"`}},
 		{"nothing to fill", full, []string{
 			"Rien de plus sur la billetterie.", `aria-describedby="prefill-msg" autofocus>Relire la billetterie`}},
 		{"unreadable page", concertValues("Mine", "2027-01-25", "", "V", site.URL+"/blocked", ""), []string{

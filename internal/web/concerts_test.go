@@ -221,8 +221,8 @@ func TestConcertValidation(t *testing.T) {
 	}
 }
 
-// TestConcertFormKeepsInput: an invalid text field comes back as typed, not emptied, and
-// « Relire la billetterie » leaves it alone, as it does every field typed.
+// TestConcertFormKeepsInput: an invalid text field comes back as typed, not emptied
+// (TestRefreshConcert: and « Relire la billetterie » leaves it alone).
 func TestConcertFormKeepsInput(t *testing.T) {
 	t.Parallel()
 	ts := newTestServer(t)
