@@ -97,8 +97,12 @@ func run(args []string, log *slog.Logger) error {
 
 // newGroup creates a group and prints its link.
 func newGroup(ctx context.Context, st *store.Store, baseURL, name string) (store.Group, error) {
+	clean, ok := web.CleanGroupName(name)
+	if !ok {
+		return store.Group{}, fmt.Errorf("group name %q: empty, too long or with invisible characters", name)
+	}
 	secret := web.NewSecret()
-	g, err := st.CreateGroup(ctx, name, secret)
+	g, err := st.CreateGroup(ctx, clean, secret)
 	if err == nil {
 		fmt.Println(web.GroupURL(baseURL, secret))
 	}

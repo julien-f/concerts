@@ -132,6 +132,25 @@ func TestRenameMember(t *testing.T) {
 	}
 }
 
+func TestNewGroupCleansName(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	st, err := store.Open(ctx, filepath.Join(t.TempDir(), "c.db"), time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	for _, name := range []string{"  ", "a\u200bb"} {
+		if _, err := newGroup(ctx, st, "http://x", name); err == nil {
+			t.Errorf("newGroup(%q) accepted", name)
+		}
+	}
+	g, err := newGroup(ctx, st, "http://x", " Les\tcopains  du concert ")
+	if err != nil || g.Name != "Les copains du concert" {
+		t.Errorf("newGroup = %q, %v; want the cleaned name", g.Name, err)
+	}
+}
+
 func TestServeSocketChild(t *testing.T) {
 	if os.Getenv("SERVE_SOCKET_CHILD") == "" {
 		t.Skip("run by TestServeSocketActivation")
