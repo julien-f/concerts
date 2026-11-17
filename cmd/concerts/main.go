@@ -87,8 +87,10 @@ func run(args []string, log *slog.Logger) error {
 		fmt.Fprint(os.Stderr, usage)
 		return errors.New("invalid arguments")
 	}
-	if _, err := web.ParseBaseURL(baseURL); needsURL && err != nil {
-		return fmt.Errorf("CONCERTS_BASE_URL: %w", err)
+	if needsURL {
+		if _, err := web.ParseBaseURL(baseURL); err != nil {
+			return fmt.Errorf("CONCERTS_BASE_URL: %w", err)
+		}
 	}
 
 	st, err := store.Open(ctx, dbPath, time.Now)
