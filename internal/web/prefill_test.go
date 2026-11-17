@@ -183,3 +183,11 @@ func TestFetchLimiter(t *testing.T) {
 		r()
 	}
 }
+
+// TestFitParagraphsWordCut: without a line or sentence end to cut at, the cut falls between words.
+func TestFitParagraphsWordCut(t *testing.T) {
+	t.Parallel()
+	if got, want := fitParagraphs(strings.Repeat("mot ", 600), 2000), strings.Repeat("mot ", 498)+"mot…"; got != want {
+		t.Errorf("fitParagraphs = …%q, want …%q", got[len(got)-12:], want[len(want)-12:])
+	}
+}

@@ -142,3 +142,16 @@ func TestRevertErrors(t *testing.T) {
 		t.Errorf("revert of a deleted concert: status = %d, want 404", resp.StatusCode)
 	}
 }
+
+// TestHistoryDates: a changed date reads as dates, not as YYYY-MM-DD.
+func TestHistoryDates(t *testing.T) {
+	t.Parallel()
+	ts := newTestServer(t)
+	b, secret := ts.member(t, "Léa")
+	g := "/g/" + secret
+	b.postRedirect(t, g+"/concerts", concertValues("A", "2026-07-01", "", "V", "", ""))
+	b.postRedirect(t, g+"/concerts/1", concertValues("A", "2026-07-02", "", "V", "", "2026-06-05"))
+	_, body := b.get(t, g+"/concerts/1/history")
+	assertContains(t, body, "<li>Date\u202f: mer. 1 juil. → jeu. 2 juil.</li>",
+		"<li>Mise en vente\u202f: (vide) → ven. 5 juin</li>")
+}
