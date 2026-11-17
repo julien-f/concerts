@@ -27,7 +27,7 @@ PrivateTmp=yes
 PrivateDevices=yes
 PrivateUsers=yes
 PrivateIPC=yes
-# Hides the deployer's processes, same UID (systemd 257+; LISTEN_PID still matches).
+# Hides the deployer's processes, same UID (systemd 257+; on 257 LISTEN_PID is wrong, see listen() in main.go).
 PrivatePIDs=yes
 ProtectProc=invisible
 ProcSubset=pid

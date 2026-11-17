@@ -151,7 +151,10 @@ func deleteMember(ctx context.Context, st *store.Store, groupID, name string) er
 
 // listen returns the socket systemd passes (fd 3, see sd_listen_fds(3)), else a TCP listener on addr.
 func listen(addr string) (net.Listener, error) {
-	if os.Getenv("LISTEN_PID") != strconv.Itoa(os.Getpid()) {
+	// PID 1 is the process systemd started: systemd 257 with PrivatePIDs=yes sets LISTEN_PID to a host PID.
+	// Remove once the server runs systemd 259+ (https://github.com/systemd/systemd/pull/39575).
+	pid := os.Getenv("LISTEN_PID")
+	if pid == "" || pid != strconv.Itoa(os.Getpid()) && os.Getpid() != 1 {
 		return net.Listen("tcp", addr)
 	}
 	// An error rather than TCP: a service looking healthy but unreachable through the proxy hides the bug.

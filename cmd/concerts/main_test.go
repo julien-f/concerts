@@ -18,6 +18,23 @@ import (
 // TestServeSocketActivation passes a Unix listener as fd 3 to a child serve, as systemd does.
 func TestServeSocketActivation(t *testing.T) {
 	t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		listenPID string
+		pidNS     bool
+	}{
+		{"LISTEN_PID matches", "$$", false},
+		// systemd 257 with PrivatePIDs=yes sets LISTEN_PID to a host PID while the service is PID 1.
+		{"PID 1 in a PID namespace", "999999", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			testServeSocket(t, tc.listenPID, tc.pidNS)
+		})
+	}
+}
+
+func testServeSocket(t *testing.T, listenPID string, pidNS bool) {
 	dir := t.TempDir()
 	sock := filepath.Join(dir, "s") // sun_path holds 108 bytes: keep the name short
 	ln, err := net.ListenUnix("unix", &net.UnixAddr{Name: sock, Net: "unix"})
@@ -32,8 +49,16 @@ func TestServeSocketActivation(t *testing.T) {
 	_ = ln.Close()
 
 	// POSIX leaves unspecified whether `VAR=x exec …` exports VAR; export does.
-	cmd := exec.Command("sh", "-c", `export LISTEN_PID=$$ LISTEN_FDS=1; exec "$0" "$@"`, os.Args[0], "-test.run=^TestServeSocketChild$") //nolint:gosec // G204: re-runs this test binary
-	cmd.ExtraFiles = []*os.File{f}                                                                                                       // fd 3
+	cmd := exec.Command("sh", "-c", `export LISTEN_PID=`+listenPID+` LISTEN_FDS=1; exec "$0" "$@"`, os.Args[0], "-test.run=^TestServeSocketChild$") //nolint:gosec // G204: re-runs this test binary
+	if pidNS {
+		// sh, then serve, is PID 1; SIGTERM reaches serve directly.
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			Cloneflags:  syscall.CLONE_NEWUSER | syscall.CLONE_NEWPID,
+			UidMappings: []syscall.SysProcIDMap{{ContainerID: os.Getuid(), HostID: os.Getuid(), Size: 1}},
+			GidMappings: []syscall.SysProcIDMap{{ContainerID: os.Getgid(), HostID: os.Getgid(), Size: 1}},
+		}
+	}
+	cmd.ExtraFiles = []*os.File{f} // fd 3
 	cmd.Env = append(os.Environ(), "SERVE_SOCKET_CHILD=1",
 		"CONCERTS_DB="+filepath.Join(dir, "c.db"), "CONCERTS_BASE_URL=http://concerts.test",
 		"CONCERTS_ADDR=unused:bad",                         // a TCP fallback fails instead of passing
