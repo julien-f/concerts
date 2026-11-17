@@ -1,0 +1,16 @@
+{{define "title"}}Historique · {{.Artist}} · {{.Group.Name}}{{end}}
+{{define "content"}}
+<p><a class="back" href="{{.Base}}/concerts/{{.ID}}">← Retour au concert</a></p>
+<h1>Historique : {{.Artist}}</h1>
+{{range .Edits}}
+<section class="edit" aria-labelledby="rev{{.RevID}}">
+<h2 id="rev{{.RevID}}">{{or .By "Ancien membre"}} · {{.At}}</h2>
+<ul>
+{{range .Changes}}<li>{{.Label}} : {{.Before}} → {{.After}}</li>
+{{end}}</ul>
+{{if $.Me}}<form method="post" action="{{$.Base}}/concerts/{{$.ID}}/revisions/{{.RevID}}/revert"><button class="button secondary">Revenir avant cette modification</button></form>{{end}}
+</section>
+{{else}}
+<p>Aucune modification.</p>
+{{end}}
+{{end}}

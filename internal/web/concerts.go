@@ -216,6 +216,8 @@ type concertPage struct {
 	Share    string // « Prévenir le groupe » link
 	Map      string // OpenStreetMap search for the venue, "" without an address
 	Saved    bool   // banner after an edit
+	Reverted bool   // banner after going back to a revision
+	UndoRev  int64  // revision the banner offers to go back to, 0 for none
 }
 
 func (s *server) showConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
@@ -229,12 +231,21 @@ func (s *server) showConcert(w http.ResponseWriter, r *http.Request, gr *groupRe
 		return
 	}
 	p := &concertPage{groupRequest: gr, Concert: c, Statuses: newStatusBlock(gr, c, ss, "concert", s.upcoming(c)),
-		URL: s.pageURL(gr, c), Share: s.shareURL(gr, c), Saved: r.URL.Query().Has("saved")}
+		URL: s.pageURL(gr, c), Share: s.shareURL(gr, c)}
 	if c.Address != "" {
 		p.Map = "https://www.openstreetmap.org/search?query=" + url.QueryEscape(c.Venue+", "+c.Address)
 	}
-	if p.Saved {
-		p.Notice = "Concert modifié"
+	q := r.URL.Query()
+	var rev string
+	switch {
+	case q.Has("saved"):
+		p.Saved, p.Notice, rev = true, "Concert modifié", q.Get("saved")
+	case q.Has("reverted"):
+		p.Reverted, p.Notice, rev = true, "Version rétablie", q.Get("reverted")
+	}
+	// Undo only while that edit is the newest, as banners show only while true.
+	if id, err := strconv.ParseInt(rev, 10, 64); err == nil && id != 0 && id == c.LastRevID {
+		p.UndoRev = id
 	}
 	s.render(w, r, http.StatusOK, "concert", p)
 }
@@ -256,8 +267,17 @@ func (s *server) updateConcert(w http.ResponseWriter, r *http.Request, gr *group
 		s.render(w, r, http.StatusUnprocessableEntity, "form", newConcertForm(gr, c, errs))
 		return
 	}
-	err := s.store.UpdateConcert(r.Context(), gr.Group.ID, id, c, s.today())
-	s.done(w, r, gr, err, fmt.Sprintf("%s/concerts/%d?saved", gr.Base, id))
+	rev, err := s.store.UpdateConcert(r.Context(), gr.Group.ID, gr.Me.ID, id, c, s.today())
+	s.done(w, r, gr, err, revisedURL(gr, id, "saved", rev))
+}
+
+// revisedURL is the concert page after a write, with its banner naming revision rev (none if 0: nothing changed).
+func revisedURL(gr *groupRequest, id int64, banner string, rev int64) string {
+	u := fmt.Sprintf("%s/concerts/%d?%s", gr.Base, id, banner)
+	if rev != 0 {
+		u += "=" + strconv.FormatInt(rev, 10)
+	}
+	return u
 }
 
 // refreshConcert is « Relire la billetterie »: it fills the empty fields of the edit form,

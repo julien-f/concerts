@@ -24,6 +24,8 @@ type Concert struct {
 	OnSaleDate string // YYYY-MM-DD or ""
 	AddedBy    string // first name of the member who added it, "" if deleted
 	Deleted    bool
+	LastRevID  int64  // newest revision, 0 if never edited (set by Concert only)
+	EditedBy   string // first name of the member behind LastRevID, "" if deleted (set by Concert only)
 }
 
 // concertSelect matches concertFields.
@@ -48,6 +50,15 @@ func (s *Store) Concert(ctx context.Context, groupID, id int64) (Concert, error)
 	err := s.db.QueryRowContext(ctx, concertSelect+" WHERE c.id = ? AND c.group_id = ?", id, groupID).Scan(concertFields(&c)...)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Concert{}, ErrNotFound
+	}
+	if err != nil {
+		return c, err
+	}
+	err = s.db.QueryRowContext(ctx, `SELECT r.id, coalesce(m.name, '') FROM concert_revisions r
+		LEFT JOIN members m ON m.id = r.edited_by WHERE r.concert_id = ? ORDER BY r.id DESC LIMIT 1`,
+		id).Scan(&c.LastRevID, &c.EditedBy)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
 	}
 	return c, err
 }
@@ -126,25 +137,49 @@ func (s *Store) CreateConcert(ctx context.Context, groupID, memberID int64, c Co
 	return id, tx.Commit()
 }
 
-// UpdateConcert replaces the editable fields of the group's live concert id; ErrNotFound if
-// there is none, ErrLimit if moving it to the future would exceed the limit.
-func (s *Store) UpdateConcert(ctx context.Context, groupID, id int64, c Concert, today string) error {
+// UpdateConcert replaces the editable fields of the group's live concert id on behalf of
+// memberID, first saving the replaced values as a revision; revID is that revision, 0 if
+// nothing changed. ErrNotFound if there is no such concert, ErrLimit if moving it to the
+// future would exceed the limit.
+func (s *Store) UpdateConcert(ctx context.Context, groupID, memberID, id int64, c Concert, today string) (revID int64, err error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer func() { _ = tx.Rollback() }()
-	res, err := tx.ExecContext(ctx, `UPDATE concerts SET artist = ?, date = ?, time = nullif(?, ''),
+	// IS NOT compares NULL-safely: stored empties are NULL, form ones "".
+	res, err := tx.ExecContext(ctx, `INSERT INTO concert_revisions
+		(concert_id, artist, date, time, venue, address, ticket_url, on_sale_date, edited_by, edited_at)
+		SELECT id, artist, date, time, venue, address, ticket_url, on_sale_date, ?, ? FROM concerts
+		WHERE id = ? AND group_id = ? AND deleted_at IS NULL AND (artist IS NOT ? OR date IS NOT ?
+			OR time IS NOT nullif(?, '') OR venue IS NOT ? OR address IS NOT nullif(?, '')
+			OR ticket_url IS NOT nullif(?, '') OR on_sale_date IS NOT nullif(?, ''))`,
+		memberID, s.timestamp(), id, groupID,
+		c.Artist, c.Date, c.Time, c.Venue, c.Address, c.TicketURL, c.OnSaleDate)
+	if err != nil {
+		return 0, err
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return 0, err
+	} else if n > 0 {
+		if revID, err = res.LastInsertId(); err != nil {
+			return 0, err
+		}
+		if err := pruneRevisions(ctx, tx, id); err != nil {
+			return 0, err
+		}
+	}
+	res, err = tx.ExecContext(ctx, `UPDATE concerts SET artist = ?, date = ?, time = nullif(?, ''),
 		venue = ?, address = nullif(?, ''), ticket_url = nullif(?, ''), on_sale_date = nullif(?, '')
 		WHERE id = ? AND group_id = ? AND deleted_at IS NULL`,
 		c.Artist, c.Date, c.Time, c.Venue, c.Address, c.TicketURL, c.OnSaleDate, id, groupID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if err := mustAffect(res); err != nil {
-		return err
+		return 0, err
 	}
-	return commitWithin(ctx, tx, groupID, today)
+	return revID, commitWithin(ctx, tx, groupID, today)
 }
 
 // commitWithin commits tx unless the group now has more upcoming concerts than the limit.
