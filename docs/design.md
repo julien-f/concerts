@@ -30,9 +30,9 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 - **Leaks through features**: the `.ics` holds no page URL; preview images are static files, outside `/g/`; the prefill fetcher sends no cookie or `Referer`; the « Voir sur la carte » link sends only venue and address to OpenStreetMap; absolute URLs come from `CONCERTS_BASE_URL` (required by `serve`), never from `Host`.
 - **Identity cookie**: `HttpOnly`, `SameSite=Lax`, `Path=/g/<secret>`, `Secure` when the base URL is https (`serve` logs a warning for a plain-http one outside localhost), `Max-Age` 400 days. It holds the member id, checked against the group on every request.
 - **CSRF**: every state change is a POST behind `http.CrossOriginProtection` (lets GET through; trusts `Sec-Fetch-Site`, else compares `Origin` with `Host`, so the proxy must keep `Host`). The prefill GET triggers an outbound fetch but needs the secret and is rate-limited.
-- **Abuse with a leaked link**: per-group caps (see Data model) bound what it can store. At the row cap a create purges old concerts, so a leaked link can flush the undo history and the past, as deleting everything then creating and deleting already could; backups are the remedy. Server read, write and idle timeouts; request bodies capped at 64 kB.
+- **Abuse with a leaked link**: per-group caps (see Data model) bound what it can store. At the row cap a create purges old concerts, so a leaked link can flush the undo history and the past, as deleting everything then creating and deleting already could; likewise 20 edits flush a concert's edit history. Backups are the remedy. Server read, write and idle timeouts; request bodies capped at 64 kB.
 - **SSRF** (prefill): the resolved IP of every connection, redirects included, must be public unicast (IPv6 within `2000::/3`, special-purpose ranges excluded) on port 80 or 443; no proxy, no keep-alive, 3 redirects, 8 s, 1 MB of `text/html`; visible text is kept only for a host with a site rule (exact match on the final host, after redirects), at most 5,000 nodes; fetch errors are logged with the host only (a pasted group link must not reach the logs); one fetch in flight and 10 a minute per group, 2 in flight overall.
-- **Accepted risks**: anyone with the link can join and act as any first name; members are friends, so impersonation is social, not technical. « Prévenir le groupe » (`wa.me`) and link previews in other messengers hand the link to the messaging provider (Telegram, Discord, Slack fetch it from their servers), and with it the picker or concert page, first names and answers included. Both are fixed by rotating the secret.
+- **Accepted risks**: anyone with the link can join and act as any first name; members are friends, so impersonation is social, not technical. « Prévenir le groupe » (`wa.me`) and link previews in other messengers hand the link to the messaging provider (Telegram, Discord, Slack fetch it from their servers), and with it the picker or concert page, first names (answers, « ajouté par », « modifié par ») included. Both are fixed by rotating the secret.
 
 ## User journeys
 
@@ -40,7 +40,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 2. **Add**: tap « Ajouter un concert » (fixed at the bottom on a phone, beside the filters on a computer) → paste a ticket URL, tap « Pré-remplir » → check or type the fields → « Enregistrer » → main screen with a banner « Concert ajouté » and « Prévenir le groupe » (opens WhatsApp with artist, date and the concert link).
 3. **Respond**: on a card, tap « Ça m'intéresse », « J'y vais » or « J'ai mon billet »; tapping the active one clears it. The status block updates in place (htmx) or after a full reload (no JS).
 4. **Plan**: filter « Mes concerts »; open a concert → « Ajouter à mon agenda » downloads its `.ics`; « Billetterie » opens the ticket link.
-5. **Fix**: open a concert → « Modifier » or « Supprimer » → banner « Concert supprimé » with « Annuler la suppression ».
+5. **Fix**: open a concert → « Modifier » (banner with « Annuler ») or « Supprimer » (banner « Concert supprimé » with « Annuler la suppression »). A bad edit noticed later: « Voir l'historique » → « Revenir avant cette modification ».
 6. **Shared phone**: « Ce n'est pas moi » in every page header → picker again.
 7. **Operator**: [operations.md](operations.md).
 
@@ -103,7 +103,7 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 - Past cards show names only, no buttons, newest first, under an `h2` « Passés (N) » followed by a `<details>` (« Afficher les concerts passés »). Only the 30 newest are rendered (cards are built for those only), then « Afficher les N concerts passés » (`?past=all`, keeping `mine=1`) lands on the first card not shown so far. N is the total. All are rendered, `open`, with `?past=all` or when an added or restored concert is past. A late answer posted to a past concert is still accepted.
 - Empty filter with only past answers: « Aucun concert à venir parmi les tiens. »
 - Empty list: « Aucun concert pour l'instant. Ajoute le premier ! »; empty filter: « Tu n'as encore réagi à aucun concert. »
-- Banners come from the URL but show only while true: `?added=<id>` and `?restored=<id>` if that concert is in the list, `?deleted=<id>` (« Annuler la suppression ») if it is still deleted; an edit returns to the concert page with `?saved`.
+- Banners come from the URL but show only while true: `?added=<id>` and `?restored=<id>` if that concert is in the list, `?deleted=<id>` (« Annuler la suppression ») if it is still deleted. An edit returns to the concert page with `?saved=<rev>`, going back to a revision with `?reverted=<rev>` (no `=<rev>` when nothing changed); their « Annuler » shows only while `<rev>` is the concert's newest revision.
 
 ### Concert (`/g/<secret>/concerts/<id>`)
 
@@ -115,6 +115,7 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 │ Zénith Paris                 │
 │ Mise en vente : ven. 3 oct.  │  if set
 │ ajouté par Léa               │
+│ modifié par Tom · Voir l'his…│  if edited
 │ [Billetterie ↗] [Agenda]     │  ticket link if set; .ics
 │ [Prévenir le groupe]         │
 │ statuses + my 3 buttons      │  same block as the card
@@ -182,13 +183,19 @@ statuses (concert_id → concerts ON DELETE CASCADE,
           member_id → members ON DELETE CASCADE,
           status CHECK IN ('interested','going','ticket'),
           PRIMARY KEY (concert_id, member_id)) WITHOUT ROWID
+concert_revisions (id PK, concert_id → concerts ON DELETE CASCADE,
+          artist, date, time NULL, venue, address NULL, ticket_url NULL,
+          on_sale_date NULL,   -- values before the edit
+          edited_by → members ON DELETE SET NULL, edited_at)
+          INDEX (concert_id, id)
 ```
 
 - `name` is stored with spaces trimmed and collapsed; `name_key` = `strings.ToLower(name)`, the one rule for "same name" and for sorting (byte order: « Élodie » sorts after « Zoé », accepted). No accent folding or Unicode normalisation (would need `x/text`): « Elodie » and « Élodie » are two names.
 - Main page = 2 queries per group (live concerts with creator name; their statuses with member names), assembled in Go: no N+1.
 - The identity cookie holds the member id; `inGroup` (web) resolves the secret, sets `Cache-Control` and drops a cookie naming a member of another group or a deleted one.
 - One accessor `Concert(groupID, id)` filters `group_id` and `deleted_at IS NULL` for every route but restore, which updates only a deleted row of the group; anything else is 404. Status writes also check the member belongs to the group.
-- Required: artist, date, venue. Optional: time, address, ticket link, on-sale date (a link is often not known yet). At most 100 members and 500 upcoming concerts per group (422 beyond; edits and restores included; past ones never lock a group) and 1000 rows with past and deleted ones, so the disk cannot fill: at 1000 rows, a create purges the oldest deleted concert, else the oldest past one, with its statuses. « Today » (Paris) is passed to the store by web.
+- Required: artist, date, venue. Optional: time, address, ticket link, on-sale date (a link is often not known yet). At most 100 members and 500 upcoming concerts per group (422 beyond; edits and restores included; past ones never lock a group) and 1000 rows with past and deleted ones, so the disk cannot fill: at 1000 rows, a create purges the oldest deleted concert, else the oldest past one, with its statuses and revisions. At most 20 revisions per concert, older ones pruned on each edit: worst case ≈ 1000 × 20 × 3.3 kB ≈ 66 MB per group, bounded since only the operator creates groups. « Today » (Paris) is passed to the store by web.
+- An edit that changes something first copies the current values into a revision, in one transaction (`INSERT … SELECT` with NULL-safe `IS NOT`, so a no-op records nothing). Revision lookups join the concert, checking group and liveness in the same statement.
 - Validation (`parseForm`, also applied to prefilled values): text trimmed, 1–100 runes (name 1–30), valid UTF-8, no invisible characters (control, format, variation selectors, default-ignorable, braille blank), first names starting with a letter or digit; dates `YYYY-MM-DD`, time `HH:MM`; ticket URL absolute `http`/`https`, ≤ 2000 bytes.
 - Writes use `_txlock=immediate` and `busy_timeout`; status writes are upserts (idempotent). `synchronous(NORMAL)` may lose the last commits on power loss: accepted.
 
@@ -208,7 +215,9 @@ All under `/g/{secret}` (written `…`); unknown secret → 404. Every POST: `Cr
 | GET | `…/concerts/{id}` | concert page | page |
 | GET | `…/concerts/{id}/edit` | edit form | page |
 | POST | `…/concerts/{id}/refresh` | « Relire la billetterie »: fills the posted form's empty fields from its ticket link, saves nothing | form page (200, as htmx swaps no 4xx) |
-| POST | `…/concerts/{id}` | update | 303 `…/concerts/{id}?saved`; 422 form |
+| POST | `…/concerts/{id}` | update, recording a revision | 303 `…/concerts/{id}?saved=<rev>`; 422 form |
+| GET | `…/concerts/{id}/history` | edits, newest first, with the fields each changed | page |
+| POST | `…/concerts/{id}/revisions/{rev}/revert` | go back to before that edit (an edit itself) | 303 `…/concerts/{id}?reverted=<rev>`; 422 if a value is no longer valid or the group is full |
 | POST | `…/concerts/{id}/delete` | soft delete | 303 `…?deleted=<id>` |
 | POST | `…/concerts/{id}/restore` | undo delete | 303 `…?restored=<id>#c<id>`; 422 if the group is full |
 | POST | `…/concerts/{id}/status` | set `status` (empty clears); `back` = `list`, `mine` or `concert` | htmx: status block fragment; else 303 to `…#c<id>`, `…?mine=1#c<id>` or the concert page |
@@ -230,6 +239,7 @@ All under `/g/{secret}` (written `…`); unknown secret → 404. Every POST: `Cr
 - **Group at the cap** (1000 rows, no deleted concert left): each add silently purges the oldest past concert and its answers.
 - **Deleted member**: their statuses go (cascade); their concerts stay, shown without « ajouté par ».
 - **Ticket URL**: only `http`/`https`; rendered with `rel="noopener noreferrer"`.
+- **Edit history**: going back to a revision is an ordinary edit with its values, so it is recorded and can be undone; they go through today's validation first (a value accepted then but refused now → 422, nothing written). Concurrent edits: last write wins, each recorded. A deleted member's edits stay, as « Ancien membre ». The history page is readable without identity (like the concert page), its buttons are not.
 - **Double submit**: status writes are idempotent (the form sends the target state, not a toggle); a second create asks first, as for any duplicate concert.
 - **Duplicate concert** (add only): a live concert of the group with the same date and artist (case ignored, as first names) re-renders the form with 422, fields kept: « <artist>, <date>, est déjà dans la liste (<venue>, ajouté par X). Voir ce concert », focus on that link; « Ajouter quand même » (`anyway=1`) comes after « Enregistrer », which stays the button Enter submits. A warning, not a constraint: an artist may play twice a day, and two concurrent adds both pass. An edit is not checked.
 
@@ -263,6 +273,10 @@ One slice per branch, merged with `--no-ff`. All shipped (v1).
    - One static `og:image` for every page (1200×630, no text, stub in the central square that WhatsApp's thumbnail keeps) and a 180×180 `apple-touch-icon` (iMessage and Signal fall back to it; no SVG support). A per-concert image would need a font and a new dependency to repeat `og:title`.
    - Previewers need the https base URL and must not be blocked: never add a disallow-all `robots.txt`. A preview travels with the message, so a change never reaches links already sent.
 8. **Desktop layout**: the 48 rem layout of « Visual direction »; `verify-ui` also runs at 768 px (overflow, axe, buttons beside the info).
+9. **Edit history**: every edit is traceable and reversible, without accounts or roles (ADR 0002 kept).
+   - « modifié par X · Voir l'historique » on the concert page; the banner after an edit offers « Annuler ».
+   - History page: one entry per edit (« Tom · mar. 3 mars à 18 h 05 », Paris time), only the fields it changed as « Salle : V → W » (reads aloud, no `<mark>`), and « Revenir avant cette modification » (also undoes newer edits; « Rétablir » names undelete); « Aucune modification. » if never edited.
+   - Out of scope: detecting concurrent edits, history of statuses and deletes, history on the list's cards.
 
 Also in v1: `make install`, `make deploy`, `make rollback` ([operations.md](operations.md)).
 

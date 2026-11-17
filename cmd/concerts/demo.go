@@ -24,13 +24,14 @@ func demo(ctx context.Context, st *store.Store, baseURL string) error {
 	}
 	day := func(offset int) string { return time.Now().AddDate(0, 0, offset).Format(time.DateOnly) }
 	var concerts []int64
-	for i, c := range []store.Concert{
+	seed := []store.Concert{
 		{Artist: "Fontaines D.C.", Date: day(10), Time: "20:00", Venue: "Zénith Paris", Address: "211 av. Jean Jaurès, 75019 Paris", TicketURL: "https://example.com/billets/fontaines"},
 		{Artist: "Yuksek", Date: day(25), Venue: "La Cigale"},
 		{Artist: "Zaho de Sagazan", Date: day(60), Time: "20:30", Venue: "L'Olympia", OnSaleDate: day(5)},
 		{Artist: "Air", Date: day(-20), Time: "20:00", Venue: "Salle Pleyel"},
 		{Artist: "Justice", Date: day(-60), Venue: "Accor Arena"},
-	} {
+	}
+	for i, c := range seed {
 		id, err := st.CreateConcert(ctx, g.ID, ids[i%len(ids)], c, day(0))
 		if err != nil {
 			return err
@@ -48,6 +49,16 @@ func demo(ctx context.Context, st *store.Store, baseURL string) error {
 		if err := st.SetStatus(ctx, g.ID, s.concert, s.member, s.status); err != nil {
 			return err
 		}
+	}
+	// Two edits of the first concert, revisions 1 and 2 (verify-ui relies on them): its history and undo banner.
+	first := seed[0]
+	first.OnSaleDate = day(-30)
+	if _, err := st.UpdateConcert(ctx, g.ID, marc, concerts[0], first, day(0)); err != nil {
+		return err
+	}
+	first.Time = "20:30"
+	if _, err := st.UpdateConcert(ctx, g.ID, sam, concerts[0], first, day(0)); err != nil {
+		return err
 	}
 	// Older history, created after the concerts above (verify-ui relies on their ids): more past
 	// concerts than the list shows, so its link to all of them is checked too.

@@ -46,7 +46,7 @@ func TestConcerts(t *testing.T) {
 	}
 
 	upd := Concert{Artist: "Later", Date: "2027-04-01", Venue: "W"}
-	if err := s.UpdateConcert(ctx, g.ID, late, upd, testToday); err != nil {
+	if _, err := s.UpdateConcert(ctx, g.ID, lea.ID, late, upd, testToday); err != nil {
 		t.Fatal(err)
 	}
 	if c, _ := s.Concert(ctx, g.ID, late); c.Artist != "Later" || c.Time != "" || c.Venue != "W" || c.Address != "" {
@@ -57,8 +57,9 @@ func TestConcerts(t *testing.T) {
 	if _, err := s.Concert(ctx, other.ID, late); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Concert from another group: %v", err)
 	}
+	_, updateErr := s.UpdateConcert(ctx, other.ID, lea.ID, late, upd, testToday)
 	for name, err := range map[string]error{
-		"update":  s.UpdateConcert(ctx, other.ID, late, upd, testToday),
+		"update":  updateErr,
 		"delete":  s.DeleteConcert(ctx, other.ID, late),
 		"restore": s.RestoreConcert(ctx, other.ID, late, testToday),
 	} {
@@ -74,7 +75,7 @@ func TestConcerts(t *testing.T) {
 	if c, err := s.Concert(ctx, g.ID, late); err != nil || !c.Deleted || c.Artist != "Later" {
 		t.Fatalf("deleted Concert = %+v, %v; want it flagged Deleted", c, err)
 	}
-	if err := s.UpdateConcert(ctx, g.ID, late, upd, testToday); !errors.Is(err, ErrNotFound) {
+	if _, err := s.UpdateConcert(ctx, g.ID, lea.ID, late, upd, testToday); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("update of a deleted concert: %v", err)
 	}
 	if err := s.DeleteConcert(ctx, g.ID, late); !errors.Is(err, ErrNotFound) {
@@ -121,7 +122,8 @@ func TestConcertLimit(t *testing.T) {
 		return id
 	}
 	update := func(id int64, date string) error {
-		return s.UpdateConcert(ctx, g.ID, id, Concert{Artist: "A", Date: date, Venue: "V"}, testToday)
+		_, err := s.UpdateConcert(ctx, g.ID, m.ID, id, Concert{Artist: "A", Date: date, Venue: "V"}, testToday)
+		return err
 	}
 	// fill adds n rows in one statement; the limits are then crossed through the API.
 	fill := func(n int, date string) {
@@ -193,6 +195,9 @@ func TestConcertLimit(t *testing.T) {
 	if err := s.SetStatus(ctx, g.ID, oldest, m.ID, "going"); err != nil {
 		t.Fatal(err)
 	}
+	if err := update(oldest, "2025-01-02"); err != nil {
+		t.Fatal(err)
+	}
 	fill(2*MaxConcerts-count("1"), "2026-03-01")
 	mustCreate(past)
 	gone("oldest deleted concert", deleted)
@@ -204,6 +209,10 @@ func TestConcertLimit(t *testing.T) {
 	var statuses int
 	if err := s.db.QueryRowContext(ctx, "SELECT count(*) FROM statuses WHERE concert_id = ?", oldest).Scan(&statuses); err != nil || statuses != 0 {
 		t.Fatalf("statuses of the purged concert: %d, %v; want 0", statuses, err)
+	}
+	var revisions int
+	if err := s.db.QueryRowContext(ctx, "SELECT count(*) FROM concert_revisions WHERE concert_id = ?", oldest).Scan(&revisions); err != nil || revisions != 0 {
+		t.Fatalf("revisions of the purged concert: %d, %v; want 0", revisions, err)
 	}
 	if rows, up := count("1"), count("date >= '"+testToday+"'"); rows != 2*MaxConcerts || up != MaxConcerts-1 {
 		t.Fatalf("rows = %d, upcoming = %d; want %d, %d", rows, up, 2*MaxConcerts, MaxConcerts-1)

@@ -6,7 +6,10 @@
 {{end}}
 {{define "content"}}
 <p><a class="back" href="{{.Base}}#c{{.ID}}">← Tous les concerts</a></p>
-{{if .Saved}}<div class="banner" role="status"><p>Modifications enregistrées.</p></div>{{end}}
+{{if or .Saved .Reverted}}<div class="banner" role="status">
+<p>{{if .Saved}}Modifications enregistrées.{{else}}Version rétablie.{{end}}</p>
+{{if and .UndoRev .Me}}<form method="post" action="{{.Base}}/concerts/{{.ID}}/revisions/{{.UndoRev}}/revert"><button class="button">Annuler</button></form>{{end}}
+</div>{{end}}
 <article class="ticket">
 <div class="band {{stubStyle .Artist}}" aria-hidden="true"></div>
 <h1>{{.Artist}}</h1>
@@ -16,6 +19,7 @@
 {{with .Map}}<p>{{$.Address}}<br><a href="{{.}}" rel="noopener noreferrer">Voir sur la carte<span class="visually-hidden"> OpenStreetMap</span></a></p>{{end}}
 {{with .OnSaleDate}}<p>Mise en vente : <time datetime="{{.}}">{{frdate .}}</time></p>{{end}}
 {{with .AddedBy}}<p class="meta">ajouté par {{.}}</p>{{end}}
+{{if .LastRevID}}<p class="meta">modifié{{with .EditedBy}} par {{.}}{{end}} · <a href="{{.Base}}/concerts/{{.ID}}/history">Voir l'historique</a></p>{{end}}
 </div>
 <div class="side">
 <p class="actions">
