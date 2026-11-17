@@ -61,6 +61,12 @@ func TestConcertNotFoundPage(t *testing.T) {
 		})
 	}
 
+	// An invalid edit too: the form must not come back for a deleted concert.
+	t.Run("invalid update", func(t *testing.T) {
+		resp, body := b.post(t, g+"/concerts/1", url.Values{"artist": {""}})
+		check(t, resp, body)
+	})
+
 	t.Run("without identity", func(t *testing.T) {
 		resp, body := ts.browser(t).get(t, g+"/concerts/1")
 		check(t, resp, body)

@@ -367,10 +367,11 @@ func (s *server) editConcert(w http.ResponseWriter, r *http.Request, gr *groupRe
 }
 
 func (s *server) updateConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
-	id, ok := s.pathID(w, r, gr)
+	saved, ok := s.concert(w, r, gr) // an invalid form for a deleted concert is a 404 too
 	if !ok || !parseForm(w, r) {
 		return
 	}
+	id := saved.ID
 	c, errs := parseConcert(r.PostForm)
 	if len(errs) > 0 {
 		c.ID = id
