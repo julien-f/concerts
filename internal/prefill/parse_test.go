@@ -70,6 +70,22 @@ func TestParseFixtures(t *testing.T) {
 	}
 }
 
+// TestProse: a JSON-LD description comes out as text the form accepts, words kept apart.
+func TestProse(t *testing.T) {
+	t.Parallel()
+	tests := []struct{ in, want string }{
+		{"Un&amp;deux\r\ntrois", "Un&deux\ntrois"},
+		{"Ex\u00ademple\u200b", "Exemple"},
+		{"Un\tduo\u00a0ici", "Un duo ici"},
+		{"Un duo\u2800ici", "Un duoici"},
+	}
+	for _, tt := range tests {
+		if got := prose(tt.in); got != tt.want {
+			t.Errorf("prose(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
 // TestUnglue: sites that strip markup from JSON-LD descriptions glue the words around it.
 func TestUnglue(t *testing.T) {
 	t.Parallel()

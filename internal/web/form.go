@@ -5,6 +5,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"concerts/internal/prefill"
 )
 
 // maxFormBytes caps request bodies; the largest form, a full description, takes about 24 kB.
@@ -21,8 +23,7 @@ func parseForm(w http.ResponseWriter, r *http.Request) bool {
 }
 
 // cleanText trims v and collapses whitespace runs; it reports false unless the
-// result is valid UTF-8 of 1 to maxRunes runes without invisible characters
-// (control, format, variation selectors, default-ignorable, braille blank).
+// result is valid UTF-8 of 1 to maxRunes runes without prefill.Invisible characters.
 // The result is returned either way, so a form sent back keeps what was typed.
 func cleanText(v string, maxRunes int) (string, bool) {
 	return valid(strings.Join(strings.Fields(v), " "), maxRunes)
@@ -47,15 +48,10 @@ func paragraphs(v string) string {
 }
 
 // valid returns v and whether it is valid UTF-8 of 1 to maxRunes runes without
-// invisible characters other than line feeds.
+// prefill.Invisible characters other than line feeds.
 func valid(v string, maxRunes int) (string, bool) {
 	return v, utf8.ValidString(v) && v != "" && utf8.RuneCountInString(v) <= maxRunes &&
-		!strings.ContainsFunc(v, func(r rune) bool { return r != '\n' && invisible(r) })
-}
-
-// invisible reports control, format, variation selector, default-ignorable and braille blank characters.
-func invisible(r rune) bool {
-	return r == '⠀' || unicode.In(r, unicode.Cc, unicode.Cf, unicode.Variation_Selector, unicode.Other_Default_Ignorable_Code_Point)
+		!strings.ContainsFunc(v, func(r rune) bool { return r != '\n' && prefill.Invisible(r) })
 }
 
 // cleanName is cleanText for first names, which must also start with a letter or digit.
