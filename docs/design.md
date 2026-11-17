@@ -133,7 +133,9 @@ Without identity: statuses shown, buttons and edit/delete replaced by « Choisis
 │ Lien de billetterie          │  own GET form (new only),
 │ [https://…        ][Pré-remplir]│ hx-disabled-elt, indicator
 │ (Impossible de lire cette    │  « Lecture de la page… »;
-│  page : remplis à la main.)  │  failure/limit, role=status
+│  page : essaie le lien de la │  failure/limit, role=status
+│  salle ou de l'organisateur, │
+│  ou remplis à la main.)      │
 │ ─────────────────────────────│  main POST form below
 │ Artiste*      [____________] │  autofocus after prefill
 │ Date*  [jj/mm/aaaa] Heure [--:--]│

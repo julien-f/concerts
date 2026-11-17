@@ -67,7 +67,7 @@ func (s *server) prefill(r *http.Request, gr *groupRequest, u string) (c store.C
 	res, err := prefill.Fetch(r.Context(), s.fetch, u, s.now().In(paris))
 	if err != nil {
 		s.log.InfoContext(r.Context(), "prefill failed", "err", err) // host only, see prefill.Fetch
-		return c, "Impossible de lire cette page : remplis à la main.", false
+		return c, "Impossible de lire cette page : essaie le lien de la salle ou de l'organisateur, ou remplis à la main.", false
 	}
 	if res == (prefill.Result{}) {
 		return c, "Rien trouvé sur cette page : remplis à la main.", false
