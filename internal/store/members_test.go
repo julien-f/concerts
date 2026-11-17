@@ -47,7 +47,7 @@ func TestMigrateFromPreviousSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c, err := s.Concert(ctx, g.ID, 1); err != nil || c.AddedBy != "Léa" {
+	if c, err := s.Concert(ctx, g.ID, 1); err != nil || c.AddedBy != "Léa" || c.Address != "" {
 		t.Fatalf("Concert = %+v, %v", c, err)
 	}
 	if err := s.SetStatus(ctx, g.ID, 1, 1, Going); err != nil {

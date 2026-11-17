@@ -25,7 +25,7 @@ func demo(ctx context.Context, st *store.Store, baseURL string) error {
 	day := func(offset int) string { return time.Now().AddDate(0, 0, offset).Format(time.DateOnly) }
 	var concerts []int64
 	for i, c := range []store.Concert{
-		{Artist: "Fontaines D.C.", Date: day(10), Time: "20:00", Venue: "Zénith Paris", TicketURL: "https://example.com/billets/fontaines"},
+		{Artist: "Fontaines D.C.", Date: day(10), Time: "20:00", Venue: "Zénith Paris", Address: "211 av. Jean Jaurès, 75019 Paris", TicketURL: "https://example.com/billets/fontaines"},
 		{Artist: "Yuksek", Date: day(25), Venue: "La Cigale"},
 		{Artist: "Zaho de Sagazan", Date: day(60), Time: "20:30", Venue: "L'Olympia", OnSaleDate: day(5)},
 		{Artist: "Air", Date: day(-20), Time: "20:00", Venue: "Salle Pleyel"},

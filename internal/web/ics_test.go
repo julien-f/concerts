@@ -17,7 +17,7 @@ func TestICSGolden(t *testing.T) {
 	t.Parallel()
 	tests := map[string]store.Concert{
 		// Winter time: 20:30 in Paris is 19:30 UTC.
-		"timed.ics": {ID: 3, Artist: "Zaz", Date: "2027-03-12", Time: "20:30", Venue: "L’Olympia, 28 bd des Capucines; Paris",
+		"timed.ics": {ID: 3, Artist: "Zaz", Date: "2027-03-12", Time: "20:30", Venue: "L’Olympia", Address: "28 bd des Capucines; Paris",
 			TicketURL: "https://tickets.example/zaz?a=1&b=2"},
 		// No time: an all-day event whose exclusive end crosses the year.
 		"allday.ics": {ID: 4, Artist: "Les Négresses Vertes 🎸", Date: "2027-12-31", Venue: "Plein air"},

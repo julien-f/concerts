@@ -19,6 +19,7 @@ type Concert struct {
 	Date       string // YYYY-MM-DD, Europe/Paris
 	Time       string // HH:MM or ""
 	Venue      string
+	Address    string // street address of the venue, or ""
 	TicketURL  string
 	OnSaleDate string // YYYY-MM-DD or ""
 	AddedBy    string // first name of the member who added it, "" if deleted
@@ -27,11 +28,11 @@ type Concert struct {
 
 // concertSelect matches concertFields.
 const concertSelect = `SELECT c.id, c.artist, c.date, coalesce(c.time, ''), c.venue,
-	coalesce(c.ticket_url, ''), coalesce(c.on_sale_date, ''), coalesce(m.name, ''), c.deleted_at IS NOT NULL
+	coalesce(c.address, ''), coalesce(c.ticket_url, ''), coalesce(c.on_sale_date, ''), coalesce(m.name, ''), c.deleted_at IS NOT NULL
 	FROM concerts c LEFT JOIN members m ON m.id = c.created_by`
 
 func concertFields(c *Concert) []any {
-	return []any{&c.ID, &c.Artist, &c.Date, &c.Time, &c.Venue, &c.TicketURL, &c.OnSaleDate, &c.AddedBy, &c.Deleted}
+	return []any{&c.ID, &c.Artist, &c.Date, &c.Time, &c.Venue, &c.Address, &c.TicketURL, &c.OnSaleDate, &c.AddedBy, &c.Deleted}
 }
 
 // Concerts returns the group's live concerts in chronological order (no time first within a day).
@@ -96,9 +97,9 @@ func (s *Store) CreateConcert(ctx context.Context, groupID, memberID int64, c Co
 		return 0, err
 	}
 	res, err := tx.ExecContext(ctx, `INSERT INTO concerts
-		(group_id, artist, date, time, venue, ticket_url, on_sale_date, created_by, created_at)
-		VALUES (?, ?, ?, nullif(?, ''), ?, nullif(?, ''), nullif(?, ''), ?, ?)`,
-		groupID, c.Artist, c.Date, c.Time, c.Venue, c.TicketURL, c.OnSaleDate, memberID, s.timestamp())
+		(group_id, artist, date, time, venue, address, ticket_url, on_sale_date, created_by, created_at)
+		VALUES (?, ?, ?, nullif(?, ''), ?, nullif(?, ''), nullif(?, ''), nullif(?, ''), ?, ?)`,
+		groupID, c.Artist, c.Date, c.Time, c.Venue, c.Address, c.TicketURL, c.OnSaleDate, memberID, s.timestamp())
 	if err != nil {
 		return 0, err
 	}
@@ -118,9 +119,9 @@ func (s *Store) UpdateConcert(ctx context.Context, groupID, id int64, c Concert,
 	}
 	defer func() { _ = tx.Rollback() }()
 	res, err := tx.ExecContext(ctx, `UPDATE concerts SET artist = ?, date = ?, time = nullif(?, ''),
-		venue = ?, ticket_url = nullif(?, ''), on_sale_date = nullif(?, '')
+		venue = ?, address = nullif(?, ''), ticket_url = nullif(?, ''), on_sale_date = nullif(?, '')
 		WHERE id = ? AND group_id = ? AND deleted_at IS NULL`,
-		c.Artist, c.Date, c.Time, c.Venue, c.TicketURL, c.OnSaleDate, id, groupID)
+		c.Artist, c.Date, c.Time, c.Venue, c.Address, c.TicketURL, c.OnSaleDate, id, groupID)
 	if err != nil {
 		return err
 	}

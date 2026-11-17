@@ -16,7 +16,8 @@ import (
 // field is one input of the concert form.
 type field struct {
 	Name, Label, Type, Value string
-	Max                      int // maxlength, 0 for none
+	Autocomplete             string // "off" where browsers would offer the user's own data
+	Max                      int    // maxlength, 0 for none
 	Optional                 bool
 	Error                    string
 	Autofocus                bool   // first invalid field, or the artist after a prefill
@@ -40,6 +41,7 @@ func newConcertForm(gr *groupRequest, c store.Concert, errs map[string]string) *
 		{Name: "date", Label: "Date", Type: "date", Value: c.Date},
 		{Name: "time", Label: "Heure", Type: "time", Value: c.Time, Optional: true},
 		{Name: "venue", Label: "Salle", Type: "text", Value: c.Venue, Max: maxTextRunes},
+		{Name: "address", Label: "Adresse", Type: "text", Value: c.Address, Max: maxTextRunes, Optional: true, Autocomplete: "off"},
 		{Name: "ticket_url", Label: "Lien de billetterie", Type: "url", Value: c.TicketURL, Max: maxURLBytes, Optional: true},
 		{Name: "on_sale_date", Label: "Mise en vente", Type: "date", Value: c.OnSaleDate, Optional: true},
 	}}
@@ -82,6 +84,11 @@ func parseConcert(f url.Values) (c store.Concert, errs map[string]string) {
 	}
 	if c.Venue, ok = cleanText(f.Get("venue"), maxTextRunes); !ok {
 		errs["venue"] = fmt.Sprintf("Indique la salle (%d caractères au plus).", maxTextRunes)
+	}
+	if a := f.Get("address"); strings.TrimSpace(a) != "" {
+		if c.Address, ok = cleanText(a, maxTextRunes); !ok {
+			errs["address"] = fmt.Sprintf("Adresse invalide (%d caractères au plus).", maxTextRunes)
+		}
 	}
 	if c.TicketURL = strings.TrimSpace(f.Get("ticket_url")); c.TicketURL != "" && !validTicketURL(c.TicketURL) {
 		errs["ticket_url"] = "Lien invalide : il doit commencer par http:// ou https://."
@@ -189,6 +196,7 @@ type concertPage struct {
 	Statuses statusBlock
 	URL      string // absolute page URL, for Open Graph
 	Share    string // « Prévenir le groupe » link
+	Map      string // OpenStreetMap search for the venue, "" without an address
 	Saved    bool   // banner after an edit
 }
 
@@ -204,6 +212,9 @@ func (s *server) showConcert(w http.ResponseWriter, r *http.Request, gr *groupRe
 	}
 	p := &concertPage{groupRequest: gr, Concert: c, Statuses: newStatusBlock(gr, c, ss, "concert", s.upcoming(c)),
 		URL: s.pageURL(gr, c), Share: s.shareURL(gr, c), Saved: r.URL.Query().Has("saved")}
+	if c.Address != "" {
+		p.Map = "https://www.openstreetmap.org/search?query=" + url.QueryEscape(c.Venue+", "+c.Address)
+	}
 	if p.Saved {
 		p.Notice = "Concert modifié"
 	}

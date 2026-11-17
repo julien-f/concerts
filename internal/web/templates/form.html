@@ -23,7 +23,7 @@
 {{range .Fields}}{{$f := .}}
 <label for="{{.Name}}">{{.Label}}{{if .Optional}} <span class="hint">(facultatif)</span>{{end}}</label>
 <input id="{{.Name}}" name="{{.Name}}" type="{{.Type}}" value="{{.Value}}"
-{{- if not .Optional}} required{{end}}{{with .Max}} maxlength="{{.}}"{{end}}
+{{- if not .Optional}} required{{end}}{{with .Max}} maxlength="{{.}}"{{end}}{{with .Autocomplete}} autocomplete="{{.}}"{{end}}
 {{- with .Error}} aria-invalid="true" aria-describedby="{{$f.Name}}-error"{{end}}
 {{- with .DescribedBy}} aria-describedby="{{.}}"{{end}}{{if .Autofocus}} autofocus{{end}}>
 {{with .Error}}<p id="{{$f.Name}}-error" class="error">{{.}}</p>{{end}}
