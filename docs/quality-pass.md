@@ -44,12 +44,13 @@ prefill
 - [x] Price range widening written twice (`sites.go:121`, `parse.go:296`); dead `cmp.Or(res.Time, …)`; inner `walk` shadows package `walk`; `Parse` unexported; stale comments (`sites.go:14`, package doc).
 
 cmd
-- [ ] Base-URL command list stated twice (`main.go:38,86`); `demo` reads `time.Now` itself; usage says « empty database »; `backup` error unwrapped.
+- [x] Base-URL command list stated twice (`main.go:38,86`); `demo` reads `time.Now` itself; usage says « empty database »; `backup` error unwrapped.
 
 deploy + scripts
-- [ ] `verify-ui.mjs` still uses `text=` selectors (CLAUDE.md pitfall).
-- [ ] `admin`: rollback/restore share the stop/swap/start sequence; journalctl args stated twice.
-- [ ] `install.sh`/`uninstall.sh` SELinux lookup duplicated → `lib.sh`; `base-url.conf` not written via `.new` + `mv`; `check_url` accepts an empty host.
+- [x] `verify-ui.mjs` still uses `text=` selectors (CLAUDE.md pitfall).
+- [ ] `admin`: rollback/restore share the stop/swap/start sequence; journalctl args stated twice. (set aside: root scripts, untestable here)
+- [x] `check_url` accepts an empty host or a path (with the base URL fix).
+- [ ] `install.sh`/`uninstall.sh` SELinux lookup duplicated → `lib.sh`; `base-url.conf` not written via `.new` + `mv`. (set aside: root scripts, untestable here)
 
 tests
 - [ ] Anonymous create/delete/status rows check only 303: also check the picker `Location`.
@@ -66,6 +67,11 @@ docs
 ## Set aside for the user
 
 - `install.sh` adopts a leftover `/home/<name>` and writes through an unchecked `.ssh` on a first install (root).
+- Refactors of `deploy/admin`, `install.sh`, `uninstall.sh` (dedup above): only a container run (ADR 0008) would verify them.
+
+## Review rounds
+
+- After bugs + store: /simplify (2 fixes: CLI test helper, needsURL check) and /code-review high (7 fixes: site-rule descriptions, braille blank as space, `~` in DEPLOY_KEY, base URL path/query, refresh test, invalid UTF-8 echoed, Deleted read only without error; dismissed: write before refusing at the limit (same lock), `Invisible` in prefill (stripping must precede `unglue`), usage text listing commands (operator doc)).
 
 ## Rejected
 
@@ -76,4 +82,4 @@ docs
 
 ## State
 
-Bugs done. Next: zones in the order above, store first.
+Zones done up to deploy + scripts. Next: tests zone, then docs, then /simplify + /code-review on the whole diff, then a second inventory round.
