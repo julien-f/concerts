@@ -267,10 +267,9 @@ func unglue(s string) string {
 	return b.String()
 }
 
-// prose makes a JSON-LD description plain text: entities decoded (WordPress encodes them),
-// line feeds for CR, then clean.
+// prose makes a JSON-LD description plain text: line feeds for CR, then clean.
 func prose(s string) string {
-	return clean(strings.NewReplacer("\r\n", "\n", "\r", "\n").Replace(html.UnescapeString(s)))
+	return clean(strings.NewReplacer("\r\n", "\n", "\r", "\n").Replace(s))
 }
 
 // plain keeps a value's words apart and acceptable to the form, which would reject it
@@ -410,7 +409,8 @@ func performers(v any) string {
 	return strings.Join(names, " + ")
 }
 
-func str(v any) string { s, _ := v.(string); return s }
+// str is a JSON-LD string with HTML entities decoded: WordPress encodes them (« &#8217; », « &amp; »).
+func str(v any) string { s, _ := v.(string); return html.UnescapeString(s) }
 
 func nameOf(v any) string {
 	if m, ok := v.(map[string]any); ok {

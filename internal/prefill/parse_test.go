@@ -74,7 +74,7 @@ func TestParseFixtures(t *testing.T) {
 func TestProse(t *testing.T) {
 	t.Parallel()
 	tests := []struct{ in, want string }{
-		{"Un&amp;deux\r\ntrois", "Un&deux\ntrois"},
+		{"Un\r\ndeux\rtrois", "Un\ndeux\ntrois"}, // entities: str
 		{"Ex\u00ademple\u200b", "Exemple"},
 		{"Un\tduo\u00a0ici", "Un duo ici"},
 		{"Un duo\u2800ici", "Un duo ici"},
@@ -270,6 +270,8 @@ func TestParseEdgeCases(t *testing.T) {
 			Result{Artist: "A", Date: "2027-07-04", Time: "19:00"}},
 		{"offset without a colon, as ISO 8601's basic format writes it", `<script type="application/ld+json">{"@type":"MusicEvent","name":"A","startDate":"2027-07-04T19:00:00+0200"}</script>`,
 			Result{Artist: "A", Date: "2027-07-04", Time: "19:00"}},
+		{"entities decoded in every JSON-LD text, as WordPress encodes them", `<script type="application/ld+json">{"@type":"MusicEvent","performer":{"name":"Lilly Wood &amp; The Prick"},"location":{"name":"L&#8217;Ilyade","address":"1 rue d&#039;Ici"}}</script>`,
+			Result{Artist: "Lilly Wood & The Prick", Venue: "L\u2019Ilyade", Address: "1 rue d'Ici"}},
 		{"offset in hours only", `<script type="application/ld+json">{"@type":"MusicEvent","name":"A","startDate":"2027-07-04T19:00:00+02"}</script>`,
 			Result{Artist: "A", Date: "2027-07-04", Time: "19:00"}},
 		{"invisible characters dropped from one-line fields", `<script type="application/ld+json">{"@type":"MusicEvent","name":"Fon\u00adtaines","location":{"name":"Salle\u200b\tX"}}</script>`,
