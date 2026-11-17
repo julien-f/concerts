@@ -28,7 +28,8 @@ check_url() {
 	esac
 	# One trailing slash is allowed (install.sh strips it); nothing else after the host.
 	case ${1%/} in
-	https:/ | https:// | https://*/* | *:) die "base URL '$1': https://host[:port] only, no path" ;;
+	https:/ | https:// | https://:* | https://*/* | *:) die "base URL '$1': https://host[:port] only, no path" ;;
+	https://*:*:* | https://*:*[!0-9]*) die "base URL '$1': the port must be a number" ;;
 	esac
 }
 

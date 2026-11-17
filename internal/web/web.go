@@ -70,7 +70,7 @@ type Config struct {
 // append their path to it, and the app serves the whole host.
 func ParseBaseURL(s string) (*url.URL, error) {
 	u, err := url.Parse(s)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil ||
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil ||
 		(u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.ForceQuery || strings.Contains(s, "#") ||
 		strings.HasSuffix(u.Host, ":") {
 		return nil, fmt.Errorf("base URL %q: want http(s)://host", s)

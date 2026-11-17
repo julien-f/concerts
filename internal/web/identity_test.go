@@ -138,7 +138,7 @@ func TestBaseURL(t *testing.T) {
 
 	// Links append /g/<secret> to it, and the proxy sends the whole host to the app.
 	for _, bad := range []string{"", "concerts.example", "ftp://concerts.example", "https://", "https://h/sub",
-		"https://h/?x", "https://h#x", "https://h#", "https://h:", "https://u@h"} {
+		"https://h/?x", "https://h#x", "https://h#", "https://h:", "https://:443", "https://u@h"} {
 		if _, err := New(ts.store, slog.New(slog.DiscardHandler), Config{BaseURL: bad, Now: ts.clock.Now}); err == nil {
 			t.Errorf("New(%q): want an error", bad)
 		}
