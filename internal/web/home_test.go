@@ -46,6 +46,9 @@ func TestHomeMonthsAndPast(t *testing.T) {
 	if ids != "25134" { // today and June, July, then past newest first
 		t.Errorf("card order = %s, want 25134", ids)
 	}
+	if want := `class="stub ` + stubStyle("Juillet") + `"`; !strings.Contains(body, want) {
+		t.Errorf("no %s in the list", want)
+	}
 	past := body[strings.Index(body, "Passés (2)"):]
 	if strings.Contains(past, `name="status"`) {
 		t.Errorf("past concerts offer status buttons")
