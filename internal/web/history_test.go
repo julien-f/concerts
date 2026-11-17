@@ -49,7 +49,7 @@ func TestEditHistory(t *testing.T) {
 		t.Fatalf("after an edit: Location = %q, want ?saved=1", got)
 	}
 	_, body = tom.follow(t, c1+"?saved=1")
-	assertContains(t, body, "Modifications enregistrées.", `action="`+revert("1")+`"`, "modifié par Tom · ", `href="`+c1+`/history"`)
+	assertContains(t, body, "Modifications enregistrées.", `action="`+revert("1")+`"><button class="button secondary">Annuler</button>`, "modifié par Tom · ", `href="`+c1+`/history"`)
 	_, body = tom.follow(t, c1+"/history")
 	assertContains(t, body, "Tom · lun. 1 juin à 22\u00a0h",
 		"<li>Heure\u202f: (vide) → 20\u00a0h\u00a030</li>", "<li>Salle\u202f: V → W</li>",

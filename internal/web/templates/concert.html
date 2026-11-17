@@ -10,7 +10,7 @@
 <p><a class="back" href="{{.Base}}#c{{.ID}}">← Tous les concerts</a></p>
 {{if or .Saved .Reverted}}<div class="banner" role="status">
 <p>{{if .Saved}}Modifications enregistrées.{{else}}Version rétablie.{{end}}</p>
-{{if and .UndoRev .Me}}<form method="post" action="{{.Base}}/concerts/{{.ID}}/revisions/{{.UndoRev}}/revert"><button class="button">Annuler</button></form>{{end}}
+{{if and .UndoRev .Me}}<form method="post" action="{{.Base}}/concerts/{{.ID}}/revisions/{{.UndoRev}}/revert"><button class="button secondary">Annuler</button></form>{{end}}
 </div>{{end}}
 <article class="ticket">
 {{template "ticketHead" .}}

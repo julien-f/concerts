@@ -46,6 +46,8 @@ func TestHomeMonthsAndPast(t *testing.T) {
 	if ids != "25134" { // today and June, July, then past newest first
 		t.Errorf("card order = %s, want 25134", ids)
 	}
+	// The card's stub: the same label as the concert page, without year or time.
+	assertContains(t, body, `<span class="stub-label" aria-hidden="true"><span>ven.</span><b>3</b><span>juil.</span></span>`)
 	if want := `class="stub ` + stubStyle("Juillet") + `"`; !strings.Contains(body, want) {
 		t.Errorf("no %s in the list", want)
 	}

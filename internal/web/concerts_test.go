@@ -60,7 +60,7 @@ func TestConcertLifecycle(t *testing.T) {
 	assertContains(t, body, "<h1>Fontaines D.C.</h1>", "ajouté par Léa", "sam. 13 juin · 20\u00a0h\u00a030", `href="https://tickets.example/f?a=1&amp;b=2"`, "Mise en vente\u202f: ", "ven. 5 juin", "Modifier",
 		`<header class="head `+stubStyle("Fontaines D.C.")+`">`,
 		// The stub, drawn for the eyes; the year only when it is not this one.
-		"<span class=\"label\" aria-hidden=\"true\"><span>sam.</span><b>13</b><span>juin</span><span class=\"hour\">20\u00a0h\u00a030</span></span>",
+		"<span class=\"stub-label\" aria-hidden=\"true\"><span>sam.</span><b>13</b><span>juin</span><span class=\"hour\">20\u00a0h\u00a030</span></span>",
 		// « Partager »: WhatsApp without JS, the share sheet's text and link for share.js.
 		`href="https://wa.me/?text=Fontaines%20D.C.%2C%20sam.%2013%20juin`,
 		"data-share-text=\"Fontaines D.C., sam. 13 juin · 20\u00a0h\u00a030, Zénith Paris\" data-share-url=\"http://example.test"+ts.concertURL(t, secret, 1)+`">`,
@@ -86,7 +86,7 @@ func TestConcertLifecycle(t *testing.T) {
 	}
 
 	_, body = b.postRedirect(t, g+"/concerts/1/delete", nil)
-	assertContains(t, body, "Concert supprimé\u202f: Fontaines D.C.", "/concerts/1/restore", "Aucun concert")
+	assertContains(t, body, "Concert supprimé\u202f: Fontaines D.C.", `/concerts/1/restore"><button class="button secondary">Annuler la suppression</button>`, "Aucun concert")
 	if resp, _ := b.get(t, g+"/concerts/1"); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("deleted concert page: status = %d, want 404", resp.StatusCode)
 	}

@@ -10,8 +10,7 @@
 artist's pattern, then one « Écouter » pill per artist. The stub is drawn for the eyes; screen
 readers get the full date. */}}
 {{define "ticketHead"}}<header class="head {{stubStyle .Artist}}">
-{{with ticketDate .Concert}}<p class="date"><time datetime="{{datetime $.Concert}}"><span class="label" aria-hidden="true"><span>{{.Weekday}}</span><b>{{.Day}}</b><span>{{.Month}}</span>
-{{- with .Year}}<span>{{.}}</span>{{end}}{{with .Time}}<span class="hour">{{.}}</span>{{end}}</span><span class="visually-hidden">{{when $.Concert}}</span></time></p>{{end}}
+{{with ticketDate .Concert}}<p class="date"><time datetime="{{datetime $.Concert}}">{{template "stubLabel" .}}<span class="visually-hidden">{{when $.Concert}}</span></time></p>{{end}}
 <h1>{{.Artist}}</h1>
 </header>
 <p class="listen">
@@ -42,7 +41,7 @@ readers get the full date. */}}
 
 {{- /* card is a homePage card: the ticket of one concert in the list. */}}
 {{define "card"}}<li><article class="card" id="c{{.ID}}">
-{{with stub .Date}}<div class="stub {{stubStyle $.Artist}}" aria-hidden="true"><span class="date"><span>{{.Weekday}}</span><b>{{.Day}}</b><span>{{.Month}}</span></span></div>{{end}}
+{{with stub .Date}}<div class="stub {{stubStyle $.Artist}}" aria-hidden="true">{{template "stubLabel" .}}</div>{{end}}
 <div class="body">
 <h3 class="artist"><a href="/c/{{.Token}}">{{.Artist}}</a></h3>
 {{- /* The stub shows the date: here it is for screen readers only. */}}
@@ -66,3 +65,7 @@ readers get the full date. */}}
 
 {{- /* shareButton is « Partager », on the concert page and the « Concert ajouté » banner; the page loads share.js. */}}
 {{define "shareButton"}}<a class="button secondary" href="{{.WhatsApp}}" rel="noreferrer" data-share-text="{{.Text}}" data-share-url="{{.URL}}"><svg class="icon" aria-hidden="true"><use href="#i-share"/></svg>Partager</a>{{end}}
+
+{{- /* stubLabel is a stub's date, drawn for the eyes, on the card and the concert page's head. */}}
+{{define "stubLabel"}}<span class="stub-label" aria-hidden="true"><span>{{.Weekday}}</span><b>{{.Day}}</b><span>{{.Month}}</span>
+{{- with .Year}}<span>{{.}}</span>{{end}}{{with .Time}}<span class="hour">{{.}}</span>{{end}}</span>{{end}}

@@ -39,12 +39,13 @@ func (s *server) today() string { return s.now().In(paris).Format(time.DateOnly)
 
 func (s *server) upcoming(c store.Concert) bool { return c.Date >= s.today() }
 
-// stub is a YYYY-MM-DD date split for the ticket stub: « sam. », « 14 », « mars ».
-type stub struct{ Weekday, Day, Month string }
+// stub is a YYYY-MM-DD date split for the ticket stub: « sam. », « 14 », « mars »; the concert page
+// adds Year and Time (ticketDate), the card shows them elsewhere.
+type stub struct{ Weekday, Day, Month, Year, Time string }
 
 func stubOf(date string) stub {
 	d, _ := time.Parse(time.DateOnly, date)
-	return stub{weekdays[d.Weekday()], strconv.Itoa(d.Day()), months[d.Month()-1]}
+	return stub{Weekday: weekdays[d.Weekday()], Day: strconv.Itoa(d.Day()), Month: months[d.Month()-1]}
 }
 
 // frDate formats a YYYY-MM-DD date as « sam. 14 mars », adding the year when it is not now's.
@@ -83,13 +84,8 @@ func (s *server) when(c store.Concert) string {
 }
 
 // ticketDate is the concert page's stub: the card's, plus the time and the year when it is not now's.
-type ticketDate struct {
-	stub
-	Time, Year string
-}
-
-func (s *server) ticketDate(c store.Concert) ticketDate {
-	t := ticketDate{stub: stubOf(c.Date)}
+func (s *server) ticketDate(c store.Concert) stub {
+	t := stubOf(c.Date)
 	if c.Time != "" {
 		t.Time = frTime(c.Time)
 	}
