@@ -128,7 +128,7 @@ input[aria-invalid="true"] { border: 2px solid var(--error); }
 .card {
   position: relative; display: grid; grid-template-columns: 4rem 1fr;
   margin-bottom: 0.75rem; background: var(--paper); border: 1px solid transparent; border-radius: 0.625rem;
-  box-shadow: 0 1px 0 var(--line);
+  border-bottom-color: var(--line); /* a box-shadow cut scrolling from 59 to 52 fps on a Galaxy S10 (Firefox) */
   isolation: isolate; /* keeps .mine's z-index inside the card, under the « Ajouter » bar */
 }
 /* Notches above the stub, which the past filter paints in its own layer. */
