@@ -27,12 +27,13 @@ type field struct {
 // concertForm is the add (ID 0) and edit page.
 type concertForm struct {
 	*groupRequest
-	ID         int64
-	Fields     []field
-	FormError  string // error not tied to a field
-	PrefillURL string // ticketing page last read (add form only)
-	PrefillMsg string // outcome of that read
-	BadLink    bool   // the prefill link itself is invalid: focus goes there
+	ID           int64
+	Fields       []field
+	FormError    string // error not tied to a field
+	PrefillURL   string // ticketing page last read (add form only)
+	PrefillMsg   string // outcome of that read, or of « Relire la billetterie » (edit form)
+	BadLink      bool   // the prefill link itself is invalid: focus goes there
+	RefreshFocus bool   // nothing filled by « Relire la billetterie »: focus stays on it
 }
 
 func newConcertForm(gr *groupRequest, c store.Concert, errs map[string]string) *concertForm {
@@ -164,6 +165,9 @@ func (s *server) newConcert(w http.ResponseWriter, r *http.Request, gr *groupReq
 		return
 	}
 	c, msg, bad := s.prefill(r, gr, u)
+	if msg == "" {
+		msg = "Vérifie les champs pré-remplis avant d'enregistrer."
+	}
 	f := newConcertForm(gr, c, nil)
 	f.PrefillURL, f.PrefillMsg, f.BadLink = u, msg, bad
 	if !bad {
@@ -240,6 +244,59 @@ func (s *server) updateConcert(w http.ResponseWriter, r *http.Request, gr *group
 	}
 	err := s.store.UpdateConcert(r.Context(), gr.Group.ID, id, c, s.today())
 	s.done(w, r, gr, err, fmt.Sprintf("%s/concerts/%d?saved", gr.Base, id))
+}
+
+// refreshConcert is « Relire la billetterie »: it fills the empty fields of the edit form,
+// as posted, from its ticket link, and shows the form again without saving.
+func (s *server) refreshConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
+	saved, ok := s.concert(w, r, gr)
+	if !ok || !parseForm(w, r) {
+		return
+	}
+	c, errs := parseConcert(r.PostForm)
+	c.ID = saved.ID
+	if errs["ticket_url"] == "" && c.TicketURL == "" {
+		errs["ticket_url"] = "Indique d'abord le lien de billetterie."
+	}
+	// Other errors wait for « Enregistrer »; 200 like the add form's prefill, as htmx swaps no 4xx.
+	if errs["ticket_url"] != "" {
+		s.render(w, r, http.StatusOK, "form", newConcertForm(gr, c, map[string]string{"ticket_url": errs["ticket_url"]}))
+		return
+	}
+	page, problem, _ := s.prefill(r, gr, c.TicketURL)
+	filled := map[string]bool{}
+	if problem == "" {
+		for _, x := range []struct {
+			name string
+			dst  *string
+			src  string
+		}{{"artist", &c.Artist, page.Artist}, {"date", &c.Date, page.Date}, {"time", &c.Time, page.Time},
+			{"venue", &c.Venue, page.Venue}, {"address", &c.Address, page.Address}, {"on_sale_date", &c.OnSaleDate, page.OnSaleDate}} {
+			if *x.dst == "" && x.src != "" {
+				*x.dst, filled[x.name] = x.src, true
+			}
+		}
+	}
+	f := newConcertForm(gr, c, nil)
+	var labels []string
+	for i := range f.Fields {
+		if fd := &f.Fields[i]; filled[fd.Name] {
+			if labels == nil {
+				fd.Autofocus, fd.DescribedBy = true, "prefill-msg"
+			}
+			labels = append(labels, fd.Label)
+		}
+	}
+	switch {
+	case problem != "":
+		f.PrefillMsg = problem
+	case labels == nil:
+		f.PrefillMsg = "Rien de plus sur la billetterie."
+	default:
+		f.PrefillMsg = "Complété depuis la billetterie : " + strings.Join(labels, ", ") + ". Vérifie puis enregistre."
+	}
+	f.RefreshFocus = labels == nil
+	s.render(w, r, http.StatusOK, "form", f)
 }
 
 func (s *server) deleteConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {

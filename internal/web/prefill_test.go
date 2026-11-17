@@ -70,6 +70,63 @@ func TestPrefill(t *testing.T) {
 	}
 }
 
+func TestRefreshConcert(t *testing.T) {
+	t.Parallel()
+	ts := newTestServer(t)
+	site := ticketSite(t)
+	b, secret := ts.member(t, "Léa")
+	g := "/g/" + secret
+	zenith := site.URL + "/zenith.html" // Nova Test, 2027-01-24 20:00, Arène Exemple, with an address
+	b.postRedirect(t, g+"/concerts", concertValues("Mine", "2027-01-25", "", "V", zenith, ""))
+
+	full := concertValues("Mine", "2027-01-25", "21:00", "V", zenith, "2026-12-01")
+	full.Set("address", "Ici")
+	tests := []struct {
+		name string
+		form url.Values
+		want []string
+	}{
+		{"empty fields filled, typed ones kept", concertValues("Mine", "", "", "Ma salle", zenith, ""), []string{
+			"Complété depuis la billetterie : Date, Heure, Adresse. Vérifie puis enregistre.",
+			`value="Mine"`, `value="Ma salle"`, `id="time" name="time" type="time" value="20:00">`,
+			`id="date" name="date" type="date" value="2027-01-24" required aria-describedby="prefill-msg" autofocus`,
+			`value="12, esplanade Exemple, 38000 GRENOBLE"`}},
+		{"nothing to fill", full, []string{
+			"Rien de plus sur la billetterie.", `aria-describedby="prefill-msg" autofocus>Relire la billetterie`}},
+		{"unreadable page", concertValues("Mine", "2027-01-25", "", "V", site.URL+"/blocked", ""), []string{
+			"Impossible de lire cette page : remplis", `aria-describedby="prefill-msg" autofocus>Relire la billetterie`}},
+		{"no ticket link", concertValues("", "", "", "V", "", ""), []string{
+			`id="ticket_url-error" class="error">Indique d&#39;abord le lien de billetterie.`}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, body := b.post(t, g+"/concerts/1/refresh", tt.form)
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("status = %d", resp.StatusCode)
+			}
+			assertContains(t, body, tt.want...)
+			if strings.Contains(body, `id="artist-error"`) {
+				t.Errorf("other fields' errors shown before « Enregistrer »")
+			}
+		})
+		ts.clock.Advance(10 * time.Second) // so the table never hits fetchesPerMinute
+	}
+
+	// Nothing is saved before « Enregistrer ».
+	if _, body := b.get(t, g+"/concerts/1"); strings.Contains(body, "GRENOBLE") || !strings.Contains(body, "2027-01-25") {
+		t.Errorf("refresh saved the concert:\n%s", body)
+	}
+	if _, body := b.get(t, g+"/concerts/new"); strings.Contains(body, "Relire") {
+		t.Errorf("« Relire la billetterie » on the add form")
+	}
+	if resp, _ := b.post(t, g+"/concerts/99/refresh", validConcert()); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("unknown concert: status = %d, want 404", resp.StatusCode)
+	}
+	if resp, _ := ts.browser(t).post(t, g+"/concerts/1/refresh", validConcert()); resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("anonymous refresh: status = %d, want 303 to the picker", resp.StatusCode)
+	}
+}
+
 func TestFetchLimiter(t *testing.T) {
 	t.Parallel()
 	l := newFetchLimiter()

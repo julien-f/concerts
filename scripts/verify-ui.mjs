@@ -41,6 +41,15 @@ const screens = [
   { name: "mine", go: (p) => p.goto(`${groupURL}?mine=1`) },
   { name: "concert", go: (p) => p.goto(`${groupURL}/concerts/1`) },
   { name: "edit", go: (p) => p.goto(`${groupURL}/concerts/1/edit`) },
+  {
+    name: "refresh-failed",
+    go: async (p) => {
+      await p.fill("#ticket_url", "https://concert.invalid/billets");
+      await p.click('button:has-text("Relire la billetterie")');
+      await p.waitForSelector(".prefill-msg");
+      return null;
+    },
+  },
   { name: "add", go: (p) => p.goto(`${groupURL}/concerts/new`) },
   {
     name: "prefill-failed",
