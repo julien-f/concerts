@@ -80,8 +80,24 @@ func TestConcertNotFoundPage(t *testing.T) {
 
 	t.Run("unknown secret stays plain", func(t *testing.T) {
 		resp, body := ts.get(t, "/g/unknown/concerts/1")
-		if resp.StatusCode != http.StatusNotFound || body != "Page introuvable.\n" {
+		if resp.StatusCode != http.StatusNotFound || body != notFoundText+"\n" {
 			t.Errorf("status = %d, body = %q; want 404 and the plain message", resp.StatusCode, body)
 		}
 	})
+}
+
+// A rotated link answers exactly like one that never existed, and points to whoever runs the group.
+func TestRotatedSecretNotFound(t *testing.T) {
+	t.Parallel()
+	ts := newTestServer(t)
+	b, secret := ts.member(t, "Léa")
+	if err := ts.store.RotateSecret(t.Context(), 1, NewSecret()); err != nil {
+		t.Fatal(err)
+	}
+	resp, body := b.get(t, "/g/"+secret)
+	want := "Page introuvable. Si ce lien vient de ton groupe, il a peut-être changé ou été coupé : " +
+		"demande le bon lien à la personne qui gère le groupe.\n"
+	if resp.StatusCode != http.StatusNotFound || body != want {
+		t.Errorf("status = %d, body = %q; want 404 and %q", resp.StatusCode, body, want)
+	}
 }

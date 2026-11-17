@@ -20,7 +20,7 @@ func TestRoutes(t *testing.T) {
 		contains []string
 	}{
 		{"healthz", "/healthz", http.StatusOK, []string{"ok"}},
-		{"known secret", "/g/" + secret, http.StatusOK, []string{`lang="fr"`, "Gig buddies", "Qui es-tu", "/static/htmx-2.0.11.min.", "/static/style.", `"allowEval":false`}},
+		{"known secret", "/g/" + secret, http.StatusOK, []string{`lang="fr"`, "Gig buddies", "Qui es-tu", "Pas de compte ni de mot de passe\u202f: ce lien suffit. Ne le partage pas hors du groupe.", "/static/htmx-2.0.11.min.", "/static/style.", `"allowEval":false`}},
 		{"unknown secret", "/g/" + NewSecret(), http.StatusNotFound, nil},
 		{"unhashed static name", "/static/style.css", http.StatusNotFound, nil},
 	}

@@ -54,6 +54,9 @@ Mobile first (390 px), one column, max 40 rem wide on larger screens. Landmarks 
 ┌──────────────────────────────┐
 │ Les copains du concert       │
 │ Qui es-tu ?                  │  h1
+│ Pas de compte ni de mot de   │  hint: the link is the key
+│ passe : ce lien suffit. Ne   │  (members had no other way
+│ le partage pas hors du groupe│  to learn it)
 │ ┌──────────────────────────┐ │
 │ │      C'est moi : Léa     │ │  one big button per member,
 │ └──────────────────────────┘ │  alphabetical
@@ -205,7 +208,7 @@ All under `/g/{secret}` (written `…`); unknown secret → 404. Every POST: `Cr
 
 - Routes needing an identity (all but the picker, `/me`, the concert page and `agenda.ics`) redirect to `…` (303) without a valid member cookie.
 - htmx requests get `HX-Redirect` instead of a 303 (htmx would swap the target page into the fragment) and `HX-Refresh` with a 404 (htmx swaps no 4xx).
-- Errors: 404 for unknown concert or a concert of another group: inside a group, a page « Concert introuvable » with the group header and « ← Tous les concerts » (htmx gets `HX-Refresh`, then that page); an unknown secret gets plain « Page introuvable. », which reveals nothing; 500 is a generic page, details only in logs. Pages render into a buffer first, so a template error never sends a truncated 200.
+- Errors: 404 for unknown concert or a concert of another group: inside a group, a page « Concert introuvable » with the group header and « ← Tous les concerts » (htmx gets `HX-Refresh`, then that page); an unknown secret (rotated, truncated or never issued) gets the same plain « Page introuvable. », which reveals nothing, plus a hint to ask whoever runs the group (not the members: a rotation cuts off the leaker); other unmatched paths get Go's default 404; 500 is a generic page, details only in logs. Pages render into a buffer first, so a template error never sends a truncated 200.
 
 ## Edge cases
 
