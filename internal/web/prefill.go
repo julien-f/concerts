@@ -79,7 +79,10 @@ func (s *server) prefill(r *http.Request, gr *groupRequest, u string) (c store.C
 	for name := range errs {
 		v.Del(name)
 	}
-	if c, _ = parseConcert(v); c == (store.Concert{TicketURL: u}) {
+	c, _ = parseConcert(v)
+	found := c
+	found.TicketURL = "" // the link is ours, not something found
+	if found == (store.Concert{}) {
 		return c, "Rien trouvé sur cette page : remplis à la main.", false
 	}
 	return c, "", false

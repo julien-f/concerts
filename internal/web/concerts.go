@@ -367,13 +367,16 @@ func (s *server) editConcert(w http.ResponseWriter, r *http.Request, gr *groupRe
 }
 
 func (s *server) updateConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
-	saved, ok := s.concert(w, r, gr) // an invalid form for a deleted concert is a 404 too
+	id, ok := s.pathID(w, r, gr)
 	if !ok || !parseForm(w, r) {
 		return
 	}
-	id := saved.ID
 	c, errs := parseConcert(r.PostForm)
 	if len(errs) > 0 {
+		// The store answers a valid edit of a deleted concert with ErrNotFound; an invalid one gets the same 404.
+		if _, ok := s.concert(w, r, gr); !ok {
+			return
+		}
 		c.ID = id
 		s.render(w, r, http.StatusUnprocessableEntity, "form", newConcertForm(gr, c, errs))
 		return
