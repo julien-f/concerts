@@ -1,7 +1,9 @@
 package prefill
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
@@ -101,5 +103,36 @@ func TestFetch(t *testing.T) {
 		if _, err := Fetch(context.Background(), srv.Client(), srv.URL+path, now); err == nil {
 			t.Errorf("Fetch(%s): want an error", path)
 		}
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// TestFetchFinalHost: the site rule is chosen by the page actually read, after redirects.
+func TestFetchFinalHost(t *testing.T) {
+	t.Parallel()
+	page, err := os.ReadFile("testdata/lilyade.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := &http.Client{CheckRedirect: checkRedirect, Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Request: r, Body: io.NopCloser(strings.NewReader(""))}
+		switch r.URL.Host {
+		case "a.example":
+			resp.StatusCode = http.StatusFound
+			resp.Header.Set("Location", "https://WWW.Lilyade.fr:443/evenements/x/")
+		case "WWW.Lilyade.fr:443":
+			resp.Header.Set("Content-Type", "text/html; charset=UTF-8")
+			resp.Body = io.NopCloser(bytes.NewReader(page))
+		default:
+			resp.StatusCode = http.StatusNotFound
+		}
+		return resp, nil
+	})}
+	res, err := Fetch(context.Background(), client, "https://a.example/x", now)
+	if err != nil || res.Date != "2026-12-05" || res.Venue != "L'Exemple" {
+		t.Fatalf("Fetch = %+v, %v; want the lilyade.fr rule applied", res, err)
 	}
 }

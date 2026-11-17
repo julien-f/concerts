@@ -15,7 +15,7 @@ Adopted (the slice is when the tool first gets used):
 | `http.MaxBytesReader`, length/UTF-8 checks, server timeouts (stdlib) | slice 1 | Hand-written `parseForm` instead of validation libraries. |
 | `time/tzdata` + `Europe/Paris` (stdlib) | slice 2 | Times stored as UTC, displayed in local time. |
 | Lucide icons, inline SVG | slice 3 | Copy only the icons used. Decorative icons get `aria-hidden`. |
-| `golang.org/x/net/html` + `encoding/json` | slice 5 | Open Graph and JSON-LD prefill, tested on saved HTML fixtures. |
+| `golang.org/x/net/html` + `encoding/json` | slice 5 | Open Graph and JSON-LD prefill, plus per-site rules on visible text, tested on saved HTML fixtures. |
 | SSRF-safe client (stdlib) | slice 5 | `net.Dialer.Control` rejects non-global and private IPs. http/https only, capped redirects, body and time limits. |
 | Hand-written `.ics` | slice 6 | CRLF, escaping, 75-octet folding, stable UID, golden-file test. |
 | ~~Web Share API with `wa.me` fallback~~ | slice 7 | Superseded by [ADR 0007](0007-plain-whatsapp-link.md): a plain `wa.me` link. |
