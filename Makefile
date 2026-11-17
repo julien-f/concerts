@@ -51,7 +51,8 @@ $(GOLANGCI_LINT):
 
 # Deployment: README.md "Deploy". No default host, so nothing goes to a machine by accident.
 # install/uninstall run deploy/*.sh as root (ADMIN_HOST: an account with sudo);
-# deploy/rollback log in as the service user (DEPLOY_HOST=concerts@<server>) and need no root.
+# deploy/rollback log in as the service user (DEPLOY_HOST=<name>@<server>) and need no root.
+NAME ?= concerts
 ifneq ($(filter deploy rollback,$(MAKECMDGOALS)),)
 ifeq ($(DEPLOY_HOST),)
 $(error DEPLOY_HOST is required, e.g. make deploy DEPLOY_HOST=concerts@concerts.example.com)
@@ -59,25 +60,28 @@ endif
 endif
 ifneq ($(filter install uninstall,$(MAKECMDGOALS)),)
 ifeq ($(ADMIN_HOST),)
-$(error ADMIN_HOST is required, e.g. make install ADMIN_HOST=admin@concerts.example.com BASE_URL=https://concerts.example.com DEPLOY_KEY=~/.ssh/id_ed25519.pub)
+$(error ADMIN_HOST is required, e.g. make install ADMIN_HOST=admin@concerts.example.com PROXY_GROUP=caddy BASE_URL=https://concerts.example.com DEPLOY_KEY=~/.ssh/id_ed25519.pub)
 endif
 endif
 
-# Copies deploy/ and $(1) to a fresh mktemp dir (root must not run files from a path another
-# local user could create first), then runs $(2) there under sudo. ssh -n: the first ssh would
-# otherwise swallow stdin, e.g. the answer piped to uninstall's confirmation.
+# Checks the arguments locally (deploy/lib.sh) before they reach the remote shell. Then copies
+# deploy/ and $(1) to a fresh mktemp dir (root must not run files from a path another local user
+# could create first) and runs $(2) there under sudo. ssh -n: the first ssh would otherwise
+# swallow stdin, e.g. the answer piped to uninstall's confirmation.
 define as_root
+sh -c '. deploy/lib.sh; check_name NAME "$$1"; [ -z "$$2" ] || check_name PROXY_GROUP "$$2"; [ -z "$$3" ] || check_url "$$3"' \
+	make '$(NAME)' '$(PROXY_GROUP)' '$(BASE_URL)' && \
 d=$$(ssh -n $(ADMIN_HOST) mktemp -d) && \
 scp -q deploy/* $(1) $(ADMIN_HOST):"$$d/" && \
 ssh -t $(ADMIN_HOST) "sudo sh $$d/$(2); s=\$$?; rm -r $$d; exit \$$s"
 endef
 
 install:
-	@test -n "$(BASE_URL)" -a -f $(DEPLOY_KEY) || { echo "BASE_URL and DEPLOY_KEY (a public key file) are required" >&2; exit 1; }
-	$(call as_root,$(DEPLOY_KEY),install.sh '$(BASE_URL)' $$d/$(notdir $(DEPLOY_KEY)))
+	@test -n "$(PROXY_GROUP)" -a -n "$(BASE_URL)" -a -f $(DEPLOY_KEY) || { echo "PROXY_GROUP, BASE_URL and DEPLOY_KEY (a public key file) are required" >&2; exit 1; }
+	$(call as_root,$(DEPLOY_KEY),install.sh $(NAME) $(PROXY_GROUP) $(BASE_URL) $$d/$(notdir $(DEPLOY_KEY)))
 
 uninstall:
-	$(call as_root,,uninstall.sh)
+	$(call as_root,,uninstall.sh $(NAME))
 
 # Uploaded into bin/ itself: same filesystem for an atomic rename, and bin/'s SELinux label.
 deploy: vuln build

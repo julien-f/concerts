@@ -42,7 +42,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 4. **Plan**: filter « Mes concerts »; open a concert → « Ajouter à mon agenda » downloads its `.ics`; « Billetterie » opens the ticket link.
 5. **Fix**: open a concert → « Modifier » or « Supprimer » → banner « Concert supprimé » with « Annuler la suppression ».
 6. **Shared phone**: « Ce n'est pas moi » in every page header → picker again.
-7. **Operator**: `ssh concerts@server 'bin/admin …'` for `new-group`, `list-groups`, `rotate-secret`, `delete-member`, `restore`, `logs`; `make deploy`, `make rollback`; root only for `make install`/`uninstall`.
+7. **Operator**: `ssh <name>@server 'bin/admin …'` for `new-group`, `list-groups`, `rotate-secret`, `delete-member`, `restore`, `logs`; `make deploy`, `make rollback`; root only for `make install`/`uninstall`.
 
 ## Screens
 
@@ -245,7 +245,7 @@ One slice per branch, merged with `--no-ff`. All shipped (v1).
 Also in v1: `make install`, `make deploy`, `make rollback` ([README](../README.md#deploy)).
 
 Later: off-server backups, nothing set up yet. Leads:
-- First check whether the server is already backed up (host snapshots, a whole-server backup) and covers `/home/concerts/backups`, not the live database.
-- Best fit: another machine pulls nightly with `rsync` and a key limited to `rrsync -ro /home/concerts/backups`; the server holds no credential, so a compromise cannot delete the copies. Retention on the puller: about 14 daily, 8 weekly, 12 monthly.
+- First check whether the server is already backed up (host snapshots, a whole-server backup) and covers `/home/<name>/backups`, not the live database.
+- Best fit: another machine pulls nightly with `rsync` and a key limited to `rrsync -ro /home/<name>/backups`; the server holds no credential, so a compromise cannot delete the copies. Retention on the puller: about 14 daily, 8 weekly, 12 monthly.
 - Without an always-on machine: restic to BorgBase or a storage box in append-only mode, pruned from a trusted machine.
 - A periodic restore test (`PRAGMA integrity_check`, `list-groups`) and an alert when the newest snapshot is over 36 h old.

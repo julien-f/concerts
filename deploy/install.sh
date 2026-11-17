@@ -1,97 +1,107 @@
 #!/bin/sh
-# Installs or updates the concerts service; run as root by make install, rerun after any change to deploy/.
-# Usage: install.sh <base-url> <deploy-public-key-file>
-# Never writes inside a concerts-owned directory: the user could have planted symlinks there.
+# Installs or updates the service; run as root by make install, rerun after any change to deploy/.
+# Usage: install.sh <name> <proxy-group> <base-url> <deploy-public-key-file>
+# Never writes inside a directory the service user owns: it could have planted symlinks there.
 set -eu
 umask 022
 cd "$(dirname "$0")"
+. ./lib.sh
 
-[ $# = 2 ] || { echo "usage: $0 <base-url> <deploy-public-key-file>" >&2; exit 2; }
-base_url=${1%/}
-key=$2
-H=/home/concerts
-
-die() { echo "install: $*" >&2; exit 1; }
+[ $# = 4 ] || die "usage: install.sh <name> <proxy-group> <base-url> <deploy-public-key-file>"
+NAME=$1
+PROXY_GROUP=$2
+base_url=${3%/}
+key=$4
+H=/home/$NAME
 
 [ "$(id -u)" = 0 ] || die "run as root"
-case $base_url in https://*) ;; *) die "base URL must be https://…" ;; esac
+check_name name "$NAME"
+check_name proxy-group "$PROXY_GROUP"
+check_url "$base_url"
+[ "$NAME" != "$PROXY_GROUP" ] || die "the name and the proxy group must differ"
+grp=$(getent group "$PROXY_GROUP") || die "no group $PROXY_GROUP"
+[ "$(echo "$grp" | cut -d: -f3)" != 0 ] || die "the proxy group cannot be root's"
 host=${base_url#https://}
 host=${host%%/*}
-grep -q '^ssh-' "$key" || grep -q '^ecdsa-' "$key" || die "$key: not an SSH public key"
+grep -Eq '^(ssh-|ecdsa-|sk-)' "$key" || die "$key: not an SSH public key"
 [ "$(grep -c . "$key")" = 1 ] || die "$key: one key expected"
 command -v sudo >/dev/null || die "sudo is required (the deploy user restarts the service through it)"
 command -v curl >/dev/null || die "curl is required (health check)"
-command -v caddy >/dev/null || die "caddy is required"
-getent group caddy >/dev/null || die "no caddy group: the socket is shared with it"
-[ "$(systemctl show -P Group caddy.service)" = caddy ] || die "caddy.service does not run as group caddy: it could not open /run/concerts.sock"
-[ -f /etc/caddy/Caddyfile ] || die "/etc/caddy/Caddyfile missing"
 if findmnt -no OPTIONS -T /home | tr , '\n' | grep -qx noexec; then die "/home is mounted noexec"; fi
 selinux=false
 if command -v selinuxenabled >/dev/null && selinuxenabled; then
 	selinux=true
 	command -v semanage >/dev/null || die "SELinux is enabled: install semanage (policycoreutils-python-utils)"
 fi
+# A rerun finds its own units; a first run must not take over an existing user or unit.
+if ! installed "$NAME" && id "$NAME" >/dev/null 2>&1; then
+	die "user $NAME already exists and is not ours: pick another name"
+fi
 
-# User and home. The home is root-owned so concerts cannot swap bin/data/backups/.ssh for symlinks.
-id concerts >/dev/null 2>&1 || useradd -r -U -d $H -s /bin/sh concerts
-usermod -p '*' concerts # no password; not "!", which OpenSSH without PAM treats as locked
-[ ! -L $H ] || die "$H is a symlink"
-install -d -o root -g concerts -m 0750 $H
-for d in bin data backups; do
-	[ ! -L $H/$d ] || die "$H/$d is a symlink"
-	install -d -o concerts -g concerts -m 0700 $H/$d
+# Units first: they carry the marker, so a run interrupted after this point can be rerun.
+for s in $UNITS; do
+	sed -e "s/@NAME@/$NAME/g" -e "s/@PROXY_GROUP@/$PROXY_GROUP/g" "concerts$s" >"/etc/systemd/system/$NAME$s.new"
+	chmod 0644 "/etc/systemd/system/$NAME$s.new"
+	mv "/etc/systemd/system/$NAME$s.new" "/etc/systemd/system/$NAME$s"
 done
-install -d -o root -g root -m 0755 $H/.ssh
+install -d -m 0755 "/etc/systemd/system/$NAME.service.d"
+printf '[Service]\nEnvironment=CONCERTS_BASE_URL=%s\n' "$base_url" >"/etc/systemd/system/$NAME.service.d/base-url.conf"
+systemctl daemon-reload
+
+# User and home. The home is root-owned so the user cannot swap bin/data/backups/.ssh for symlinks.
+id "$NAME" >/dev/null 2>&1 || useradd -r -U -d "$H" -s /bin/sh "$NAME"
+usermod -p '*' "$NAME" # no password; not "!", which OpenSSH without PAM treats as locked
+[ ! -L "$H" ] || die "$H is a symlink"
+install -d -o root -g "$NAME" -m 0750 "$H"
+for d in bin data backups; do
+	[ ! -L "$H/$d" ] || die "$H/$d is a symlink"
+	install -d -o "$NAME" -g "$NAME" -m 0700 "$H/$d"
+done
+install -d -o root -g root -m 0755 "$H/.ssh"
 # restrict: no forwarding, agent or pty. Root-owned, so the key holder cannot lift it.
-printf 'restrict %s\n' "$(cat "$key")" >$H/.ssh/authorized_keys.new
-chmod 0644 $H/.ssh/authorized_keys.new
-mv $H/.ssh/authorized_keys.new $H/.ssh/authorized_keys
+printf 'restrict %s\n' "$(cat "$key")" >"$H/.ssh/authorized_keys.new"
+chmod 0644 "$H/.ssh/authorized_keys.new"
+mv "$H/.ssh/authorized_keys.new" "$H/.ssh/authorized_keys"
 
 if $selinux; then
 	# systemd refuses to execute files labelled as home content.
 	semanage fcontext -l | grep -q "^$H/bin(/\.\*)?" || semanage fcontext -a -t bin_t "$H/bin(/.*)?"
-	restorecon -R $H/bin
+	restorecon -R "$H/bin"
 fi
 
-sshd_cfg=$(sshd -T -C user=concerts,host=localhost,addr=127.0.0.1 2>/dev/null || true)
+sshd_cfg=$(sshd -T -C "user=$NAME,host=localhost,addr=127.0.0.1" 2>/dev/null || true)
 if echo "$sshd_cfg" | grep -Eq '^(allowusers|allowgroups) '; then
-	echo "warning: sshd has AllowUsers/AllowGroups: make sure they let concerts in" >&2
+	echo "warning: sshd has AllowUsers/AllowGroups: make sure they let $NAME in" >&2
 fi
 
-# sudo grants: exact command lines used by bin/admin.
-cat >/etc/sudoers.d/concerts.new <<'EOF'
-# Installed by concerts install.sh; used by /home/concerts/bin/admin.
-Cmnd_Alias CONCERTS = \
-	/usr/bin/systemctl restart concerts.service, \
-	/usr/bin/systemctl stop concerts.socket concerts.service concerts-backup.timer concerts-backup.service, \
-	/usr/bin/systemctl start concerts.socket concerts-backup.timer, \
-	/usr/bin/systemctl reset-failed concerts.service concerts.socket, \
-	/usr/bin/journalctl -u concerts.service -u concerts-backup.service -n 200 --no-pager, \
-	/usr/bin/journalctl -f -u concerts.service -u concerts-backup.service --no-pager
-concerts ALL=(root) NOPASSWD: CONCERTS
+# sudo grants: exact command lines run by bin/admin. No Cmnd_Alias: alias names are global to sudoers.
+S=/usr/bin/systemctl
+cat >"/etc/sudoers.d/$NAME.new" <<EOF
+# Installed by concerts install.sh; used by $H/bin/admin.
+$NAME ALL=(root) NOPASSWD: $S restart $NAME.service, \\
+	$S stop $NAME.socket $NAME.service $NAME-backup.timer $NAME-backup.service, \\
+	$S start $NAME.socket $NAME-backup.timer, \\
+	$S reset-failed $NAME.service $NAME.socket, \\
+	/usr/bin/journalctl -u $NAME.service -u $NAME-backup.service -n 200 --no-pager, \\
+	/usr/bin/journalctl -f -u $NAME.service -u $NAME-backup.service --no-pager
 EOF
-chmod 0440 /etc/sudoers.d/concerts.new
-visudo -cqf /etc/sudoers.d/concerts.new || { rm -f /etc/sudoers.d/concerts.new; die "sudoers check failed"; }
-mv /etc/sudoers.d/concerts.new /etc/sudoers.d/concerts
+chmod 0440 "/etc/sudoers.d/$NAME.new"
+visudo -cqf "/etc/sudoers.d/$NAME.new" || { rm -f "/etc/sudoers.d/$NAME.new"; die "sudoers check failed"; }
+mv "/etc/sudoers.d/$NAME.new" "/etc/sudoers.d/$NAME"
 
-# Units, then a stop/start so a rerun applies changed ones (restarting the socket alone drops queued requests).
-install -m 0644 concerts.socket concerts.service concerts-backup.service concerts-backup.timer /etc/systemd/system/
-install -d -m 0755 /etc/systemd/system/concerts.service.d
-printf '[Service]\nEnvironment=CONCERTS_BASE_URL=%s\n' "$base_url" >/etc/systemd/system/concerts.service.d/base-url.conf
-systemctl daemon-reload
-systemctl stop concerts.socket concerts.service
-systemctl reset-failed concerts.service concerts.socket 2>/dev/null || true
-systemctl enable --now concerts.socket concerts-backup.timer
+# Started once the user, home and sudoers exist; a stop/start applies changed units
+# (restarting the socket alone drops queued requests).
+systemctl stop "$NAME.socket" "$NAME.service"
+systemctl reset-failed "$NAME.service" "$NAME.socket" 2>/dev/null || true
+systemctl enable --now "$NAME.socket" "$NAME-backup.timer"
 
-# Caddy site: no log directive (paths hold group secrets); the shared Caddyfile is never edited.
-sed "s|concerts.example.com|$host|" concerts.caddy >/etc/caddy/concerts.caddy
-chmod 0644 /etc/caddy/concerts.caddy
-if grep -Eq '^[[:space:]]*import[[:space:]]+(/etc/caddy/)?concerts\.caddy' /etc/caddy/Caddyfile; then
-	out=$(caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile 2>&1) || { echo "$out" >&2; die "caddy validate failed"; }
-	systemctl reload caddy
-else
-	echo "add this line to /etc/caddy/Caddyfile, then: systemctl reload caddy" >&2
-	echo "import /etc/caddy/concerts.caddy" >&2
-fi
+# The proxy's configuration is the operator's: print the site block, never edit it.
+cat <<EOF
+installed $NAME. Add this site to the reverse proxy before the first deploy (Caddy shown; no access log,
+paths hold group secrets; keep the original Host header). The proxy process must be in group
+$PROXY_GROUP (primary or supplementary; restart it after adding the group) to open /run/$NAME.sock.
 
-if [ ! -x $H/bin/concerts ]; then echo "installed: now run make deploy DEPLOY_HOST=concerts@<server>"; fi
+EOF
+sed -e "s/@HOST@/$host/" -e "s/@NAME@/$NAME/" site.caddy
+echo
+echo "Then: make deploy DEPLOY_HOST=$NAME@<server>"

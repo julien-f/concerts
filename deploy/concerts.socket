@@ -1,10 +1,11 @@
+# Installed by concerts install.sh, which replaces the NAME and PROXY_GROUP placeholders.
 [Unit]
-Description=concerts web app socket
+Description=@NAME@ web app socket
 
 [Socket]
-ListenStream=/run/concerts.sock
+ListenStream=/run/@NAME@.sock
 # Only the reverse proxy may connect.
-SocketGroup=caddy
+SocketGroup=@PROXY_GROUP@
 SocketMode=0660
 
 [Install]

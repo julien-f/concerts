@@ -1,5 +1,6 @@
+# Installed by concerts install.sh, which replaces the NAME and PROXY_GROUP placeholders.
 [Unit]
-Description=Nightly concerts database backup
+Description=Nightly @NAME@ database backup
 
 [Timer]
 OnCalendar=*-*-* 04:00:00

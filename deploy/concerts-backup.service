@@ -1,21 +1,22 @@
+# Installed by concerts install.sh, which replaces the NAME and PROXY_GROUP placeholders.
 [Unit]
-Description=concerts database backup
+Description=@NAME@ database backup
 
 [Service]
 Type=oneshot
-User=concerts
-Group=concerts
-Environment=CONCERTS_DB=/home/concerts/data/concerts.db
-ExecStart=/bin/sh -c 'exec /home/concerts/bin/concerts backup "/home/concerts/backups/concerts-$(date +%%Y-%%m-%%dT%%H%%M%%S).db"'
+User=@NAME@
+Group=@NAME@
+Environment=CONCERTS_DB=/home/@NAME@/data/concerts.db
+ExecStart=/bin/sh -c 'exec /home/@NAME@/bin/concerts backup "/home/@NAME@/backups/concerts-$(date +%%Y-%%m-%%dT%%H%%M%%S).db"'
 # Keeps 14 days of snapshots; copying them off the server is up to the operator.
-ExecStartPost=/usr/bin/find /home/concerts/backups -name 'concerts-*.db' -mtime +14 -delete
+ExecStartPost=/usr/bin/find /home/@NAME@/backups -name 'concerts-*.db' -mtime +14 -delete
 Nice=10
 IOSchedulingClass=idle
 
 ProtectHome=tmpfs
-BindReadOnlyPaths=/home/concerts/bin
+BindReadOnlyPaths=/home/@NAME@/bin
 # Read-write: reading a WAL database writes its -shm.
-BindPaths=/home/concerts/data /home/concerts/backups
+BindPaths=/home/@NAME@/data /home/@NAME@/backups
 
 NoNewPrivileges=yes
 ProtectSystem=strict

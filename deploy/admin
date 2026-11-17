@@ -1,5 +1,6 @@
 #!/bin/sh
-# Operates the concerts service as its own user, from its home; installed in ~/bin by make deploy.
+# Operates the service as its own user, from its home; installed in ~/bin by make deploy.
+# Units are named after that user (install.sh's name).
 # The only root actions are the sudoers grants written by install.sh.
 set -eu
 umask 077
@@ -16,14 +17,15 @@ SNAP=backups/pre-deploy.db
 # Written before a deploy's restart, removed once healthz passes (deploy, rollback or restore).
 FAILED=$SNAP.deploy-failed
 SYSTEMCTL='sudo -n /usr/bin/systemctl'
+N=$(id -un)
 
 # The service's own environment (root-written unit and drop-in): one source for the configuration.
-eval "export $(systemctl show -P Environment concerts.service)"
-: "${CONCERTS_BASE_URL:?missing from concerts.service: rerun make install}"
-: "${CONCERTS_DB:?missing from concerts.service}"
+eval "export $(systemctl show -P Environment $N.service)"
+: "${CONCERTS_BASE_URL:?missing from $N.service: rerun make install}"
+: "${CONCERTS_DB:?missing from $N.service}"
 
 logs() {
-	sudo -n /usr/bin/journalctl -u concerts.service -u concerts-backup.service -n 200 --no-pager
+	sudo -n /usr/bin/journalctl -u $N.service -u $N-backup.service -n 200 --no-pager
 }
 
 # Through Caddy on loopback: the deployer cannot open the socket, and no hairpin NAT or DNS.
@@ -48,7 +50,7 @@ healthz() {
 		sleep 1
 	done
 	echo "healthz failed:" >&2
-	systemctl status --no-pager concerts.socket concerts.service >&2 || true
+	systemctl status --no-pager $N.socket $N.service >&2 || true
 	logs >&2
 	return 1
 }
@@ -56,13 +58,13 @@ healthz() {
 # Nothing may open the database while it is swapped: a request would start the service,
 # a backup would create an empty database or delete the new one's -wal on close.
 stop_all() {
-	trap 'echo "failed with the service stopped: fix the cause, then $SYSTEMCTL start concerts.socket concerts-backup.timer" >&2' EXIT
-	$SYSTEMCTL stop concerts.socket concerts.service concerts-backup.timer concerts-backup.service
+	trap 'echo "failed with the service stopped: fix the cause, then $SYSTEMCTL start $N.socket $N-backup.timer" >&2' EXIT
+	$SYSTEMCTL stop $N.socket $N.service $N-backup.timer $N-backup.service
 }
 
 start_all() {
-	$SYSTEMCTL reset-failed concerts.service concerts.socket
-	$SYSTEMCTL start concerts.socket concerts-backup.timer
+	$SYSTEMCTL reset-failed $N.service $N.socket
+	$SYSTEMCTL start $N.socket $N-backup.timer
 	trap - EXIT
 }
 
@@ -92,8 +94,8 @@ deploy)
 		touch "$FAILED"
 	fi
 	mv bin/concerts.new bin/concerts
-	$SYSTEMCTL reset-failed concerts.service concerts.socket
-	$SYSTEMCTL restart concerts.service
+	$SYSTEMCTL reset-failed $N.service $N.socket
+	$SYSTEMCTL restart $N.service
 	healthz
 	;;
 rollback)
@@ -124,7 +126,7 @@ restore)
 logs)
 	case ${2-} in
 	"") logs ;;
-	-f) exec sudo -n /usr/bin/journalctl -f -u concerts.service -u concerts-backup.service --no-pager ;;
+	-f) exec sudo -n /usr/bin/journalctl -f -u $N.service -u $N-backup.service --no-pager ;;
 	*) echo "$usage" >&2; exit 2 ;;
 	esac
 	;;
