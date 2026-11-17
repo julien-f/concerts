@@ -109,7 +109,11 @@ func TestIdentityCookie(t *testing.T) {
 			req, _ := http.NewRequest(http.MethodGet, ts.URL+"/g/"+secret, nil)
 			req.AddCookie(&http.Cookie{Name: memberCookie, Value: tt.cookie}) //nolint:gosec // G124: request cookie, attributes unused
 			resp, body := ts.browser(t).do(t, req)
-			if got := !strings.Contains(body, "Qui es-tu"); got != tt.identified {
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("status = %d, want 200", resp.StatusCode)
+			}
+			// The header names the member only with an identity; the picker otherwise.
+			if got := strings.Contains(body, "Ce n'est pas moi"); got != tt.identified {
 				t.Fatalf("identified = %v, want %v", got, tt.identified)
 			}
 			if cc := resp.Header.Get("Cache-Control"); cc != "private, no-cache" {
