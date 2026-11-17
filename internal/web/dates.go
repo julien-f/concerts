@@ -48,9 +48,9 @@ func stubOf(date string) stub {
 	return stub{Weekday: weekdays[d.Weekday()], Day: strconv.Itoa(d.Day()), Month: months[d.Month()-1]}
 }
 
-// otherYear is the year of a YYYY-MM-DD date when it is not now's, else "".
-func (s *server) otherYear(date string) string {
-	if d, err := time.Parse(time.DateOnly, date); err == nil && d.Year() != s.now().In(paris).Year() {
+// otherYear is d's year when it is not now's, else "".
+func (s *server) otherYear(d time.Time) string {
+	if d.Year() != s.now().In(paris).Year() {
 		return strconv.Itoa(d.Year())
 	}
 	return ""
@@ -58,12 +58,13 @@ func (s *server) otherYear(date string) string {
 
 // frDate formats a YYYY-MM-DD date as « sam. 14 mars », adding the year when it is not now's.
 func (s *server) frDate(date string) string {
-	if _, err := time.Parse(time.DateOnly, date); err != nil {
+	d, err := time.Parse(time.DateOnly, date)
+	if err != nil {
 		return date
 	}
 	st := stubOf(date)
 	out := st.Weekday + " " + st.Day + " " + st.Month
-	if y := s.otherYear(date); y != "" {
+	if y := s.otherYear(d); y != "" {
 		out += " " + y
 	}
 	return out
@@ -96,7 +97,9 @@ func (s *server) ticketDate(c store.Concert) stub {
 	if c.Time != "" {
 		t.Time = frTime(c.Time)
 	}
-	t.Year = s.otherYear(c.Date)
+	if d, err := time.Parse(time.DateOnly, c.Date); err == nil {
+		t.Year = s.otherYear(d)
+	}
 	return t
 }
 
