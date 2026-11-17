@@ -224,15 +224,24 @@ func (s *server) createConcert(w http.ResponseWriter, r *http.Request, gr *group
 
 type concertPage struct {
 	*groupRequest
-	store.Concert
+	concertFacts
 	Statuses statusBlock
-	URL      string // absolute page URL, for Open Graph
 	Share    shareLink
-	Map      string // OpenStreetMap search for the venue, "" without an address
-	Listen   []listenLink
 	Saved    bool  // banner after an edit
 	Reverted bool  // banner after going back to a revision
 	UndoRev  int64 // revision the banner offers to go back to, 0 for none
+}
+
+// concertFacts is what the member page and the public card both show of a concert.
+type concertFacts struct {
+	store.Concert
+	URL    string // absolute page URL, for Open Graph
+	Map    string // OpenStreetMap search for the venue, "" without an address
+	Listen []listenLink
+}
+
+func (s *server) facts(c store.Concert) concertFacts {
+	return concertFacts{Concert: c, URL: s.pageURL(c), Map: mapURL(c), Listen: listenLinks(c.Artist)}
 }
 
 // listenLink is an « Écouter » YouTube search; Name is "" when the concert has a single artist.
@@ -284,11 +293,8 @@ func (s *server) byToken(w http.ResponseWriter, r *http.Request) (groupID int64,
 // publicPage is a concert as anyone holding its public link sees it: no group, no first names.
 type publicPage struct {
 	*groupRequest // empty: the layout reads its fields
-	store.Concert
-	URL    string
-	Map    string
-	Listen []listenLink
-	Going  int // members answering « J'y vais »
+	concertFacts
+	Going int // members answering « J'y vais »
 }
 
 // publicConcert is /c/{token}: the full concert page for a member of its group, else the public card.
@@ -313,7 +319,7 @@ func (s *server) publicConcert(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	p := &publicPage{groupRequest: &groupRequest{}, Concert: c, URL: s.pageURL(c), Map: mapURL(c), Listen: listenLinks(c.Artist)}
+	p := &publicPage{groupRequest: &groupRequest{}, concertFacts: s.facts(c)}
 	for _, st := range ss {
 		if st.Status == store.Going {
 			p.Going++
@@ -336,8 +342,8 @@ func (s *server) showConcertPage(w http.ResponseWriter, r *http.Request, gr *gro
 		s.fail(w, r, err)
 		return
 	}
-	p := &concertPage{groupRequest: gr, Concert: c, Statuses: newStatusBlock(gr, c, ss, "concert", s.upcoming(c)),
-		URL: s.pageURL(c), Share: s.shareLink(c), Map: mapURL(c), Listen: listenLinks(c.Artist)}
+	p := &concertPage{groupRequest: gr, concertFacts: s.facts(c), Statuses: newStatusBlock(gr, c, ss, "concert", s.upcoming(c)),
+		Share: s.shareLink(c)}
 	q := r.URL.Query()
 	var rev string
 	switch {
