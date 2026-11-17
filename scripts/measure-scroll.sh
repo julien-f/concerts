@@ -12,6 +12,6 @@ printf '%s\n' "$ref_css" >"$work/ref.css"
 cp "$repo/internal/web/static/style.css" "$work/work.css"
 node "$repo/scripts/measure-scroll.mjs" snapshot "$tools" "http://$addr$link" "$work"
 stop_demo
-read -r iface lan < <(ip -4 route get 1.1.1.1 | sed -n 's/.* dev \([^ ]*\).* src \([^ ]*\).*/\1 \2/p')
+read -r iface lan < <(ip -4 route get 1.1.1.1 | sed -n 's/.* dev \([^ ]*\).* src \([^ ]*\).*/\1 \2/p') || true # read fails on no output, which set -e would exit on
 [[ -n ${lan:-} ]] || { echo "no default route: is this machine on a network?"; exit 1; }
 node "$repo/scripts/measure-scroll.mjs" serve "$work" "$lan" "$iface" "$ref"
