@@ -76,20 +76,15 @@ func TestICSEscapingAndFolding(t *testing.T) {
 	}
 }
 
-// TestICSFoldInvalidUTF8: stray continuation bytes must not stall folding (they once looped forever).
+// TestICSFoldInvalidUTF8: stray continuation bytes must not stall folding (they once looped
+// forever: go test's -timeout then reports the hang).
 func TestICSFoldInvalidUTF8(t *testing.T) {
 	t.Parallel()
-	done := make(chan string)
-	go func() { done <- icsFold("DESCRIPTION:" + strings.Repeat("\x80", 200)) }()
-	select {
-	case got := <-done:
-		for _, l := range strings.Split(strings.TrimSuffix(got, "\r\n"), "\r\n") {
-			if len(l) > 75 {
-				t.Errorf("line of %d octets", len(l))
-			}
+	got := icsFold("DESCRIPTION:" + strings.Repeat("\x80", 200))
+	for _, l := range strings.Split(strings.TrimSuffix(got, "\r\n"), "\r\n") {
+		if len(l) > 75 {
+			t.Errorf("line of %d octets", len(l))
 		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("icsFold did not return")
 	}
 }
 
