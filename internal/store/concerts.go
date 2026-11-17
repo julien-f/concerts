@@ -27,7 +27,7 @@ type Concert struct {
 	OnSaleDate  string // YYYY-MM-DD or ""
 	Price       string // as shown, e.g. « 29–32 € », or ""
 	Description string // paragraphs separated by "\n", or ""
-	AddedBy     string // first name of the member who added it, "" if deleted
+	AddedBy     string // first name of the member who added it, "" if that member was deleted
 	Deleted     bool
 	LastRevID   int64  // newest revision, 0 if never edited (set by Concert only)
 	EditedBy    string // first name of the member behind LastRevID, "" if deleted (set by Concert only)

@@ -75,8 +75,8 @@ func TestRevisions(t *testing.T) {
 	if _, err := s.Revision(ctx, other.ID, otherID, first); !errors.Is(err, ErrNotFound) {
 		t.Errorf("revision through another concert: %v", err)
 	}
-	if rs, _ := s.Revisions(ctx, other.ID, id); len(rs) != 0 {
-		t.Errorf("history from another group: %d revisions", len(rs))
+	if rs, err := s.Revisions(ctx, other.ID, id); err != nil || len(rs) != 0 {
+		t.Errorf("history from another group: %d revisions, %v", len(rs), err)
 	}
 
 	// A deleted concert's history is hidden, and back once restored.
@@ -86,8 +86,8 @@ func TestRevisions(t *testing.T) {
 	if _, err := s.Revision(ctx, g.ID, id, first); !errors.Is(err, ErrNotFound) {
 		t.Errorf("revision of a deleted concert: %v", err)
 	}
-	if rs, _ := s.Revisions(ctx, g.ID, id); len(rs) != 0 {
-		t.Errorf("history of a deleted concert: %d revisions", len(rs))
+	if rs, err := s.Revisions(ctx, g.ID, id); err != nil || len(rs) != 0 {
+		t.Errorf("history of a deleted concert: %d revisions, %v", len(rs), err)
 	}
 	if err := s.RestoreConcert(ctx, g.ID, id, testToday); err != nil {
 		t.Fatal(err)

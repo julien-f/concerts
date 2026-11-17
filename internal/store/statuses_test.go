@@ -36,8 +36,8 @@ func TestStatuses(t *testing.T) {
 	if fmt.Sprint(got) != want {
 		t.Fatalf("Statuses = %v, want %v", got, want)
 	}
-	if one, _ := s.Statuses(ctx, g.ID, c2); len(one) != 0 {
-		t.Fatalf("Statuses of c2 = %v, want none", one)
+	if one, err := s.Statuses(ctx, g.ID, c2); err != nil || len(one) != 0 {
+		t.Fatalf("Statuses of c2 = %v, %v; want none", one, err)
 	}
 	if one, _ := s.Statuses(ctx, g.ID, c1); fmt.Sprint(one) != want {
 		t.Fatalf("Statuses of c1 = %v, want %v", one, want)
@@ -60,8 +60,8 @@ func TestStatuses(t *testing.T) {
 	if err := s.SetStatus(ctx, g.ID, c1, lea.ID, Going); !errors.Is(err, ErrNotFound) {
 		t.Errorf("deleted concert: err = %v, want ErrNotFound", err)
 	}
-	if got, _ := s.Statuses(ctx, g.ID, 0); len(got) != 0 {
-		t.Errorf("statuses of a deleted concert listed: %v", got)
+	if got, err := s.Statuses(ctx, g.ID, 0); err != nil || len(got) != 0 {
+		t.Errorf("statuses of a deleted concert listed: %v, %v", got, err)
 	}
 	if err := s.RestoreConcert(ctx, g.ID, c1, testToday); err != nil {
 		t.Fatal(err)
