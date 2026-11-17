@@ -1,9 +1,10 @@
 {{define "title"}}{{.Group.Name}} · Concerts{{end}}
+{{define "meta"}}{{if .Added}}<script src="{{static "share.js"}}" defer></script>{{end}}{{end}}
 {{define "brand"}}<h1 class="brand">{{.Group.Name}}</h1>{{end}}
 {{define "content"}}
 {{with .Added}}<div class="banner" role="status">
 <p>Concert ajouté : {{.Artist}}.</p>
-<a class="button" href="{{$.Share}}" rel="noreferrer">Prévenir le groupe<span class="visually-hidden"> sur WhatsApp</span></a>
+{{template "shareButton" $.Share}}
 </div>{{end}}
 {{with .Restored}}<div class="banner" role="status"><p>Concert rétabli : {{.Artist}}.</p></div>{{end}}
 {{with .Deleted}}<div class="banner" role="status">

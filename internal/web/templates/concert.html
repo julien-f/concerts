@@ -29,7 +29,7 @@
 <div class="side">
 <p class="actions">
 {{with .TicketURL}}<a class="button" href="{{.}}" rel="noopener noreferrer">Billetterie</a>{{end}}
-{{with .Share}}<a class="button secondary" href="{{.WhatsApp}}" rel="noreferrer" data-share-text="{{.Text}}" data-share-url="{{.URL}}"><svg class="icon" aria-hidden="true"><use href="#i-share"/></svg>Partager</a>{{end}}
+{{template "shareButton" .Share}}
 </p>
 {{template "statuses" .Statuses}}
 </div>

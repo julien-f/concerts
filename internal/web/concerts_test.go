@@ -49,8 +49,12 @@ func TestConcertLifecycle(t *testing.T) {
 		// The stub shows the date: the meta line keeps it for screen readers only.
 		`<time datetime="2026-06-13T20:30"><span class="visually-hidden">sam. 13 juin · </span>20`+"\u00a0h\u00a0"+`30</time> · Zénith Paris`,
 		// The share text holds the absolute concert link, %20-encoded.
-		"https://wa.me/?text=Fontaines%20D.C.%2C%20sam.%2013%20juin", "http%3A%2F%2Fexample.test"+strings.ReplaceAll(ts.concertURL(t, secret, 1), "/", "%2F"))
+		"https://wa.me/?text=Fontaines%20D.C.%2C%20sam.%2013%20juin", "http%3A%2F%2Fexample.test"+strings.ReplaceAll(ts.concertURL(t, secret, 1), "/", "%2F"),
+		// The same « Partager » as the concert page.
+		`data-share-url="http://example.test`+ts.concertURL(t, secret, 1)+`"`, `<script src="/static/share.`)
 	assertLacks(t, body, "ajouté par") // the concert page shows it
+	_, body = b.get(t, g)
+	assertLacks(t, body, "share.js", "Partager")
 
 	_, body = b.follow(t, g+"/concerts/1")
 	assertContains(t, body, "<h1>Fontaines D.C.</h1>", "ajouté par Léa", "sam. 13 juin · 20\u00a0h\u00a030", `href="https://tickets.example/f?a=1&amp;b=2"`, "Mise en vente\u202f: ", "ven. 5 juin", "Modifier",

@@ -1,6 +1,6 @@
 # 0007: « Prévenir le groupe » is a plain wa.me link
 
-Superseded on the concert page by [0010](0010-share-sheet.md).
+Superseded by [0010](0010-share-sheet.md).
 
 ## Context
 

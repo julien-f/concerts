@@ -42,7 +42,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 ## User journeys
 
 1. **Join**: tap the link in WhatsApp → picker screen → tap « C'est moi » on one's name, or type a new first name → main screen. Later visits skip the picker (cookie). Opening a concert link after the group link but without identity, the concert page shows « Choisis ton prénom pour répondre », and the picker returns to that concert (`next`).
-2. **Add**: tap « Ajouter un concert » (fixed at the bottom on a phone, beside the filters on a computer) → paste a ticket URL, tap « Pré-remplir » → check or type the fields → « Enregistrer » → main screen with a banner « Concert ajouté » and « Prévenir le groupe » (opens WhatsApp with artist, date and the concert link).
+2. **Add**: tap « Ajouter un concert » (fixed at the bottom on a phone, beside the filters on a computer) → paste a ticket URL, tap « Pré-remplir » → check or type the fields → « Enregistrer » → main screen with a banner « Concert ajouté » and « Partager » (the share sheet, else WhatsApp, with artist, date and the concert link; [ADR 0010](decisions/0010-share-sheet.md)).
 3. **Respond**: on a card, tap « Ça m'intéresse » or « J'y vais »; tapping the active one clears it. The status block updates in place (htmx) or after a full reload (no JS).
 4. **Plan**: filter « Mes concerts »; open a concert → « Écouter » searches the artist on YouTube (one « Écouter <artiste> » per artist of a line-up written with a spaced « + » or « / », the separator prefill joins the performers with); « Ajouter à mon agenda » downloads its `.ics`; « Billetterie » opens the ticket link.
 5. **Fix**: open a concert → « Modifier » (banner with « Annuler ») or « Supprimer » (banner « Concert supprimé » with « Annuler la suppression »). A bad edit noticed later: « Voir l'historique » → « Revenir avant cette modification ».
@@ -85,8 +85,8 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 ┌──────────────────────────────┐
 │ Les copains   Léa · Ce n'est │
 │ du concert          pas moi  │
-│ ✓ Concert ajouté [Prévenir le│  banner after add / delete
-│   groupe]  (or [Annuler])    │
+│ ✓ Concert ajouté [Partager]  │  banner after add / delete
+│   (or [Annuler])             │
 │ (Tous) ( Mes concerts )      │  filter links, aria-current
 │ MARS 2027                    │  h2 per month (h1 = group)
 │ ┌────┬─────────────────────┐ │
@@ -291,7 +291,7 @@ One slice per branch, merged with `--no-ff`. All shipped (v1).
 
 0. Skeleton: groups, `new-group`, `/g/<secret>`, `/healthz`.
 1. **Members and identity**: first names as « C'est moi » buttons plus a « Ton prénom » field; a taken name offers « C'est moi » or an initial; « Ce n'est pas moi » on every page; `list-groups`, `rotate-secret <group-id>` (prints the new link; everyone picks their name again), `delete-member <group-id> <first-name>`, `rename-member <group-id> <first-name> <new-first-name>`.
-2. **Concerts**: artist, date, optional time, venue, optional address (concert page only, with « Voir sur la carte »: an OpenStreetMap search for « venue, address »), optional http(s) ticket link, optional on-sale date; editable; soft delete with « Annuler la suppression »; « ajouté par X » on the concert page; « Prévenir le groupe » (`wa.me`, [ADR 0007](decisions/0007-plain-whatsapp-link.md)) right after adding.
+2. **Concerts**: artist, date, optional time, venue, optional address (concert page only, with « Voir sur la carte »: an OpenStreetMap search for « venue, address »), optional http(s) ticket link, optional on-sale date; editable; soft delete with « Annuler la suppression »; « ajouté par X » on the concert page; « Prévenir le groupe » (`wa.me`, [ADR 0007](decisions/0007-plain-whatsapp-link.md)) right after adding, since slice 11 « Partager » ([ADR 0010](decisions/0010-share-sheet.md)).
 3. **Statuses**: interested / going; tapping the active one clears it. A third one, « J'ai mon billet », was merged into « J'y vais » after v1 (migration 0007): members rarely came back to set it once they had bought.
    - One status block (names per status, my buttons) shared by card and concert page; htmx swaps that block only, and buttons keep stable ids so focus survives.
    - The active button submits an empty status, so every POST states the target state: a double tap is harmless.
@@ -322,7 +322,7 @@ One slice per branch, merged with `--no-ff`. All shipped (v1).
 10. **Public concert link** ([ADR 0009](decisions/0009-public-concert-link.md)): members share what they see, so the concert page moved to a secret-free `/c/<token>` (see the threat model) instead of adding a share button.
    - Old concert URLs, the picker's `next` and post-edit redirects reach it through a 303. Cards, `og:url`, `<link rel="canonical">` (Chrome on Android shares it), « Prévenir le groupe », the history page and `.ics` link to it directly.
    - Out of scope: secret-free list and forms (their addresses still hold the secret), revoking one concert's link.
-11. **Lighter concert page**: one orange button (« Billetterie »); the date and title move into the patterned head; « Écouter » becomes one pill per artist, « Ajouter à mon agenda » a link among the facts, « Prévenir le groupe » a secondary « Partager » opening the share sheet ([ADR 0010](decisions/0010-share-sheet.md)).
+11. **Lighter concert page**: one orange button (« Billetterie »); the date and title move into the patterned head; « Écouter » becomes one pill per artist, « Ajouter à mon agenda » a link among the facts, « Prévenir le groupe », here and in the « Concert ajouté » banner, a secondary « Partager » opening the share sheet ([ADR 0010](decisions/0010-share-sheet.md)).
 
 Also in v1: `make install`, `make deploy`, `make rollback` ([operations.md](operations.md)).
 

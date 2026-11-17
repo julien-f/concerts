@@ -337,7 +337,7 @@ func (s *server) showConcertPage(w http.ResponseWriter, r *http.Request, gr *gro
 		return
 	}
 	p := &concertPage{groupRequest: gr, Concert: c, Statuses: newStatusBlock(gr, c, ss, "concert", s.upcoming(c)),
-		URL: s.pageURL(c), Share: shareLink{s.shareURL(c), s.shareText(c), s.pageURL(c)}, Map: mapURL(c), Listen: listenLinks(c.Artist)}
+		URL: s.pageURL(c), Share: s.shareLink(c), Map: mapURL(c), Listen: listenLinks(c.Artist)}
 	q := r.URL.Query()
 	var rev string
 	switch {
@@ -456,7 +456,7 @@ func (s *server) pageURL(c store.Concert) string {
 	return s.abs("/c/" + c.Token)
 }
 
-// shareURL is the « Prévenir le groupe » link: WhatsApp with the concert and its page.
+// shareURL is « Partager » without the share sheet: WhatsApp with the concert and its page.
 func (s *server) shareURL(c store.Concert) string {
 	text := s.shareText(c) + "\n" + s.pageURL(c)
 	// %20, not +: WhatsApp shows a literal + otherwise.
@@ -467,5 +467,9 @@ func (s *server) shareText(c store.Concert) string {
 	return fmt.Sprintf("%s, %s, %s", c.Artist, s.when(c), c.Venue)
 }
 
-// shareLink is « Partager »: the phone's share sheet (share.js) with Text and URL, else WhatsApp (ADR 0010).
+// shareLink is « Partager »: the device's share sheet (share.js) with Text and URL, else WhatsApp (ADR 0010).
 type shareLink struct{ WhatsApp, Text, URL string }
+
+func (s *server) shareLink(c store.Concert) shareLink {
+	return shareLink{s.shareURL(c), s.shareText(c), s.pageURL(c)}
+}
