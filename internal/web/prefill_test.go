@@ -192,10 +192,11 @@ func TestFitParagraphsWordCut(t *testing.T) {
 		in, want string
 		max      int
 	}{
-		{strings.Repeat("motus ", 400), strings.Repeat("motus ", 332) + "motus…", 2000}, // the cut falls inside a word
-		{strings.Repeat("mot ", 600), strings.Repeat("mot ", 499) + "mot…", 2000},       // the cut ends a word: kept
-		{"aaaa bbbb\ncc", "aaaa bbbb…", 10},                                             // ended by a line feed too
-		{"Un. Deux trois quatre\nfin", "Un. Deux trois quatre…", 22},                    // a whole line, not the sentence before it
+		{strings.Repeat("motus ", 400), strings.Repeat("motus ", 332) + "motus…", 2000},                  // the cut falls inside a word
+		{strings.Repeat("mot ", 600), strings.Repeat("mot ", 499) + "mot…", 2000},                        // the cut ends a word: kept
+		{"aaaa bbbb\ncc", "aaaa bbbb…", 10},                                                              // ended by a line feed too
+		{"Un. Deux trois quatre\nfin", "Un. Deux trois quatre…", 22},                                     // a whole line, not the sentence before it
+		{"Concert\n" + strings.Repeat("mot ", 30), "Concert\n" + strings.Repeat("mot ", 7) + "mot…", 40}, // a line end too early: between words
 	} {
 		if got := fitParagraphs(tt.in, tt.max); got != tt.want {
 			t.Errorf("fitParagraphs: %d runes ending %q, want %d ending %q", utf8.RuneCountInString(got),
