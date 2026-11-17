@@ -71,9 +71,6 @@ func (s *server) prefill(r *http.Request, gr *groupRequest, u string) (c store.C
 		s.log.InfoContext(r.Context(), "prefill failed", "err", err) // host only, see prefill.Fetch
 		return c, "Impossible de lire cette page : essaie le lien de la salle ou de l'organisateur, ou remplis à la main.", false
 	}
-	if res == (prefill.Result{}) {
-		return c, "Rien trouvé sur cette page : remplis à la main.", false
-	}
 	// The page is untrusted input: run it through the form's validation and drop what fails.
 	v := url.Values{"artist": {res.Artist}, "date": {res.Date}, "time": {res.Time},
 		"venue": {res.Venue}, "address": {res.Address}, "ticket_url": {u}, "on_sale_date": {res.OnSaleDate},
@@ -82,7 +79,9 @@ func (s *server) prefill(r *http.Request, gr *groupRequest, u string) (c store.C
 	for name := range errs {
 		v.Del(name)
 	}
-	c, _ = parseConcert(v)
+	if c, _ = parseConcert(v); c == (store.Concert{TicketURL: u}) {
+		return c, "Rien trouvé sur cette page : remplis à la main.", false
+	}
 	return c, "", false
 }
 

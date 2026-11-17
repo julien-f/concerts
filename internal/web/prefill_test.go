@@ -23,6 +23,8 @@ func ticketSite(t *testing.T) *httptest.Server {
 		case "/hostile":
 			_, _ = w.Write([]byte(`<script type="application/ld+json">{"@type":"MusicEvent","name":"` +
 				strings.Repeat("x", 101) + `","startDate":"2026-07-01T20:00","location":{"name":"Salle` + "\u200b" + `","address":"` + strings.Repeat("x", 101) + `"}}</script>`))
+		case "/rejected": // something found, but nothing the form accepts
+			_, _ = w.Write([]byte("<title>" + strings.Repeat("Concert ", 20) + "</title>"))
 		case "/long":
 			_, _ = w.Write([]byte(`<script type="application/ld+json">{"@type":"MusicEvent","name":"Long","description":"` +
 				strings.Repeat("Une phrase de vingt-neuf car. ", 70) + `"}</script>`))
@@ -56,6 +58,7 @@ func TestPrefill(t *testing.T) {
 			`maxlength="2000">` + strings.Repeat("Une phrase de vingt-neuf car. ", 65) + "Une phrase de vingt-neuf car.…</textarea>"}},
 		{"nothing found", site.URL + "/empty", []string{"Rien trouvé sur cette page\u202f: remplis", `aria-describedby="prefill-msg" autofocus`}},
 		// Too long: dropped; an invisible character: stripped by prefill, the rest kept.
+		{"nothing acceptable", site.URL + "/rejected", []string{"Rien trouvé sur cette page"}},
 		{"hostile values dropped", site.URL + "/hostile", []string{`id="artist" name="artist" type="text" value=""`, `id="venue" name="venue" type="text" value="Salle"`, `id="address" name="address" type="text" value=""`, `value="2026-07-01"`}},
 		{"not a web link", "javascript:alert(1)", []string{"Lien invalide\u202f: il doit",
 			`id="url" name="url" type="url" value="javascript:alert(1)" maxlength="2000" inputmode="url" aria-invalid="true" aria-describedby="prefill-msg" autofocus`}},
