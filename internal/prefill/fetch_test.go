@@ -96,7 +96,7 @@ func TestFetch(t *testing.T) {
 	t.Cleanup(srv.Close)
 	// A plain client: the address checks are TestNewClientRefusesLoopback's job.
 	res, err := Fetch(context.Background(), srv.Client(), srv.URL+"/page", now)
-	if err != nil || res.Artist != "Les Hiboux" || res.Date != "2026-11-27" {
+	if err != nil || res.Artist != "Les Hiboux + Nova Test" || res.Date != "2026-11-27" {
 		t.Fatalf("Fetch = %+v, %v", res, err)
 	}
 	for _, path := range []string{"/json", "/challenge"} {

@@ -35,8 +35,8 @@ func TestParseFixtures(t *testing.T) {
 		file, host string
 		want       Result
 	}{
-		// Performer array, offset date, no on-sale date, a non-event block beside.
-		{"dice.html", "dice.fm", Result{Artist: "Les Hiboux", Date: "2026-11-27", Time: "20:00", Venue: "Salle Exemple", Address: "Paris", Price: "30 €"}},
+		// Performer array (blank and repeated names skipped), offset date, no on-sale date, a non-event block beside.
+		{"dice.html", "dice.fm", Result{Artist: "Les Hiboux + Nova Test", Date: "2026-11-27", Time: "20:00", Venue: "Salle Exemple", Address: "Paris", Price: "30 €"}},
 		// Generic Event, local time without offset, pretty-printed JSON after a WebSite block.
 		{"olympia.html", "www.olympiahall.com", Result{Artist: "Jeanne Exemple", Date: "2026-12-08", Time: "20:00", Venue: "L'Exemple", Price: "39,90 €"}},
 		// Minutes only, date-only endDate ignored, full PostalAddress (country dropped).

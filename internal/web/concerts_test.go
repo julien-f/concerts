@@ -123,6 +123,14 @@ func TestConcertListenLink(t *testing.T) {
 	_, body := b.get(t, g+"/concerts/1")
 	assertContains(t, body,
 		`href="https://www.youtube.com/results?search_query=Simon&#43;%26&#43;Garfunkel" rel="noopener noreferrer">Écouter<span class="visually-hidden"> sur YouTube</span></a>`)
+
+	// Several artists: one link each, named; « AC/DC » is not split.
+	b.postRedirect(t, g+"/concerts", concertValues("Les Hiboux + AC/DC /  Zaz +", "2026-06-14", "", "L'Olympia", "", ""))
+	_, body = b.get(t, g+"/concerts/2")
+	assertContains(t, body,
+		`href="https://www.youtube.com/results?search_query=Les&#43;Hiboux" rel="noopener noreferrer">Écouter Les Hiboux<span class="visually-hidden"> sur YouTube</span></a>`,
+		`href="https://www.youtube.com/results?search_query=AC%2FDC" rel="noopener noreferrer">Écouter AC/DC<span class="visually-hidden"> sur YouTube</span></a>`,
+		`href="https://www.youtube.com/results?search_query=Zaz" rel="noopener noreferrer">Écouter Zaz<span class="visually-hidden"> sur YouTube</span></a>`)
 }
 
 func TestConcertDescriptionPrice(t *testing.T) {

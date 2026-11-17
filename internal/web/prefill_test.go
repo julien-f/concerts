@@ -45,7 +45,7 @@ func TestPrefill(t *testing.T) {
 		name, page string
 		want       []string
 	}{
-		{"dice", site.URL + "/dice.html", []string{"Vérifie les champs pré-remplis", `value="Les Hiboux"`, `value="2026-11-27"`,
+		{"dice", site.URL + "/dice.html", []string{"Vérifie les champs pré-remplis", `value="Les Hiboux &#43; Nova Test"`, `value="2026-11-27"`,
 			`value="20:00"`, `value="Salle Exemple"`, `id="address" name="address" type="text" value="Paris"`, `id="ticket_url" name="ticket_url" type="url" value="` + site.URL + `/dice.html"`, "autofocus"}},
 		{"blocked site", site.URL + "/blocked", []string{"Impossible de lire cette page\u202f: essaie le lien de la salle ou de l", "ou remplis \u00e0 la main.", `name="ticket_url" type="url" value="` + site.URL + `/blocked"`}},
 		{"og:title only", site.URL + "/accor.html", []string{`value="Duo Fictif"`}},
