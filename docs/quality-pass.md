@@ -82,6 +82,12 @@ docs
 
 - After all zones: /simplify (helpers used everywhere, misplaced doc comment, CleanName alias; dismissed: otherYear reparse via stubOf (cards would show the year), valid's four scans) and /code-review high (5 fixes: invalid UTF-8 in every sent-back field, `https://h#` and `https://h:`, check_url after the slash strip, invisible characters in every prefilled field, otherYear takes a parsed date; dismissed again: limit refusal after the write, the Deleted guard in both layers, needsURL; dismissed: plain turning no-break spaces into spaces, which the form's paragraphs already does).
 
+## Round 2 (inventory on the new code)
+
+- Bugs fixed: verify-ui weighed the picker, not the list (24884 B now, 22909 reported before); « Rien trouvé » checked before validation; invalid edit of a deleted concert gave a 422 form; base URL without host name / bad port (Go and check_url); JSON-LD offset without a colon.
+- Tidy: no-op form margins and stale CSS comment; prose = clean; plain/Invisible comments; TestNewClientChecksDial; store « nothing listed » checks; AddedBy comment; tests for history dates and the word cut; stale doc lines.
+- Kept below the bar: UpdateConcert/CreateMember returning values with errors (callers check err first); form.html's two repeated lines; render/fragment's shared buffering; pickerPage.MaxRunes.
+
 ## State
 
-Round 1 done (all zones + two review rounds). Next: second inventory round on the new code (same 8 zones), then stop if it finds nothing worth a commit; finally make check, verify-ui, measure, the user question (set-aside items), and the merge commit body.
+Round 2 done; its /code-review high and simplify (92bff8e..HEAD) running. Next: apply them, then a third inventory round; stop when a round finds nothing worth a commit; then make check, verify-ui, measure, the user question (set-aside items), the merge commit body.
