@@ -11,6 +11,7 @@ usage='usage:
   admin rollback               previous binary and pre-deploy database back
   admin restore <backups/…>    restore a snapshot
   admin logs [-f]              last 200 journal lines, or follow
+  admin sync                   run the venue import now, in its unit, and show its log
   admin <concerts subcommand>  e.g. new-group "Gig buddies", list-groups, rotate-secret <id>'
 
 SNAP=backups/pre-deploy.db
@@ -125,6 +126,13 @@ restore)
 	start_all
 	healthz
 	echo "the restored database has the secrets of its time: rerun rotate-secret if a link leaked since"
+	;;
+sync)
+	# In its unit: same sandbox, joins a run in progress, and stopped by rollback and restore.
+	status=0
+	$SYSTEMCTL start $N-sync.service || status=$?
+	sudo -n /usr/bin/journalctl -u $N-sync.service -n 50 --no-pager
+	exit $status
 	;;
 logs)
 	case ${2-} in

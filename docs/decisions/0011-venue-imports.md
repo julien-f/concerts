@@ -16,7 +16,7 @@ Members add a concert only after seeing it elsewhere: concerts announced at the 
 - The list stays the group's choice; the venues' announcements wait one tap away.
 - Imports reuse the concert's rows, statuses, history and pages; visibility costs no query (statuses are already loaded). Members keep precedence: imports stop at 400 of the 500 upcoming concerts, and the row-cap purge takes an import's tombstone last.
 - An event fetched once per run is stored once per following group; at a few groups, negligible.
-- A venue's site change breaks its parser: the sync fails until a fixture and the parser are updated and deployed (operations.md).
+- A venue's site change breaks its parser: the sync fails until a fixture and the parser are updated and deployed (operations.md). Each venue is read within its own deadline and applied at once, so one broken or slow site costs the others nothing.
 - Adding a venue means a release; members ask the operator.
 - The sync's updates leave no history, and a cancelled concert stays until a member deletes it.
 

@@ -1,6 +1,8 @@
 # Installed by concerts install.sh, which replaces the NAME and PROXY_USER placeholders.
 [Unit]
 Description=@NAME@ venue agenda import
+Wants=network-online.target
+After=network-online.target
 
 [Service]
 Type=oneshot

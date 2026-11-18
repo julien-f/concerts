@@ -85,6 +85,8 @@ $NAME ALL=(root) NOPASSWD: $S restart $NAME.service, \\
 	$S stop $NAME.socket $NAME.service $NAME-backup.timer $NAME-backup.service $NAME-sync.timer $NAME-sync.service, \\
 	$S start $NAME.socket $NAME-backup.timer $NAME-sync.timer, \\
 	$S reset-failed $NAME.service $NAME.socket $NAME-sync.service, \\
+	$S start $NAME-sync.service, \\
+	/usr/bin/journalctl -u $NAME-sync.service -n 50 --no-pager, \\
 	/usr/bin/journalctl -u $NAME.service -u $NAME-backup.service -u $NAME-sync.service -n 200 --no-pager, \\
 	/usr/bin/journalctl -f -u $NAME.service -u $NAME-backup.service -u $NAME-sync.service --no-pager
 EOF
