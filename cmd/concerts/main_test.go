@@ -239,8 +239,13 @@ func TestRunChecksBaseURL(t *testing.T) {
 func TestDemo(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	st := openStore(t)
-	if err := demo(ctx, st, "http://x", time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)); err != nil {
+	clock := &demoClock{base: func() time.Time { return time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC) }}
+	st, err := store.Open(ctx, filepath.Join(t.TempDir(), "c.db"), clock.now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	if err := demo(ctx, st, "http://x", clock); err != nil {
 		t.Fatal(err)
 	}
 	gs, err := st.Groups(ctx)
@@ -248,8 +253,23 @@ func TestDemo(t *testing.T) {
 		t.Fatalf("groups = %+v, %v; want the demo group", gs, err)
 	}
 	cs, err := st.Concerts(ctx, gs[0].ID)
-	if err != nil || len(cs) != 39 {
-		t.Errorf("concerts = %d, %v; want 39", len(cs), err)
+	if err != nil || len(cs) != 40 {
+		t.Errorf("concerts = %d, %v; want 40", len(cs), err)
+	}
+	// « Nouveau » needs an import a day or more after its venue's first sync.
+	var first, last time.Time
+	for _, c := range cs {
+		if c.Source == "belle-electrique" {
+			if first.IsZero() || c.CreatedAt.Before(first) {
+				first = c.CreatedAt
+			}
+			if c.CreatedAt.After(last) {
+				last = c.CreatedAt
+			}
+		}
+	}
+	if last.Sub(first) < 24*time.Hour {
+		t.Errorf("belle-electrique imports created from %v to %v: none « Nouveau »", first, last)
 	}
 }
 

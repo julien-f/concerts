@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"time"
 
 	"concerts/internal/store"
 )
@@ -14,6 +15,18 @@ type card struct {
 	store.Concert
 	Statuses  statusBlock
 	Announced string // under « À l'affiche », the venue's name for « annoncé par »
+	New       bool   // under « À l'affiche », see isNew
+}
+
+const (
+	newFor    = 7 * 24 * time.Hour // how long an import is « Nouveau »
+	firstSync = 24 * time.Hour     // after a venue's first import, what its first sync brought
+)
+
+// isNew reports whether import c is « Nouveau »: imported within newFor, and not within firstSync
+// of its venue's first import in the group (first), which only shows the venue was followed.
+func isNew(c store.Concert, first map[string]time.Time, now time.Time) bool {
+	return c.Source != "" && now.Sub(c.CreatedAt) < newFor && c.CreatedAt.Sub(first[c.Source]) >= firstSync
 }
 
 type month struct {
@@ -32,6 +45,8 @@ type homePage struct {
 	Mine      bool        // « Mes concerts »: only concerts I answered
 	Affiche   bool        // « À l'affiche »: upcoming imports nobody answered
 	Salle     string      // under Affiche, the venue key the cards are limited to, or ""
+	Nouveau   bool        // under Affiche, ?nouveau=1: the « Nouveau » cards only
+	NewCount  int         // under Affiche, the « Nouveau » cards of the view, Nouveau or not
 	Venues    []venueLink // followed venues, the « Annoncé par » filter
 	Months    []month     // upcoming, chronological
 	Past      []card      // newest first, in a collapsed section; the pastShown newest unless PastOpen
@@ -81,6 +96,7 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 	}
 	p := &homePage{groupRequest: gr, Affiche: q.Get("affiche") == "1"}
 	p.Mine = !p.Affiche && q.Get("mine") == "1"
+	p.Nouveau = p.Affiche && q.Get("nouveau") == "1"
 	if salle := q.Get("salle"); p.Affiche && slices.Contains(followed, salle) {
 		p.Salle = salle
 	}
@@ -95,7 +111,13 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 	case p.Affiche:
 		back = "affiche"
 	}
-	today := s.today() // once, so every card of the page agrees
+	today, now := s.today(), s.now() // once, so every card of the page agrees
+	first := map[string]time.Time{}  // each venue's first import still in the group
+	for _, c := range cs {
+		if t, ok := first[c.Source]; c.Source != "" && (!ok || c.CreatedAt.Before(t)) {
+			first[c.Source] = c.CreatedAt
+		}
+	}
 	var upcoming, past []store.Concert
 	for _, c := range cs {
 		st := statuses[c.ID]
@@ -106,6 +128,11 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 		case p.Affiche:
 			// Past imports nobody answered show nowhere.
 			if visible(c, st) || c.Date < today || (p.Salle != "" && c.Source != p.Salle) {
+				continue
+			}
+			if isNew(c, first, now) {
+				p.NewCount++
+			} else if p.Nouveau {
 				continue
 			}
 		case !visible(c, st), p.Mine && statusOf(st, gr.Me.ID) == "":
@@ -120,7 +147,7 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 	for _, c := range upcoming {
 		cd := card{Concert: c, Statuses: newStatusBlock(gr, c, statuses[c.ID], back, true)}
 		if p.Affiche {
-			cd.Announced, cd.Statuses.Salle = s.venue(c.Source), p.Salle
+			cd.Announced, cd.Statuses.Salle, cd.New = s.venue(c.Source), p.Salle, isNew(c, first, now)
 		}
 		if c.Date[:7] == lastMonth {
 			p.Months[len(p.Months)-1].Cards = append(p.Months[len(p.Months)-1].Cards, cd)

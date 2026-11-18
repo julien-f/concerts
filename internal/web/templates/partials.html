@@ -50,7 +50,7 @@ readers get the full date. */}}
 {{define "card"}}<li><article class="card" id="c{{.ID}}">
 {{with stub .Date}}<div class="stub {{stubStyle $.Artist}}" aria-hidden="true">{{template "stubLabel" .}}</div>{{end}}
 <div class="body">
-<h3 class="artist"><a href="/c/{{.Token}}">{{.Artist}}</a></h3>
+<h3 class="artist"><a href="/c/{{.Token}}">{{.Artist}}</a>{{if .New}} <span class="new">Nouveau</span>{{end}}</h3>
 {{- /* The stub shows the date: here it is for screen readers only. */}}
 <p class="meta"><time datetime="{{datetime .Concert}}"><span class="visually-hidden">{{frdate .Date}} · </span>{{with .Time}}{{frtime .}}{{end}}</time>{{if .Time}} · {{end}}{{.Venue}}{{with .Price}} <span class="price">· {{.}}</span>{{end}}{{if .SoldOut}} <span class="sold">Complet</span>{{end}}</p>
 {{with .Genre}}<p class="meta genre">{{.}}</p>

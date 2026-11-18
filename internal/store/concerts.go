@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"time"
 )
 
 // MaxConcerts bounds a group's upcoming concerts, so a leaked link cannot flood the list while
@@ -32,18 +33,21 @@ type Concert struct {
 	AddedBy     string // first name of the member who added it, "" if that member was deleted or a venue did
 	Source      string // key of the venue it was imported from, "" if a member added it
 	Deleted     bool
-	LastRevID   int64  // newest revision, 0 if never edited (set by Concert only)
-	EditedBy    string // first name of the member behind LastRevID, "" if deleted (set by Concert only)
+	CreatedAt   time.Time // UTC: added, or imported
+	LastRevID   int64     // newest revision, 0 if never edited (set by Concert only)
+	EditedBy    string    // first name of the member behind LastRevID, "" if deleted (set by Concert only)
 }
 
 // concertSelect matches concertFields.
 const concertSelect = `SELECT c.id, c.token, c.artist, c.date, coalesce(c.time, ''), c.venue,
 	coalesce(c.address, ''), coalesce(c.ticket_url, ''), coalesce(c.on_sale_date, ''),
-	coalesce(c.price, ''), coalesce(c.description, ''), coalesce(c.genre, ''), c.sold_out, coalesce(m.name, ''), coalesce(c.source, ''), c.deleted_at IS NOT NULL
+	coalesce(c.price, ''), coalesce(c.description, ''), coalesce(c.genre, ''), c.sold_out, coalesce(m.name, ''), coalesce(c.source, ''), c.deleted_at IS NOT NULL,
+	c.created_at
 	FROM concerts c LEFT JOIN members m ON m.id = c.created_by`
 
 func concertFields(c *Concert) []any {
-	return []any{&c.ID, &c.Token, &c.Artist, &c.Date, &c.Time, &c.Venue, &c.Address, &c.TicketURL, &c.OnSaleDate, &c.Price, &c.Description, &c.Genre, &c.SoldOut, &c.AddedBy, &c.Source, &c.Deleted}
+	return []any{&c.ID, &c.Token, &c.Artist, &c.Date, &c.Time, &c.Venue, &c.Address, &c.TicketURL, &c.OnSaleDate, &c.Price, &c.Description, &c.Genre, &c.SoldOut, &c.AddedBy, &c.Source, &c.Deleted,
+		timestampScanner{&c.CreatedAt}}
 }
 
 // setEditable and differs take editable(c) as arguments; stored empties are NULL, ours "",

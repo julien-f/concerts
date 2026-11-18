@@ -115,6 +115,70 @@ func TestAfficheViews(t *testing.T) {
 	}
 }
 
+// TestAfficheNouveau: « Nouveau » tags the imports of the last 7 days, except a venue's first sync,
+// and nouveau=1 lists only them, under the venue filter too.
+func TestAfficheNouveau(t *testing.T) {
+	t.Parallel()
+	ts := newTestServer(t)
+	b, secret := ts.member(t, "Léa")
+	g := "/g/" + secret
+	ts.importInto(t, secret, "salle-a", store.Concert{Artist: "Premier A", Date: "2026-07-01", Venue: "Salle A"})
+	ts.clock.Advance(23 * time.Hour)
+	ts.importInto(t, secret, "salle-a", store.Concert{Artist: "Tardif A", Date: "2026-07-02", Venue: "Salle A"}) // first sync still
+	ts.clock.Advance(time.Hour)
+	ts.importInto(t, secret, "salle-a", store.Concert{Artist: "Neuf A", Date: "2026-07-03", Venue: "Salle A"}) // 24 h later: new
+	ts.importInto(t, secret, "salle-b", store.Concert{Artist: "Premier B", Date: "2026-07-04", Venue: "Salle B"})
+	cards := func(body string) string {
+		var ids []string
+		for _, m := range regexp.MustCompile(`<article class="card" id="c(\d+)"`).FindAllStringSubmatch(body, -1) {
+			ids = append(ids, m[1])
+		}
+		return strings.Join(ids, ",")
+	}
+	tag := `Neuf A</a> <span class="new">Nouveau</span></h3>`
+	for _, tc := range []struct {
+		name, query, cards string
+		want, lack         []string
+	}{
+		{"affiche", "?affiche=1", "1,2,3,4", []string{tag,
+			`<p class="new-count"><a href="` + g + `?affiche=1&amp;nouveau=1">1 nouveau cette semaine</a></p>`},
+			[]string{`Premier A</a> <span class="new">`, `Tardif A</a> <span`, `Premier B</a> <span`}},
+		{"nouveau", "?affiche=1&nouveau=1", "3", []string{tag,
+			`<a href="` + g + `?affiche=1&amp;nouveau=1" aria-current="page">1 nouveau cette semaine</a>`,
+			`<a href="` + g + `?affiche=1&amp;salle=salle-a&amp;nouveau=1">salle-a</a>`}, nil},
+		{"one venue", "?affiche=1&salle=salle-a", "1,2,3", []string{
+			`<a href="` + g + `?affiche=1&amp;salle=salle-a&amp;nouveau=1">1 nouveau cette semaine</a>`}, nil},
+		{"one venue, nouveau", "?affiche=1&salle=salle-a&nouveau=1", "3", []string{
+			`<a href="` + g + `?affiche=1&amp;salle=salle-a&amp;nouveau=1" aria-current="page">salle-a</a>`}, nil},
+		{"a venue without news: no line", "?affiche=1&salle=salle-b", "4", nil, []string{`class="new-count"`, `class="new"`}},
+	} {
+		_, body := b.get(t, g+tc.query)
+		if got := cards(body); got != tc.cards {
+			t.Errorf("%s: cards %q, want %q", tc.name, got, tc.cards)
+		}
+		assertContains(t, body, tc.want...)
+		assertLacks(t, body, tc.lack...)
+	}
+
+	// Answered, a new import leaves « À l'affiche » for the list, which tags nothing.
+	ts.importInto(t, secret, "salle-a", store.Concert{Artist: "Liste A", Date: "2026-07-05", Venue: "Salle A"})
+	b.postRedirect(t, g+"/concerts/5/status", url.Values{"status": {"going"}, "back": {"list"}})
+	if _, body := b.get(t, g); cards(body) != "5" || strings.Contains(body, `class="new`) {
+		t.Errorf("list: cards %q, or tagged", cards(body))
+	}
+
+	// New for 7 days from its creation.
+	ts.clock.Advance(7*24*time.Hour - time.Second)
+	if _, body := b.get(t, g+"?affiche=1"); !strings.Contains(body, tag) {
+		t.Error("not new any more a second before 7 days")
+	}
+	ts.clock.Advance(time.Second)
+	_, body := b.get(t, g+"?affiche=1")
+	assertLacks(t, body, `class="new"`, `class="new-count"`)
+	_, body = b.get(t, g+"?affiche=1&nouveau=1")
+	assertContains(t, body, "Rien de nouveau cette semaine.")
+}
+
 // TestAfficheSalle: the venue filter names only a followed venue, never what the URL says.
 func TestAfficheSalle(t *testing.T) {
 	t.Parallel()

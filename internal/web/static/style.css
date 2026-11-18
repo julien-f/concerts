@@ -231,10 +231,12 @@ textarea { resize: vertical; }
 .venues { align-items: center; margin: 0.5rem 0; }
 .venues span { color: var(--muted); font-size: 0.875rem; }
 .venues a { min-height: 2.75rem; padding: 0 0.8rem; font-size: 0.9rem; }
-.sold {
+.sold, .new {
   display: inline-block; padding: 0 0.35rem; border: 1px solid var(--error); border-radius: 0.25rem;
   color: var(--error); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
 }
+.new { border-color: var(--accent); color: var(--accent); vertical-align: 0.15em; }
+.new-count { margin: 0.25rem 0; font-size: 0.9rem; }
 
 .ticket { background: var(--paper); border-radius: 0.75rem; padding: 0 1rem 0.5rem; }
 /* « Écouter » pills, one per artist; the rest of their look is the filters'. */

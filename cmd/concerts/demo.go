@@ -10,9 +10,18 @@ import (
 	"concerts/internal/store"
 )
 
+// demoClock is the store's clock under demo: set back, it dates the venues' first sync days ago.
+type demoClock struct {
+	base func() time.Time
+	back time.Duration
+}
+
+func (c *demoClock) now() time.Time { return c.base().Add(-c.back) }
+
 // demo fills a fresh database with a group for `make demo` and scripts/verify-ui.sh:
 // three members, upcoming and past concerts relative to now.
-func demo(ctx context.Context, st *store.Store, baseURL string, now time.Time) error {
+func demo(ctx context.Context, st *store.Store, baseURL string, clock *demoClock) error {
+	now := clock.base()
 	g, err := newGroup(ctx, st, baseURL, "Les copains du concert")
 	if err != nil {
 		return err
@@ -81,13 +90,14 @@ func demo(ctx context.Context, st *store.Store, baseURL string, now time.Time) e
 			return err
 		}
 	}
-	return demoImports(ctx, st, g.ID, marc, day)
+	return demoImports(ctx, st, g.ID, marc, day, clock)
 }
 
 // demoImports follows two venues and imports their agenda, created last (verify-ui relies on the
 // ids above): « À l'affiche » with a sold-out concert, one without time and a long artist, venue
-// and genre, one import answered, so in the list, and one edited that its venue changed since.
-func demoImports(ctx context.Context, st *store.Store, groupID, marc int64, day func(int) string) error {
+// and genre, one import answered, so in the list, one edited that its venue changed since, and
+// one « Nouveau », imported 3 days after the first sync.
+func demoImports(ctx context.Context, st *store.Store, groupID, marc int64, day func(int) string, clock *demoClock) error {
 	agendas := map[string][]store.Concert{
 		"belle-electrique": {
 			{Artist: "Bagarre", Date: day(12), Time: "20:00", Venue: "La Belle Électrique", Price: "22 €", Genre: "Pop, Électro",
@@ -102,21 +112,31 @@ func demoImports(ctx context.Context, st *store.Store, groupID, marc int64, day 
 			{Artist: "Kompromat", Date: day(45), Time: "21:00", Venue: "La Source", Genre: "Électro, Techno"},
 		},
 	}
-	for _, venue := range []string{"belle-electrique", "la-source"} {
-		if err := st.Follow(ctx, groupID, venue); err != nil {
-			return err
-		}
+	sync := func(venue string, cs ...store.Concert) error {
 		var events []store.Event
-		for _, c := range agendas[venue] {
+		for _, c := range cs {
 			c.TicketURL = "https://example.com/" + venue + "/" + strings.ToLower(strings.Fields(c.Artist)[0])
 			events = append(events, store.Event{SourceID: c.TicketURL, Concert: c})
 		}
 		if err := st.PutVenueEvents(ctx, venue, events); err != nil {
 			return err
 		}
-		if _, err := st.ApplyImports(ctx, groupID, venue, events, day(0)); err != nil {
+		_, err := st.ApplyImports(ctx, groupID, venue, events, day(0))
+		return err
+	}
+	clock.back = 3 * 24 * time.Hour
+	for _, venue := range []string{"belle-electrique", "la-source"} {
+		if err := st.Follow(ctx, groupID, venue); err != nil {
 			return err
 		}
+		if err := sync(venue, agendas[venue]...); err != nil {
+			return err
+		}
+	}
+	clock.back = 0
+	if err := sync("belle-electrique", store.Concert{Artist: "Bolis Pupul", Date: day(50), Time: "20:00",
+		Venue: "La Belle Électrique", Genre: "Électro"}); err != nil {
+		return err
 	}
 	cs, err := st.ConcertsOn(ctx, groupID, day(45))
 	if err != nil || len(cs) == 0 {

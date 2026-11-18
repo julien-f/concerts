@@ -100,6 +100,7 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 │ │mars┆ · 29–32 €           │ │  keeps the date visually hidden;
 │ │    ┆                     │ │  price if set, nowrap with « · »;
 │ │    ┆                     │ │  « Complet » tag if sold out
+│ │    ┆ Post-punk, Rap      │ │  genre if set, its own line
 │ │    ┆ ✓ Y vont : Léa, Marc│ │  SVG icon + text per status,
 │ │    ┆ ★ Intérêt : Sam     │ │  names alphabetical
 │ │    ┆ [★ Ça m'intéresse]  │ │  role=group "Ma réponse",
@@ -127,12 +128,14 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 │ (Tous) (Mes concerts) (À l'… │  « À l'affiche » aria-current
 │ Concerts annoncés par les    │  explanation, after a visually
 │ salles suivies. Réponds…     │  hidden h2 « À l'affiche »
+│ 2 nouveaux cette semaine     │  link to &nouveau=1, if any
 │ Annoncé par (MC2) (La Source)│  nav, &salle=<key>, aria-current
 │ DÉCEMBRE 2026                │  h2 per month
 │ ┌────┬─────────────────────┐ │  the list's ticket card;
-│ │dim.┆ Pomme               │ │  price, « Complet » as there
-│ │  6 ┆ 20 h · La Source    │ │
-│ │déc.┆ annoncé par La Sour…│ │  meta line, venue's name
+│ │dim.┆ Pomme NOUVEAU       │ │  price, « Complet », genre as
+│ │  6 ┆ 20 h · La Source    │ │  there; « Nouveau » tag
+│ │déc.┆ Chanson, Folk       │ │
+│ │    ┆ annoncé par La Sour…│ │  meta line, venue's name
 │ │    ┆ [★ Ça m'intéresse]  │ │  no status lines: nobody
 │ │    ┆ [✓ J'y vais]        │ │  answered
 │ └────┴─────────────────────┘ │
@@ -141,6 +144,8 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 
 - Upcoming imports nobody answered (`affiche=1` wins over `mine=1`), on the same ticket cards as « Tous » (one `card` template), plus « annoncé par <Source> » and without status lines (nobody answered); answers exclusive, tapping the pressed one clears it. No past section: a past unanswered import shows nowhere.
 - `<title>` « À l'affiche · … »; empty: « Rien à l'affiche pour l'instant. », or « Rien à l'affiche pour <Source>. » under a followed venue; any other `salle` is ignored.
+- « Nouveau » (text, styled like « Complet » in the accent color) right after the artist: an import created in the last 7 days (UTC `created_at` against the injected clock), except one created within 24 h of the group's earliest live import from the same venue, since a venue's first sync is not news. Computed in Go from the concerts already loaded; no per-member « seen » state.
+- Under the explanation, « N nouveau(x) cette semaine » links to `?affiche=1&nouveau=1` (with `salle` if set), which lists only those (« Rien de nouveau cette semaine. » once they age out); hidden when N = 0. Under `nouveau=1` the venue links keep it; the link is `aria-current`. A no-JS answer returns to the view without it.
 - The answers post `back=affiche` and the view's `salle`; htmx swaps the status block, as on the list (stable ids `c<id>-interested`, `c<id>-going`, so focus stays) and, out of band, writes « <Artiste> : J'y vais. Ajouté à la liste du groupe. » (or « Ça m'intéresse »), « Retiré de la liste du groupe. », or « <Artiste> : réponse retirée, toujours dans la liste du groupe. » when another member answered, into a visually hidden `role=status` region present before the swap. The card stays until reload, as under « Mes concerts ». Without JS the answered card leaves « À l'affiche »: back to `?affiche=1` (with `salle` if followed) at the next card of that view, no anchor after the last.
 - Venue names come from `web.Config.VenueName` (the compiled-in list); a key no longer listed shows as is.
 
@@ -160,6 +165,7 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 │                              │  when several; YouTube search
 │ Zénith Paris                 │
 │ Prix : 29–32 € COMPLET       │  if set; tag if sold out
+│ Post-punk, Rap               │  genre if set (meta line)
 │ Mise en vente : ven. 3 oct.  │  if set
 │ 📅 Ajouter à mon agenda      │  .ics, a link like the map's
 │ ajouté par Léa               │
@@ -212,6 +218,7 @@ Without identity: statuses shown, buttons and edit/delete replaced by « Choisis
 │ Adresse       [____________] │  autocomplete=off
 │ Lien de billetterie [_______]│  the prefilled URL (main form)
 │ Prix          [____________] │  free text (« Prix libre »)
+│ Genre         [____________] │  free text, ≤ 60 runes
 │ [✓] Complet (plus de billets │  checkbox inside its label
 │     en vente)                │  (44 px target)
 │ Mise en vente [jj/mm/aaaa]   │
@@ -247,7 +254,7 @@ After « Relire la billetterie », a differing field (edit form):
 - Pressed status = filled ink button + icon + `aria-pressed`; never color alone.
 - `system-ui` fonts, fields ≥ 16 px, targets ≥ 44 px on touch screens (36 px answer buttons on cards and the concert page without any touch input), `:focus-visible` outline, `prefers-reduced-motion` respected.
 - « Ajouter un concert »: one link right after the filters in the DOM (so the keyboard reaches it before the cards). Below 48 rem a fixed bar on the main screen only, above the cards (each a stacking context), padded by `env(safe-area-inset-bottom)`; `scroll-padding-bottom` and list padding keep focused and last cards visible. From 48 rem a plain button on the right of the filters.
-- From 48 rem: tickets in one row (info left, answer buttons right, status lines on one wrapping line), so about twice as many concerts per screen; concert page in two columns (facts | actions and statuses); concert form in pairs (Date | Heure, Salle | Adresse, Prix | Complet, then Mise en vente alone; Artiste, Lien and Description full width), « Enregistrer » right-aligned. One column, not a grid of cards: dates keep reading top to bottom.
+- From 48 rem: tickets in one row (info left, answer buttons right, status lines on one wrapping line), so about twice as many concerts per screen; concert page in two columns (facts | actions and statuses); concert form in pairs (Date | Heure, Salle | Adresse, Prix | Genre, Complet | Mise en vente; Artiste, Lien and Description full width), « Enregistrer » right-aligned. One column, not a grid of cards: dates keep reading top to bottom.
 - Icons: inline Lucide SVG (`star`, `check`, `play`, `share`, `calendar`), `aria-hidden`; never emoji.
 - App icon and preview images: the `ticket` stub filled brick, perforation in paper colour (`icon.svg`; PNGs rendered from `scripts/*.svg` by `scripts/og-image.mjs`).
 
@@ -262,7 +269,7 @@ members  (id PK, group_id → groups ON DELETE CASCADE, name, name_key,
 concerts (id PK, token UNIQUE, group_id → groups ON DELETE CASCADE,
           artist, date 'YYYY-MM-DD', time 'HH:MM' NULL, venue,
           address NULL, ticket_url NULL, on_sale_date 'YYYY-MM-DD' NULL,
-          price NULL, description NULL, sold_out 0|1 DEFAULT 0,
+          price NULL, description NULL, sold_out 0|1 DEFAULT 0, genre NULL,
           created_by → members ON DELETE SET NULL, created_at,
           deleted_at NULL, source NULL, source_id NULL)  -- import: venue key, its event id
           INDEX (group_id, date)
@@ -270,7 +277,7 @@ concerts (id PK, token UNIQUE, group_id → groups ON DELETE CASCADE,
 group_venues  (group_id → groups ON DELETE CASCADE, venue, PRIMARY KEY (group_id, venue)) WITHOUT ROWID
 event_details (source, source_id, date, time NULL, PRIMARY KEY (source, source_id)) WITHOUT ROWID
 venue_events  (source, source_id, artist, date, time NULL, venue, address NULL,
-          ticket_url NULL, price NULL, sold_out, seen_at,
+          ticket_url NULL, price NULL, sold_out, genre NULL, seen_at,
           PRIMARY KEY (source, source_id)) WITHOUT ROWID  -- what the agenda last said
 statuses (concert_id → concerts ON DELETE CASCADE,
           member_id → members ON DELETE CASCADE,
@@ -278,7 +285,7 @@ statuses (concert_id → concerts ON DELETE CASCADE,
           PRIMARY KEY (concert_id, member_id)) WITHOUT ROWID
 concert_revisions (id PK, concert_id → concerts ON DELETE CASCADE,
           artist, date, time NULL, venue, address NULL, ticket_url NULL,
-          on_sale_date NULL, price NULL, description NULL, sold_out,
+          on_sale_date NULL, price NULL, description NULL, sold_out, genre NULL,
           -- values before the edit
           edited_by → members ON DELETE SET NULL, edited_at)
           INDEX (concert_id, id)
@@ -288,10 +295,10 @@ concert_revisions (id PK, concert_id → concerts ON DELETE CASCADE,
 - Main page = 3 queries per group (live concerts with creator name and source; their statuses with member names; the followed venues), assembled in Go: no N+1.
 - The identity cookie holds the member id; `inGroup` (web) resolves the secret, sets `Cache-Control` and ignores a cookie naming a member of another group or a deleted one (no identity).
 - One accessor `Concert(groupID, id)` filters `group_id` and returns a deleted concert flagged `Deleted`: every route answers 404 for it but restore, which updates only a deleted row of the group, and the deleted banner. Status writes also check the member belongs to the group.
-- Required: artist, date, venue. Optional: time, address, ticket link, on-sale date (a link is often not known yet), price, description, « Complet » (sold out, unticked by default). At most 100 members and 500 upcoming concerts per group (422 beyond; edits and restores included; past ones never lock a group) and 1000 rows with past and deleted ones, so the disk cannot fill: at 1000 rows, a create purges, oldest first and with its statuses and revisions: a past row that is deleted or an unanswered import; another deleted row, except an upcoming import's; a past row; last, an upcoming import's tombstone (only abuse gets there; that import may then come back). Never a live upcoming row. At most 20 revisions per concert, older ones pruned on each edit: worst case ≈ 1000 × 20 × 11 kB (a 2000-rune description is up to 8 kB) ≈ 220 MB per group, bounded since only the operator creates groups. « Today » (Paris) is passed to the store by web.
+- Required: artist, date, venue. Optional: time, address, ticket link, on-sale date (a link is often not known yet), price, description, « Complet » (sold out, unticked by default), genre. At most 100 members and 500 upcoming concerts per group (422 beyond; edits and restores included; past ones never lock a group) and 1000 rows with past and deleted ones, so the disk cannot fill: at 1000 rows, a create purges, oldest first and with its statuses and revisions: a past row that is deleted or an unanswered import; another deleted row, except an upcoming import's; a past row; last, an upcoming import's tombstone (only abuse gets there; that import may then come back). Never a live upcoming row. At most 20 revisions per concert, older ones pruned on each edit: worst case ≈ 1000 × 20 × 11 kB (a 2000-rune description is up to 8 kB) ≈ 220 MB per group, bounded since only the operator creates groups. « Today » (Paris) is passed to the store by web.
 - An edit that changes something first copies the current values into a revision, in one transaction (`INSERT … SELECT` with NULL-safe `IS NOT`, so a no-op records nothing). Revision lookups join the concert, checking group and liveness in the same statement.
-- Validation (`internal/validate`, also applied to prefilled values; `CleanName` for first names; `parseForm` only caps the body): text trimmed, 1–100 runes (name 1–30), valid UTF-8, no invisible characters (control, format, variation selectors, default-ignorable, braille blank), first names starting with a letter or digit; dates `YYYY-MM-DD`, time `HH:MM`; ticket URL absolute `http`/`https` with an ASCII host and no user part (`fnac.com@evil.example`), ≤ 2000 bytes; price free text ≤ 30 runes; description ≤ 2000 runes, line feeds kept (blank-line runs folded into one).
-- Prefill of price and description: schema.org `offers` give a euro range (« 29–32 € », currency inherited, absent = euros, 0 and ≥ 10,000 skipped); every JSON-LD text gets HTML entities decoded (WordPress encodes them); the event's `description` gets other blanks (tabs, braille blank) turned into spaces and invisible characters stripped (the form would reject the whole text; a site rule's description too) and words glued by stripped markup separated (« SNIPERGroupe », « énergie.KENZ »); one longer than 2000 runes is cut at a line or sentence end, else between words, in its second half (else at the limit) with « … ». Open Graph descriptions are never used (Retour de Scène serves its menu there); Retour de Scène's rule reads the price and artist blocks between « Billetterie » and « Lieu ».
+- Validation (`internal/validate`, also applied to prefilled values; `CleanName` for first names; `parseForm` only caps the body): text trimmed, 1–100 runes (name 1–30), valid UTF-8, no invisible characters (control, format, variation selectors, default-ignorable, braille blank), first names starting with a letter or digit; dates `YYYY-MM-DD`, time `HH:MM`; ticket URL absolute `http`/`https` with an ASCII host and no user part (`fnac.com@evil.example`), ≤ 2000 bytes; price free text ≤ 30 runes; genre free text ≤ 60 runes; description ≤ 2000 runes, line feeds kept (blank-line runs folded into one).
+- Prefill of price and description: schema.org `offers` give a euro range (« 29–32 € », currency inherited, absent = euros, 0 and ≥ 10,000 skipped); every JSON-LD text gets HTML entities decoded (WordPress encodes them); the event's `description` gets other blanks (tabs, braille blank) turned into spaces and invisible characters stripped (the form would reject the whole text; a site rule's description too) and words glued by stripped markup separated (« SNIPERGroupe », « énergie.KENZ »); one longer than 2000 runes is cut at a line or sentence end, else between words, in its second half (else at the limit) with « … ». JSON-LD `genre`, a string or an array, is joined with « , » (blank and repeated items dropped). Open Graph descriptions are never used (Retour de Scène serves its menu there); Retour de Scène's rule reads the price and artist blocks between « Billetterie » and « Lieu ».
 - Writes use `_txlock=immediate` and `busy_timeout`; status writes are upserts (idempotent). `synchronous(NORMAL)` may lose the last commits on power loss: accepted.
 
 ## Routes
@@ -302,7 +309,7 @@ All under `/g/{secret}` (written `…`) but the first two and the last two; unkn
 |---|---|---|---|
 | GET | `/healthz` | DB ping | text |
 | GET | `/static/{name}` | hashed static file | file |
-| GET | `…` | picker (no identity, optional `next`; the group link's preview) or main list; `?mine=1` filter, `?affiche=1` (`&salle=<key>`) unanswered imports, `?past=all` every past concert, `?added=<id>` / `?restored=<id>` / `?deleted=<id>` banner | page |
+| GET | `…` | picker (no identity, optional `next`; the group link's preview) or main list; `?mine=1` filter, `?affiche=1` (`&salle=<key>`, `&nouveau=1`) unanswered imports, `?past=all` every past concert, `?added=<id>` / `?restored=<id>` / `?deleted=<id>` banner | page |
 | POST | `…/me` | pick `member_id` or create `name`; sets cookie | 303 `next` (a concert path) or `…`; 422 picker |
 | POST | `…/logout` | « Ce n'est pas moi »: clears cookie | 303 `…` |
 | GET | `…/concerts/new` | add form; `?url=` pre-fills from the ticket page | page; htmx swaps the form (`hx-select`) |
@@ -384,13 +391,15 @@ One slice per branch, merged with `--no-ff`. 0–11 shipped as v1.
 12. **Venue agenda import** ([ADR 0011](decisions/0011-venue-imports.md)): the daily `concerts sync` (systemd timer) copies the upcoming concerts of the venues a group follows into its concerts; screens, routes and threat model above.
    - `internal/agenda`: the compiled-in venues (MC2, La Belle Électrique, L'ilyade, L'Ampérage, La Source, Retour de Scène: listing URLs, site and ticketing hosts, crawl delay, robots.txt noted), one parser per venue walking an `html.Parse` tree or MC2's JSON (fixtures in `testdata/`), the fetcher and `Sync`. Music events only (club nights count); every event needs the venue's stable id (`source_id`, ≤ 256 bytes).
    - Cleaning: status prefixes and suffixes stripped from titles (« COMPLET • », « REPORTÉ • », « (COMPLET) », « \ COMPLET / »), « Complet » sets `sold_out`, the price left as listed; a date without year is its next occurrence, skipped if more than 10 months ahead (a past item still listed); then `validate.Concert`, as the form.
+   - Genre (migration 0013, an editable field like the price): each parser joins the listing's labels with « , », split at « / », in the listing's order, duplicates dropped, so an unchanged listing never counts as updated. La Belle Électrique: the genre line, then the tag unless « Concert » or « Gratuit » (« Reggaeton, Shatta, Tekno, DJ sets »); L'Ampérage: `.style`, then « Club » for a club night (« Techno, Club »); La Source: the `.ls-tag` labels (« Ciné-concert, Jazz, Latin »); MC2: its categories other than « Musique » (« Jazz », « Cabaret, Danse »); Retour de Scène: « Micro-live » for that category; L'ilyade: none (« Musique » only). A label in capitals is lowercased, accents restored from a small table (« ELECTRO CUIVRé » → « Électro cuivré »); mixed case is kept (« DJ set »); each starts with a capital. Clipped to 60 runes, and dropped, never the event, if the form would refuse it. The first sync after migration 0013 updates every owned import once (genre filled).
    - Sync: followed venues only, halls before promoters (Retour de Scène lists L'ilyade's concerts: the hall's copy wins), each read within 2 min (6 × 2 min stay under the unit's 15 min) then applied at once, so a slow or failing venue costs the others nothing; ≤ 200 events per venue and run; `store.ApplyImports`, one transaction per group and venue (`created_by` NULL, `source` and `source_id` set), applies nothing if the group stopped following the venue since the run began. Before that, each venue's events read (validated, as imported) are kept once for every group in `venue_events`, one transaction a run, pruned once past or unseen for 30 days (not on missing one run): what « Relire la billetterie » compares an edited import with. Not `event_details`, whose date is a cache key.
    - Per event: inserted unless the group has the same bill that day from elsewhere, live or deleted (artist key equal, or followed by ` + `, ` • `, ` / `, `, ` or ` & `, either way round); a row the import owns (live, never edited) updated in place; imports stop at 400 upcoming concerts, 100 kept for members.
    - Times missing from a listing (La Source, Retour de Scène): each event's page read once ever through `prefill`, kept in `event_details`, pruned of past dates; ≤ 40 pages a run. A page gone (404, 410) is kept without time; one unread or where `prefill` finds no date is read again next run, and the venue fails when none of the pages it read had a date.
    - Fails (non-zero exit) when a venue failed or listed no upcoming concert, its parser's breakage sign. Logs: venue key, host, group id, counts; never a URL or a concert.
    - « À l'affiche » shows the list's ticket cards: compact rows first, dropped because they looked unlike the list.
    - CLI: `list-venues`, `follow-venue`, `unfollow-venue` (deletes the venue's rows nobody answered or edited), `sync`.
-   - Out of scope: « Nouveau » badges, on-sale reminders, members choosing venues, following artists, aggregator APIs (ADR 0011), arenas behind bot protection (Summum, Zénith: prefill by hand), Drak-Art (Facebook only), detecting cancellations, a « mis à jour par la salle » history.
+   - « Nouveau » on « À l'affiche » and its `nouveau=1` filter: see that screen.
+   - Out of scope: a genre filter (vocabularies differ per venue), a concerts/club filter, descriptions and prices from event pages, per-member « seen » state, on-sale reminders, members choosing venues, following artists, aggregator APIs (ADR 0011), arenas behind bot protection (Summum, Zénith: prefill by hand), Drak-Art (Facebook only), detecting cancellations, a « mis à jour par la salle » history.
 
 Also in v1: `make install`, `make deploy`, `make rollback` ([operations.md](operations.md)).
 

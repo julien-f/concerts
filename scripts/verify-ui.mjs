@@ -64,12 +64,12 @@ const screens = [
     },
   },
   { name: "mine", go: (p) => p.goto(`${groupURL}?mine=1`) },
-  // « À l'affiche »: the demo's imports nobody answered, a long artist and venue among them.
+  // « À l'affiche »: the demo's imports nobody answered, a long artist, venue and genre among them.
   {
     name: "affiche",
     go: (p) => p.goto(`${groupURL}?affiche=1`),
-    // The list's tickets with their source and both answers, no status lines; the demo's long artist
-    // and venue must not widen the page at 320 px either.
+    // The list's tickets with their source and both answers, no status lines, one « Nouveau » (axe
+    // checks its contrast); the demo's long artist, venue and genre must not widen the page at 320 px either.
     check: async (p) => {
       const cards = await p.$$eval(".card", (cs) =>
         cs.map((c) => ({
@@ -82,10 +82,21 @@ const screens = [
       if (cards.some((c) => c.answers !== 2)) return "a ticket lacks one of its two answers";
       if (cards.some((c) => !c.source)) return "a ticket lacks « annoncé par »";
       if (cards.some((c) => c.lines)) return "a ticket shows status lines";
+      if ((await p.$$(".card .artist .new")).length !== 1) return "not one « Nouveau » tag";
+      if (!(await p.$(".card .genre"))) return "no genre line";
       await p.setViewportSize({ width: 320, height: 844 });
       const wide = await p.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
       await p.setViewportSize({ width: 390, height: 844 });
       return wide ? "at 320 px the page scrolls horizontally" : null;
+    },
+  },
+  {
+    name: "affiche-nouveau",
+    go: (p) => submit(p, ".new-count a"),
+    check: async (p) => {
+      if ((await p.getAttribute(".new-count a", "aria-current")) !== "page") return "the count link is not current";
+      const tags = await p.$$eval(".card", (cs) => cs.map((c) => !!c.querySelector(".new")));
+      return tags.length && tags.every(Boolean) ? null : "lists a ticket that is not « Nouveau »";
     },
   },
   { name: "affiche-venue", go: (p) => submit(p, ".venues a:nth-of-type(2)") },

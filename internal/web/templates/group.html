@@ -23,8 +23,9 @@
 {{if .Affiche}}
 <h2 class="visually-hidden">À l'affiche</h2>
 <p class="hint">Concerts annoncés par les salles suivies. Réponds pour les ajouter à la liste du groupe.</p>
+{{with .NewCount}}<p class="new-count"><a href="{{$.Base}}?affiche=1{{with $.Salle}}&amp;salle={{.}}{{end}}&amp;nouveau=1"{{if $.Nouveau}} aria-current="page"{{end}}>{{.}} {{if eq . 1}}nouveau{{else}}nouveaux{{end}} cette semaine</a></p>{{end}}
 {{with .Venues}}<nav class="filters venues" aria-labelledby="venues-label"><span id="venues-label">Annoncé par</span>
-{{range .}}<a href="{{$.Base}}?affiche=1&amp;salle={{.Key}}"{{if eq .Key $.Salle}} aria-current="page"{{end}}>{{.Name}}</a>
+{{range .}}<a href="{{$.Base}}?affiche=1&amp;salle={{.Key}}{{if $.Nouveau}}&amp;nouveau=1{{end}}"{{if eq .Key $.Salle}} aria-current="page"{{end}}>{{.Name}}</a>
 {{end}}</nav>{{end}}
 {{- /* Present before the first answer, so screen readers announce what an answer's swap writes into it. */}}
 <p id="affiche-status" class="visually-hidden" role="status"></p>
@@ -33,7 +34,7 @@
 <ol class="concerts" role="list">
 {{range .Cards}}{{template "card" .}}{{end}}</ol>
 {{else}}
-<p class="empty">{{with .Salle}}Rien à l'affiche pour {{venue .}}.{{else}}Rien à l'affiche pour l'instant.{{end}}</p>
+<p class="empty">{{if .Nouveau}}Rien de nouveau cette semaine.{{else if .Salle}}Rien à l'affiche pour {{venue .Salle}}.{{else}}Rien à l'affiche pour l'instant.{{end}}</p>
 {{end}}
 {{else}}
 {{range .Months}}

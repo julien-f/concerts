@@ -67,6 +67,7 @@ func run(args []string, log *slog.Logger) error {
 
 	var cmd func(*store.Store) error
 	needsURL := false
+	now := time.Now // the store's clock
 	switch {
 	case len(args) == 1 && args[0] == "serve":
 		needsURL = true
@@ -104,7 +105,9 @@ func run(args []string, log *slog.Logger) error {
 		}
 	case len(args) == 1 && args[0] == "demo":
 		needsURL = true
-		cmd = func(st *store.Store) error { return demo(ctx, st, baseURL, time.Now()) }
+		clock := &demoClock{base: time.Now}
+		now = clock.now
+		cmd = func(st *store.Store) error { return demo(ctx, st, baseURL, clock) }
 	default:
 		fmt.Fprint(os.Stderr, usage)
 		return errors.New("invalid arguments")
@@ -115,7 +118,7 @@ func run(args []string, log *slog.Logger) error {
 		}
 	}
 
-	st, err := store.Open(ctx, dbPath, time.Now)
+	st, err := store.Open(ctx, dbPath, now)
 	if err != nil {
 		return err
 	}
