@@ -30,33 +30,12 @@ type statusBlock struct {
 	Base      string
 	ConcertID int64
 	Artist    string
-	Back      string // where a no-JS answer returns: "list", "mine" or "concert"
+	Back      string // where a no-JS answer returns: "list", "mine", "concert" or "affiche"
+	Salle     string // under « À l'affiche », the view's venue filter, kept by a no-JS answer
 	Lines     []statusLine
 	Buttons   []statusButton
 	Note      string // after a swap that sent the import back to « À l'affiche »
-}
-
-// afficheAnswer is the two answers of a row of « À l'affiche »; htmx swaps them alone, and the
-// status region out of band.
-type afficheAnswer struct {
-	Base      string
-	ConcertID int64
-	Artist    string
-	Status    string // my answer, "" if none
-	Salle     string // the view's venue filter, kept by a no-JS answer
-	Said      string // status region text after an answer, "" on the page
-}
-
-// Buttons are the row's answer buttons, as on the cards.
-func (a afficheAnswer) Buttons() []statusButton { return answerButtons(a.Status) }
-
-// answerButtons are the answer buttons of a member whose answer is mine ("" if none).
-func answerButtons(mine string) []statusButton {
-	var bs []statusButton
-	for _, l := range statusLabels {
-		bs = append(bs, statusButton{l.Status, l.Button, l.Status == mine})
-	}
-	return bs
+	Said      string // after a swap under « À l'affiche », written out of band into its status region
 }
 
 // statusOf is memberID's answer among statuses, "" if none.
@@ -87,7 +66,10 @@ func newStatusBlock(gr *groupRequest, c store.Concert, statuses []store.Status, 
 		}
 	}
 	if gr.Me != nil && upcoming {
-		b.Buttons = answerButtons(statusOf(statuses, gr.Me.ID))
+		mine := statusOf(statuses, gr.Me.ID)
+		for _, l := range statusLabels {
+			b.Buttons = append(b.Buttons, statusButton{l.Status, l.Button, l.Status == mine})
+		}
 	}
 	return b
 }
@@ -104,8 +86,8 @@ func validStatus(v string) bool {
 	return false
 }
 
-// setStatus records my answer; htmx gets the new status block (the answers under « À l'affiche »),
-// a browser without JS a 303 back.
+// setStatus records my answer; htmx gets the new status block (under « À l'affiche », with the
+// status region's text out of band), a browser without JS a 303 back.
 func (s *server) setStatus(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
 	c, ok := s.concert(w, r, gr)
 	if !ok || !parseForm(w, r) {
@@ -131,7 +113,7 @@ func (s *server) setStatus(w http.ResponseWriter, r *http.Request, gr *groupRequ
 	// Without JS, clearing an import's answer in the list may send it back to « À l'affiche ».
 	leaving := c.Source != "" && status == "" && (back == "list" || back == "mine")
 	if err == nil && back == "affiche" && !isHTMX(r) {
-		target, err = s.nextRow(r, gr, c, r.PostForm.Get("salle"))
+		target, err = s.nextCard(r, gr, c, r.PostForm.Get("salle"))
 	}
 	if err != nil || (!isHTMX(r) && !leaving) {
 		s.done(w, r, gr, err, target)
@@ -154,30 +136,30 @@ func (s *server) setStatus(w http.ResponseWriter, r *http.Request, gr *groupRequ
 			target = gr.Base
 		}
 		seeOther(w, r, target)
-	case back == "affiche":
-		a := afficheAnswer{Base: gr.Base, ConcertID: c.ID, Artist: c.Artist, Status: statusOf(ss, gr.Me.ID),
-			Salle: r.PostForm.Get("salle"), Said: "Retiré de la liste du groupe."}
-		for _, l := range statusLabels {
-			if l.Status == a.Status {
-				a.Said = c.Artist + "\u202f: " + l.Button + ". Ajouté à la liste du groupe."
-			}
-		}
-		if a.Status == "" && len(ss) > 0 {
-			a.Said = c.Artist + "\u202f: réponse retirée, toujours dans la liste du groupe."
-		}
-		s.fragment(w, r, "answers", a)
 	default:
 		b := newStatusBlock(gr, c, ss, back, s.upcoming(c))
 		if leaving && !visible(c, ss) && s.upcoming(c) {
 			b.Note = "Retourné à l'affiche."
 		}
+		if back == "affiche" {
+			b.Salle, b.Said = r.PostForm.Get("salle"), "Retiré de la liste du groupe."
+			mine := statusOf(ss, gr.Me.ID)
+			for _, l := range statusLabels {
+				if l.Status == mine {
+					b.Said = c.Artist + "\u202f: " + l.Button + ". Ajouté à la liste du groupe."
+				}
+			}
+			if mine == "" && len(ss) > 0 {
+				b.Said = c.Artist + "\u202f: réponse retirée, toujours dans la liste du groupe."
+			}
+		}
 		s.fragment(w, r, "statuses", b)
 	}
 }
 
-// nextRow is « À l'affiche », under the venue filter salle if the group follows it, at the
-// first row from c on: the next one once an answer took c out, none past the last.
-func (s *server) nextRow(r *http.Request, gr *groupRequest, c store.Concert, salle string) (string, error) {
+// nextCard is « À l'affiche », under the venue filter salle if the group follows it, at the
+// first card from c on: the next one once an answer took c out, none past the last.
+func (s *server) nextCard(r *http.Request, gr *groupRequest, c store.Concert, salle string) (string, error) {
 	cs, err := s.store.Concerts(r.Context(), gr.Group.ID)
 	if err != nil {
 		return "", err

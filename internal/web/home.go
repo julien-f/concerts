@@ -9,11 +9,11 @@ import (
 	"concerts/internal/store"
 )
 
-// card is a concert in the list with its status block, or in « À l'affiche » with its answers.
+// card is a concert in a list with its status block.
 type card struct {
 	store.Concert
-	Statuses statusBlock
-	Answer   afficheAnswer
+	Statuses  statusBlock
+	Announced string // under « À l'affiche », the venue's name for « annoncé par »
 }
 
 type month struct {
@@ -30,8 +30,8 @@ const pastShown = 30
 type homePage struct {
 	*groupRequest
 	Mine      bool        // « Mes concerts »: only concerts I answered
-	Affiche   bool        // « À l'affiche »: upcoming imports nobody answered, as compact rows
-	Salle     string      // under Affiche, the venue key the rows are limited to, or ""
+	Affiche   bool        // « À l'affiche »: upcoming imports nobody answered
+	Salle     string      // under Affiche, the venue key the cards are limited to, or ""
 	Venues    []venueLink // followed venues, the « Annoncé par » filter
 	Months    []month     // upcoming, chronological
 	Past      []card      // newest first, in a collapsed section; the pastShown newest unless PastOpen
@@ -89,8 +89,11 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 		p.Venues = append(p.Venues, venueLink{v, s.venue(v)})
 	}
 	back := "list"
-	if p.Mine {
+	switch {
+	case p.Mine:
 		back = "mine"
+	case p.Affiche:
+		back = "affiche"
 	}
 	today := s.today() // once, so every card of the page agrees
 	var upcoming, past []store.Concert
@@ -115,11 +118,9 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 	}
 	lastMonth := ""
 	for _, c := range upcoming {
-		cd := card{Concert: c}
+		cd := card{Concert: c, Statuses: newStatusBlock(gr, c, statuses[c.ID], back, true)}
 		if p.Affiche {
-			cd.Answer = afficheAnswer{Base: gr.Base, ConcertID: c.ID, Artist: c.Artist, Salle: p.Salle}
-		} else {
-			cd.Statuses = newStatusBlock(gr, c, statuses[c.ID], back, true)
+			cd.Announced, cd.Statuses.Salle = s.venue(c.Source), p.Salle
 		}
 		if c.Date[:7] == lastMonth {
 			p.Months[len(p.Months)-1].Cards = append(p.Months[len(p.Months)-1].Cards, cd)

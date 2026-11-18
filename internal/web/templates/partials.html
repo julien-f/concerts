@@ -21,7 +21,8 @@ readers get the full date. */}}
 {{- /* agendaLink sits among a concert page's facts, like « Voir sur la carte ». */}}
 {{define "agendaLink"}}<p><a class="with-icon" href="/c/{{.Token}}/agenda.ics"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg>Ajouter à mon agenda</a></p>{{end}}
 
-{{- /* statuses is a statusBlock; htmx replaces the whole div after an answer. */}}
+{{- /* statuses is a statusBlock; htmx replaces the whole div after an answer, keeping the buttons' ids
+(and so the focus); under « À l'affiche » it also fills the status region out of band. */}}
 {{define "statuses"}}<div class="statuses">
 {{with .Lines}}<div class="who-list">
 {{range .}}<p class="who"><svg class="icon" aria-hidden="true"><use href="#i-{{.Status}}"/></svg>{{.Label}} : {{.Names}}</p>
@@ -31,6 +32,8 @@ readers get the full date. */}}
 <form method="post" action="{{$.Base}}/concerts/{{$.ConcertID}}/status" class="mine"
  data-hx-post="{{$.Base}}/concerts/{{$.ConcertID}}/status" data-hx-target="closest .statuses" data-hx-swap="outerHTML">
 <input type="hidden" name="back" value="{{$.Back}}">
+{{if eq $.Back "affiche"}}<input type="hidden" name="salle" value="{{$.Salle}}">
+{{end -}}
 <div role="group" aria-label="Ma réponse pour {{$.Artist}}">
 {{- /* The pressed button sends an empty status: tapping it again clears the answer. */}}
 {{range .}}<button id="c{{$.ConcertID}}-{{.Status}}" name="status" value="{{if not .Pressed}}{{.Status}}{{end}}" aria-pressed="{{.Pressed}}"><svg class="icon" aria-hidden="true"><use href="#i-{{.Status}}"/></svg>{{.Label}}</button>
@@ -39,44 +42,23 @@ readers get the full date. */}}
 {{- end}}
 {{- with .Note}}
 <p class="note" role="status">{{.}}</p>{{end}}
-</div>{{end}}
+</div>
+{{- with .Said}}
+<p id="affiche-status" data-hx-swap-oob="innerHTML">{{.}}</p>{{end}}{{end}}
 
-{{- /* card is a homePage card: the ticket of one concert in the list. */}}
+{{- /* card is a homePage card: the ticket of one concert in a list, « À l'affiche » included. */}}
 {{define "card"}}<li><article class="card" id="c{{.ID}}">
 {{with stub .Date}}<div class="stub {{stubStyle $.Artist}}" aria-hidden="true">{{template "stubLabel" .}}</div>{{end}}
 <div class="body">
 <h3 class="artist"><a href="/c/{{.Token}}">{{.Artist}}</a></h3>
 {{- /* The stub shows the date: here it is for screen readers only. */}}
 <p class="meta"><time datetime="{{datetime .Concert}}"><span class="visually-hidden">{{frdate .Date}} · </span>{{with .Time}}{{frtime .}}{{end}}</time>{{if .Time}} · {{end}}{{.Venue}}{{with .Price}} <span class="price">· {{.}}</span>{{end}}{{if .SoldOut}} <span class="sold">Complet</span>{{end}}</p>
+{{with .Announced}}<p class="meta announced">annoncé par {{.}}</p>
+{{end -}}
 {{template "statuses" .Statuses}}
 </div>
 </article></li>
 {{end}}
-
-{{- /* row is a card of « À l'affiche »: a compact line, about 250 of them, the stub's date in miniature;
-the answers on a second line, under the artist, who keeps the full width. */}}
-{{define "row"}}<li class="row" id="c{{.ID}}">
-{{with stub .Date}}<span class="day" aria-hidden="true"><span>{{.Weekday}}</span><b>{{.Day}}</b><span>{{.Month}}</span></span>{{end}}
-<div class="what">
-<a class="title" href="/c/{{.Token}}">{{.Artist}}</a>
-<p class="meta"><time datetime="{{datetime .Concert}}"><span class="visually-hidden">{{frdate .Date}} · </span>{{with .Time}}{{frtime .}}{{end}}</time>{{if .Time}} · {{end}}{{.Venue}}{{if .SoldOut}} <span class="sold">Complet</span>{{end}}</p>
-{{template "answers" .Answer}}
-</div>
-</li>
-{{end}}
-
-{{- /* answers is an afficheAnswer; htmx replaces the form, keeping the buttons' ids (and so the focus),
-and fills the status region out of band. The pressed button sends an empty status: tapping it again clears the answer. */}}
-{{define "answers"}}<form method="post" action="{{.Base}}/concerts/{{.ConcertID}}/status" class="mine answers"
- data-hx-post="{{.Base}}/concerts/{{.ConcertID}}/status" data-hx-target="this" data-hx-swap="outerHTML">
-<input type="hidden" name="back" value="affiche">
-<input type="hidden" name="salle" value="{{.Salle}}">
-<div role="group" aria-label="Ma réponse pour {{.Artist}}">
-{{range .Buttons}}<button id="c{{$.ConcertID}}-{{.Status}}" name="status" value="{{if not .Pressed}}{{.Status}}{{end}}" aria-pressed="{{.Pressed}}"><svg class="icon" aria-hidden="true"><use href="#i-{{.Status}}"/></svg>{{.Label}}</button>
-{{end}}</div>
-</form>
-{{- with .Said}}
-<p id="affiche-status" data-hx-swap-oob="innerHTML">{{.}}</p>{{end}}{{end}}
 
 {{- /* Link preview tags of the pages a previewer reaches: the picker and concert pages
 (it never has the identity cookie). Same image everywhere: og:title already names the page. */}}

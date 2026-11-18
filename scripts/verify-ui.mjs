@@ -68,14 +68,20 @@ const screens = [
   {
     name: "affiche",
     go: (p) => p.goto(`${groupURL}?affiche=1`),
-    // Both answers per row, ≥ 44 px; the demo's long artist and venue must not widen the page at 320 px either.
+    // The list's tickets with their source and both answers, no status lines; the demo's long artist
+    // and venue must not widen the page at 320 px either.
     check: async (p) => {
-      const sizes = await p.$$eval(".row", (rows) =>
-        rows.map((r) => [...r.querySelectorAll(".answers button")].map((b) => b.getBoundingClientRect())),
+      const cards = await p.$$eval(".card", (cs) =>
+        cs.map((c) => ({
+          answers: c.querySelectorAll(".mine button").length,
+          source: c.querySelector(".announced")?.textContent.startsWith("annoncé par ") ?? false,
+          lines: c.querySelectorAll(".who").length,
+        })),
       );
-      if (sizes.some((bs) => bs.length !== 2)) return "a row lacks one of its two answers";
-      const small = sizes.flat().filter((b) => b.width < 44 || b.height < 44).length;
-      if (small) return `${small} answer button(s) smaller than 44 px at 390 px`;
+      if (!cards.length) return "no ticket";
+      if (cards.some((c) => c.answers !== 2)) return "a ticket lacks one of its two answers";
+      if (cards.some((c) => !c.source)) return "a ticket lacks « annoncé par »";
+      if (cards.some((c) => c.lines)) return "a ticket shows status lines";
       await p.setViewportSize({ width: 320, height: 844 });
       const wide = await p.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
       await p.setViewportSize({ width: 390, height: 844 });
@@ -87,7 +93,7 @@ const screens = [
     name: "import-concert",
     go: async (p) => {
       await p.goto(`${groupURL}?affiche=1`);
-      return submit(p, ".row .title");
+      return submit(p, ".card .artist a");
     },
     check: async (p) =>
       (await p.textContent(".back")).includes("À l'affiche") ? null : "the back link does not lead to « À l'affiche »",
@@ -97,8 +103,8 @@ const screens = [
     name: "add-duplicate-import",
     go: async (p) => {
       await p.goto(`${groupURL}?affiche=1`);
-      const artist = await p.textContent(".row .title");
-      const date = (await p.getAttribute(".row time", "datetime")).slice(0, 10);
+      const artist = await p.textContent(".card .artist a");
+      const date = (await p.getAttribute(".card time", "datetime")).slice(0, 10);
       await p.goto(`${groupURL}/concerts/new`);
       await p.fill("#artist", artist);
       await p.fill("#date", date);
@@ -118,16 +124,16 @@ const screens = [
     name: "affiche-answer",
     go: async (p) => {
       await p.goto(`${groupURL}?affiche=1`);
-      const row = await p.getAttribute(".row", "id");
-      await p.focus(`#${row}-going`);
+      const card = await p.getAttribute(".card", "id");
+      await p.focus(`#${card}-going`);
       await p.keyboard.press("Enter");
-      await p.waitForSelector(`#${row}-going[aria-pressed="true"]`);
+      await p.waitForSelector(`#${card}-going[aria-pressed="true"]`);
       return null;
     },
     check: async (p) => {
-      const row = await p.getAttribute(".row", "id");
-      if (!(await focusOn(p, `${row}-going`))) return "focus left « J'y vais » after the swap";
-      const artist = await p.textContent(`#${row} .title`);
+      const card = await p.getAttribute(".card", "id");
+      if (!(await focusOn(p, `${card}-going`))) return "focus left « J'y vais » after the swap";
+      const artist = await p.textContent(`#${card} .artist a`);
       const said = await p.textContent("#affiche-status[role=status]");
       return said === `${artist} : J'y vais. Ajouté à la liste du groupe.` ? null : `status region says « ${said} »`;
     },
@@ -159,7 +165,7 @@ const screens = [
     name: "refresh-differs",
     go: async (p) => {
       await p.goto(`${groupURL}?affiche=1`);
-      const id = (await p.getAttribute('.row:has-text("Lysistrata")', "id")).slice(1);
+      const id = (await p.getAttribute('.card:has-text("Lysistrata")', "id")).slice(1);
       await p.goto(`${groupURL}/concerts/${id}/edit`);
       await p.click('button:has-text("Relire la billetterie")');
       await p.waitForSelector("#refresh-summary");

@@ -85,7 +85,7 @@ func demo(ctx context.Context, st *store.Store, baseURL string, now time.Time) e
 }
 
 // demoImports follows two venues and imports their agenda, created last (verify-ui relies on the
-// ids above): « À l'affiche » with a sold-out row, one without time and a long artist and venue,
+// ids above): « À l'affiche » with a sold-out concert, one without time and a long artist and venue,
 // one import answered, so in the list, and one edited that its venue changed since.
 func demoImports(ctx context.Context, st *store.Store, groupID, marc int64, day func(int) string) error {
 	agendas := map[string][]store.Concert{

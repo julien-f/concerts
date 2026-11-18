@@ -227,32 +227,14 @@ textarea { resize: vertical; }
 }
 .htmx-request.mine button { opacity: 0.7; }
 
-/* « À l'affiche »: compact rows on one paper strip, dashed like a perforation, about 250 of them. */
+/* « À l'affiche »: the venue filter; its concerts are the list's tickets. */
 .venues { align-items: center; margin: 0.5rem 0; }
 .venues span { color: var(--muted); font-size: 0.875rem; }
 .venues a { min-height: 2.75rem; padding: 0 0.8rem; font-size: 0.9rem; }
-.rows { list-style: none; margin: 0; padding: 0 0.75rem; background: var(--paper); border-radius: 0.625rem; }
-.row {
-  position: relative; display: grid; grid-template-columns: 2.75rem minmax(0, 1fr); gap: 0.75rem; align-items: center;
-  padding: 0.5rem 0;
-}
-.row + .row { border-top: 1px dashed var(--line); }
-.day {
-  display: flex; flex-direction: column; align-items: center; line-height: 1.15;
-  font-family: ui-monospace, monospace; font-size: 0.7rem; text-transform: uppercase; color: var(--muted);
-}
-.day b { font-size: 1.2rem; color: var(--ink); }
-.row .title { font-weight: 700; color: var(--ink); text-decoration: none; overflow-wrap: anywhere; }
-/* As on the card, the link covers the row; the answers sit above it. */
-.row .title::after { content: ""; position: absolute; inset: 0; }
-.row .title:hover { text-decoration: underline; }
-.row .meta { font-size: 0.85rem; }
 .sold {
   display: inline-block; padding: 0 0.35rem; border: 1px solid var(--error); border-radius: 0.25rem;
   color: var(--error); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
 }
-.answers { margin-top: 0.35rem; }
-.answers button { flex: 0 1 auto; }
 
 .ticket { background: var(--paper); border-radius: 0.75rem; padding: 0 1rem 0.5rem; }
 /* « Écouter » pills, one per artist; the rest of their look is the filters'. */
@@ -283,21 +265,22 @@ textarea { resize: vertical; }
   .top, main { max-width: 56rem; }
 
   .card .body {
-    /* Info centred in rows 2-4 (an absent status list takes no height), buttons on the right. */
-    display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 1fr auto auto auto 1fr;
+    /* Info centred in rows 2-5 (an absent line takes no height), buttons on the right. */
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 1fr auto auto auto auto 1fr;
     column-gap: 1rem; padding: 0.5rem 0.75rem;
   }
   .card .statuses { display: contents; }
   .card .artist { grid-area: 2 / 1; }
   .card .meta { grid-area: 3 / 1; }
+  .card .announced { grid-area: 4 / 1; }
   .card .mine { grid-area: 1 / 2 / -1; align-self: center; margin: 0; }
   .card .mine [role="group"] { flex-wrap: nowrap; }
   .card .mine button { flex: none; }
   .card .stub { padding-block: 0.4rem; }
   .card { margin-bottom: 0.5rem; }
-  .card .who-list { grid-area: 4 / 1; display: flex; flex-wrap: wrap; gap: 0 1rem; margin-top: 0.15rem; }
+  .card .who-list { grid-area: 5 / 1; display: flex; flex-wrap: wrap; gap: 0 1rem; margin-top: 0.15rem; }
   .card .who { margin: 0; }
-  .card .note { grid-area: 4 / 1; margin: 0.15rem 0 0; }
+  .card .note { grid-area: 5 / 1; margin: 0.15rem 0 0; }
 
   .ticket p { margin: 0 0 0.5rem; }
   .ticket .facts, .ticket .side { min-width: 0; }

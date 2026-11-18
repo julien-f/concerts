@@ -30,8 +30,8 @@
 <p id="affiche-status" class="visually-hidden" role="status"></p>
 {{range .Months}}
 <h2 class="month">{{.Label}}</h2>
-<ol class="rows" role="list">
-{{range .Cards}}{{template "row" .}}{{end}}</ol>
+<ol class="concerts" role="list">
+{{range .Cards}}{{template "card" .}}{{end}}</ol>
 {{else}}
 <p class="empty">{{with .Salle}}Rien à l'affiche pour {{venue .}}.{{else}}Rien à l'affiche pour l'instant.{{end}}</p>
 {{end}}

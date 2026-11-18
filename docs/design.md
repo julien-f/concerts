@@ -52,7 +52,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 5. **Fix**: open a concert → « Modifier » (banner with « Annuler ») or « Supprimer » (banner « Concert supprimé » with « Annuler la suppression »). A bad edit noticed later: « Voir l'historique » → « Revenir avant cette modification ».
 6. **Shared phone**: « Ce n'est pas moi » in every page header → picker again.
 7. **Invite a friend to one concert**: copy the concert page's address (or share it) → the friend sees the public card: the concert, « Billetterie », « Ajouter à mon agenda » and how many members go, nothing of the group. A member whose browser never opened the group link sees the same card, with a hint to open it once.
-8. **Spot**: filter « À l'affiche » (concerts announced by the venues the group follows) → « Ça m'intéresse » or « J'y vais » on a row → it joins « Tous » for everyone.
+8. **Spot**: filter « À l'affiche » (concerts announced by the venues the group follows) → « Ça m'intéresse » or « J'y vais » on a card → it joins « Tous » for everyone.
 9. **Operator**: [operations.md](operations.md).
 
 ## Screens
@@ -129,19 +129,19 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 │ salles suivies. Réponds…     │  hidden h2 « À l'affiche »
 │ Annoncé par (MC2) (La Source)│  nav, &salle=<key>, aria-current
 │ DÉCEMBRE 2026                │  h2 per month
-│ ┌──────────────────────────┐ │  one paper strip, dashed rows;
-│ │DIM.  Pomme               │ │  the link covers the row;
-│ │ 6    20 h · La Source    │ │  artist on the full width;
-│ │DÉC.  COMPLET             │ │  « Complet » if sold out;
-│ │      [★ Ça m'intéresse]  │ │  role=group « Ma réponse pour
-│ │      [✓ J'y vais]        │ │  <artiste> », 44 px, aria-pressed
-│ └──────────────────────────┘ │
+│ ┌────┬─────────────────────┐ │  the list's ticket card;
+│ │dim.┆ Pomme               │ │  price, « Complet » as there
+│ │  6 ┆ 20 h · La Source    │ │
+│ │déc.┆ annoncé par La Sour…│ │  meta line, venue's name
+│ │    ┆ [★ Ça m'intéresse]  │ │  no status lines: nobody
+│ │    ┆ [✓ J'y vais]        │ │  answered
+│ └────┴─────────────────────┘ │
 └──────────────────────────────┘
 ```
 
-- Upcoming imports nobody answered (`affiche=1` wins over `mine=1`), as compact rows rather than tickets (≈ 250 items), each with the cards' two answers on a second line under date and venue (exclusive; tapping the pressed one clears it). No past section: a past unanswered import shows nowhere.
+- Upcoming imports nobody answered (`affiche=1` wins over `mine=1`), on the same ticket cards as « Tous » (one `card` template), plus « annoncé par <Source> » and without status lines (nobody answered); answers exclusive, tapping the pressed one clears it. No past section: a past unanswered import shows nowhere.
 - `<title>` « À l'affiche · … »; empty: « Rien à l'affiche pour l'instant. », or « Rien à l'affiche pour <Source>. » under a followed venue; any other `salle` is ignored.
-- The answers post `back=affiche` and the view's `salle`; htmx swaps the whole group (stable ids `c<id>-interested`, `c<id>-going`, so focus stays) and, out of band, writes « <Artiste> : J'y vais. Ajouté à la liste du groupe. » (or « Ça m'intéresse »), « Retiré de la liste du groupe. », or « <Artiste> : réponse retirée, toujours dans la liste du groupe. » when another member answered, into a visually hidden `role=status` region present before the swap. The row stays until reload, as under « Mes concerts ». Without JS the answered row leaves « À l'affiche »: back to `?affiche=1` (with `salle` if followed) at the next row of that view, no anchor after the last.
+- The answers post `back=affiche` and the view's `salle`; htmx swaps the status block, as on the list (stable ids `c<id>-interested`, `c<id>-going`, so focus stays) and, out of band, writes « <Artiste> : J'y vais. Ajouté à la liste du groupe. » (or « Ça m'intéresse »), « Retiré de la liste du groupe. », or « <Artiste> : réponse retirée, toujours dans la liste du groupe. » when another member answered, into a visually hidden `role=status` region present before the swap. The card stays until reload, as under « Mes concerts ». Without JS the answered card leaves « À l'affiche »: back to `?affiche=1` (with `salle` if followed) at the next card of that view, no anchor after the last.
 - Venue names come from `web.Config.VenueName` (the compiled-in list); a key no longer listed shows as is.
 
 ### Concert (`/c/<token>`, with the group cookie)
@@ -245,7 +245,7 @@ After « Relire la billetterie », a differing field (edit form):
 - A filled accent button marks a screen's main action (« Billetterie », « Ajouter un concert », form submits); banner buttons (« Partager », « Annuler ») are secondary.
 - Month headings: small monospace caps in the accent color.
 - Pressed status = filled ink button + icon + `aria-pressed`; never color alone.
-- `system-ui` fonts, fields ≥ 16 px, targets ≥ 44 px on touch screens (36 px answer buttons on cards and the concert page without any touch input; « À l'affiche » rows keep 44 px), `:focus-visible` outline, `prefers-reduced-motion` respected.
+- `system-ui` fonts, fields ≥ 16 px, targets ≥ 44 px on touch screens (36 px answer buttons on cards and the concert page without any touch input), `:focus-visible` outline, `prefers-reduced-motion` respected.
 - « Ajouter un concert »: one link right after the filters in the DOM (so the keyboard reaches it before the cards). Below 48 rem a fixed bar on the main screen only, above the cards (each a stacking context), padded by `env(safe-area-inset-bottom)`; `scroll-padding-bottom` and list padding keep focused and last cards visible. From 48 rem a plain button on the right of the filters.
 - From 48 rem: tickets in one row (info left, answer buttons right, status lines on one wrapping line), so about twice as many concerts per screen; concert page in two columns (facts | actions and statuses); concert form in pairs (Date | Heure, Salle | Adresse, Prix | Complet, then Mise en vente alone; Artiste, Lien and Description full width), « Enregistrer » right-aligned. One column, not a grid of cards: dates keep reading top to bottom.
 - Icons: inline Lucide SVG (`star`, `check`, `play`, `share`, `calendar`), `aria-hidden`; never emoji.
@@ -315,7 +315,7 @@ All under `/g/{secret}` (written `…`) but the first two and the last two; unkn
 | POST | `…/concerts/{id}/revisions/{rev}/revert` | go back to before that edit (an edit itself) | 303 `…/concerts/{id}?reverted=<rev>`; 422 if a value is no longer valid or the group is full |
 | POST | `…/concerts/{id}/delete` | soft delete | 303 `…?deleted=<id>` |
 | POST | `…/concerts/{id}/restore` | undo delete | 303 `…?restored=<id>#c<id>` (`…?affiche=1&restored=<id>#c<id>` for an upcoming import nobody answered, plain `…` for a past one); 422 if the group is full |
-| POST | `…/concerts/{id}/status` | set `status` (empty clears); `back` = `list`, `mine`, `concert` or `affiche` | htmx: status block fragment (`affiche`: the row's answers and the status region; « Retourné à l'affiche. » in it when clearing the last answer of an upcoming import from the list); else 303 to `…#c<id>`, `…?mine=1#c<id>`, `…?affiche=1[&salle=<key>]#c<next row>` for `affiche`, `…?affiche=1#c<id>` (on clearing the last answer of an upcoming import from the list; `…` or `…?mine=1` for a past one) or the concert page |
+| POST | `…/concerts/{id}/status` | set `status` (empty clears); `back` = `list`, `mine`, `concert` or `affiche` | htmx: status block fragment (`affiche`: with the status region out of band; « Retourné à l'affiche. » in it when clearing the last answer of an upcoming import from the list); else 303 to `…#c<id>`, `…?mine=1#c<id>`, `…?affiche=1[&salle=<key>]#c<next card>` for `affiche`, `…?affiche=1#c<id>` (on clearing the last answer of an upcoming import from the list; `…` or `…?mine=1` for a past one) or the concert page |
 | GET | `/c/{token}` | concert page with the group cookie (`?saved`, `?reverted` banners), else public card | page; 404 plain |
 | GET | `/c/{token}/agenda.ics` | one-event calendar, public | `text/calendar` |
 
@@ -388,6 +388,7 @@ One slice per branch, merged with `--no-ff`. 0–11 shipped as v1.
    - Per event: inserted unless the group has the same bill that day from elsewhere, live or deleted (artist key equal, or followed by ` + `, ` • `, ` / `, `, ` or ` & `, either way round); a row the import owns (live, never edited) updated in place; imports stop at 400 upcoming concerts, 100 kept for members.
    - Times missing from a listing (La Source, Retour de Scène): each event's page read once ever through `prefill`, kept in `event_details`, pruned of past dates; ≤ 40 pages a run. A page gone (404, 410) is kept without time; one unread or where `prefill` finds no date is read again next run, and the venue fails when none of the pages it read had a date.
    - Fails (non-zero exit) when a venue failed or listed no upcoming concert, its parser's breakage sign. Logs: venue key, host, group id, counts; never a URL or a concert.
+   - « À l'affiche » shows the list's ticket cards: compact rows first, dropped because they looked unlike the list.
    - CLI: `list-venues`, `follow-venue`, `unfollow-venue` (deletes the venue's rows nobody answered or edited), `sync`.
    - Out of scope: « Nouveau » badges, on-sale reminders, members choosing venues, following artists, aggregator APIs (ADR 0011), arenas behind bot protection (Summum, Zénith: prefill by hand), Drak-Art (Facebook only), detecting cancellations, a « mis à jour par la salle » history.
 
@@ -403,6 +404,6 @@ Off-server backups and failure alerts, nothing set up yet. Leads:
 
 A « Je cherche un billet » status, if the group asks for it: it flags the exception (a sold-out concert, a resale), which members have a reason to set, unlike the dropped « J'ai mon billet ».
 
-A window on « À l'affiche » (the next months, then « Afficher la suite »), if the compact list proves too long.
+A window on « À l'affiche » (the next 3 months, then « Afficher la suite », as `?past=all`), if its cards prove too long a list: at 180 cards over 12 months, desktop Chromium throttled 4× scrolled it at 58 fps (59.6 with the former compact rows); a phone may differ (`make measure-scroll PAGE=affiche`).
 
 Carpooling, if the group asks for it: once « J'y vais » is set, an optional « Je propose / Je cherche un covoiturage » on the concert page only (`statuses.carpool CHECK IN ('offer','seek') NULL`), shown as a mark by the first name; no seats or departure city, the arranging stays on WhatsApp.

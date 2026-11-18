@@ -176,7 +176,7 @@ func TestConcertSoldOut(t *testing.T) {
 		want       []string
 	}{
 		{"card", g, []string{`L&#39;Olympia <span class="sold">Complet</span></p>`}},
-		{"row", g + "?affiche=1", []string{`Salle A <span class="sold">Complet</span></p>`}},
+		{"affiche card", g + "?affiche=1", []string{`Salle A <span class="price">· 20 €</span> <span class="sold">Complet</span></p>`}},
 		{"page without price", g + "/concerts/1", []string{`<p><span class="sold">Complet</span></p>`}},
 		{"page with a price", g + "/concerts/3", []string{"<p>Prix : 20 € <span class=\"sold\">Complet</span></p>"}},
 		{"form", g + "/concerts/1/edit", []string{`id="sold_out" name="sold_out" type="checkbox" value="1" checked>`}},

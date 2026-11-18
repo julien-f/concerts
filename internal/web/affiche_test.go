@@ -54,8 +54,8 @@ func TestAfficheViews(t *testing.T) {
 	g := "/g/" + secret
 	cards := func(body string) string { // ids in page order
 		var ids []string
-		for _, m := range regexp.MustCompile(`<li[^>]*id="c(\d+)"|<article class="card" id="c(\d+)"`).FindAllStringSubmatch(body, -1) {
-			ids = append(ids, m[1]+m[2])
+		for _, m := range regexp.MustCompile(`<article class="card" id="c(\d+)"`).FindAllStringSubmatch(body, -1) {
+			ids = append(ids, m[1])
 		}
 		return strings.Join(ids, ",")
 	}
@@ -73,7 +73,8 @@ func TestAfficheViews(t *testing.T) {
 			`<a href="` + g + `?affiche=1&amp;salle=salle-b">salle-b</a>`,
 			`<p id="affiche-status" class="visually-hidden" role="status"></p>`,
 			`<h2 class="month">juin 2026</h2>`, `<span class="sold">Complet</span>`, `datetime="2026-07-03T20:00"`,
-			// Both answers, as on the cards, under the date and venue.
+			// The list's ticket, with its source and both answers.
+			`<article class="card" id="c2">`, `<p class="meta announced">annoncé par salle-a</p>`,
 			`<div role="group" aria-label="Ma réponse pour Importé A">`,
 			`id="c2-interested" name="status" value="interested" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-interested"/></svg>Ça m&#39;intéresse</button>`,
 			`id="c2-going" name="status" value="going" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-going"/></svg>J&#39;y vais</button>`,
@@ -89,7 +90,7 @@ func TestAfficheViews(t *testing.T) {
 			t.Errorf("%s: cards %q, want %q", tc.name, got, tc.cards)
 		}
 		assertContains(t, body, tc.want...)
-		assertLacks(t, body, "Rien à l'affiche pour")
+		assertLacks(t, body, "Rien à l'affiche pour", `class="who"`)
 		if n := strings.Count(body, `aria-current="page"`); n != 1+strings.Count(tc.query, "salle=salle-") {
 			t.Errorf("%s: %d aria-current", tc.name, n)
 		}
@@ -176,8 +177,8 @@ func TestAfficheToggle(t *testing.T) {
 		req := who.postRequest(t, g+"/concerts/"+id+"/status", url.Values{"status": {status}, "back": {"affiche"}})
 		req.Header.Set("HX-Request", "true")
 		resp, body := who.do(t, req)
-		if resp.StatusCode != http.StatusOK || !strings.HasPrefix(body, `<form method="post" action="`+g+`/concerts/`+id+`/status" class="mine answers"`) {
-			t.Fatalf("want the answers fragment, got %d:\n%s", resp.StatusCode, body)
+		if resp.StatusCode != http.StatusOK || !strings.HasPrefix(body, `<div class="statuses">`) {
+			t.Fatalf("want the status block, got %d:\n%s", resp.StatusCode, body)
 		}
 		return body
 	}
@@ -207,19 +208,19 @@ func TestAfficheToggle(t *testing.T) {
 	}
 }
 
-// TestAfficheAnswerNoJS: without JS, the answered row leaves « À l'affiche »: back there, at the next row of the same view.
+// TestAfficheAnswerNoJS: without JS, the answered card leaves « À l'affiche »: back there, at the next card of the same view.
 func TestAfficheAnswerNoJS(t *testing.T) {
 	t.Parallel()
 	ts := newTestServer(t)
-	b, secret := afficheGroup(t, ts) // rows 5, 2, 3 (salle-a), 4 (salle-b)
+	b, secret := afficheGroup(t, ts) // cards 5, 2, 3 (salle-a), 4 (salle-b)
 	g := "/g/" + secret
 	for _, tc := range []struct {
 		name, id, status, salle, want string
 	}{
-		{"next row", "2", "going", "", g + "?affiche=1#c3"},
-		{"next row of the venue", "5", "interested", "salle-a", g + "?affiche=1&salle=salle-a#c3"},
-		{"last row of the venue", "3", "going", "salle-a", g + "?affiche=1&salle=salle-a"},
-		{"last row", "4", "interested", "", g + "?affiche=1"},
+		{"next card", "2", "going", "", g + "?affiche=1#c3"},
+		{"next card of the venue", "5", "interested", "salle-a", g + "?affiche=1&salle=salle-a#c3"},
+		{"last card of the venue", "3", "going", "salle-a", g + "?affiche=1&salle=salle-a"},
+		{"last card", "4", "interested", "", g + "?affiche=1"},
 		{"venue not followed: ignored", "6", "going", "autre", g + "?affiche=1"},
 	} {
 		if tc.id == "6" {
@@ -230,7 +231,7 @@ func TestAfficheAnswerNoJS(t *testing.T) {
 			t.Errorf("%s: Location = %q, want %q", tc.name, loc, tc.want)
 		}
 	}
-	// Clearing it again from a stale page: the row is back, so is the anchor.
+	// Clearing it again from a stale page: the card is back, so is the anchor.
 	resp, _ := b.post(t, g+"/concerts/4/status", url.Values{"status": {""}, "back": {"affiche"}})
 	if loc := location(t, resp); loc != g+"?affiche=1#c4" {
 		t.Errorf("cleared: Location = %q", loc)
