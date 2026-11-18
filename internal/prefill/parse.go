@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"golang.org/x/net/html"
 )
@@ -381,7 +382,7 @@ func address(v any) string {
 		return clean(str(v))
 	}
 	street := clean(str(m["streetAddress"]))
-	postal, city := clean(str(m["postalCode"])), clean(str(m["addressLocality"]))
+	postal, city := clean(str(m["postalCode"])), cityCase(clean(str(m["addressLocality"])))
 	// Some sites put the whole address in streetAddress: do not repeat the city.
 	if lower := strings.ToLower(street); (postal != "" && strings.Contains(lower, strings.ToLower(postal))) ||
 		(city != "" && strings.Contains(lower, strings.ToLower(city))) {
@@ -394,6 +395,28 @@ func address(v any) string {
 		}
 	}
 	return strings.Join(parts, ", ")
+}
+
+var (
+	// cityParticles stay lower case after a city's first word: « Aix-en-Provence », « Saint-Martin-d'Hères ».
+	cityParticles = []string{"à", "au", "aux", "d", "de", "des", "du", "en", "et", "l", "la", "le", "les", "lès", "lez", "sous", "sur"}
+	cityWord      = regexp.MustCompile(`[\pL\pN]+`)
+)
+
+// cityCase writes an all-caps city as a name (« GRENOBLE » → « Grenoble »); others are left as served.
+func cityCase(s string) string {
+	if strings.ToUpper(s) != s || strings.ToLower(s) == s {
+		return s
+	}
+	s = strings.ToLower(s)
+	i := 0
+	return cityWord.ReplaceAllStringFunc(s, func(w string) string {
+		if i++; i > 1 && slices.Contains(cityParticles, w) {
+			return w
+		}
+		r, n := utf8.DecodeRuneInString(w)
+		return string(unicode.ToUpper(r)) + w[n:]
+	})
 }
 
 // first returns v, or its first element if it is an array.

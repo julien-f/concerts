@@ -162,7 +162,7 @@ func TestFetchHop(t *testing.T) {
 			}
 			_, _ = w.Write([]byte(ticket))
 		}, Result{Artist: "Collectif Exemple : Soirée Test", Date: "2027-04-23", Time: "20:00",
-			Venue: "La Salle Électrique Exemple", Address: "12, esplanade Exemple, 38000 GRENOBLE", Price: "26–29 €",
+			Venue: "La Salle Électrique Exemple", Address: "12, esplanade Exemple, 38000 Grenoble", Price: "26–29 €",
 			Description: "Une soirée, cinq figures du collectif.\nL'une d’elles chante.", TicketURL: agenda}, ""},
 		{"billetterie missing", http.NotFound, venueOnly, "status 404"},
 		{"no date there", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("<title>Billetterie</title>")) },

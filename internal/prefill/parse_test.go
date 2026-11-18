@@ -40,7 +40,7 @@ func TestParseFixtures(t *testing.T) {
 		// Generic Event, local time without offset, pretty-printed JSON after a WebSite block.
 		{"olympia.html", "www.olympiahall.com", Result{Artist: "Jeanne Exemple", Date: "2026-12-08", Time: "20:00", Venue: "L'Exemple", Price: "39,90 €"}},
 		// Minutes only, date-only endDate ignored, full PostalAddress (country dropped).
-		{"zenith.html", "www.zenith-grenoble.fr", Result{Artist: "Nova Test", Date: "2027-01-24", Time: "20:00", Venue: "Arène Exemple", Address: "12, esplanade Exemple, 38000 GRENOBLE"}},
+		{"zenith.html", "www.zenith-grenoble.fr", Result{Artist: "Nova Test", Date: "2027-01-24", Time: "20:00", Venue: "Arène Exemple", Address: "12, esplanade Exemple, 38000 Grenoble"}},
 		// ComedyEvent, EventVenue, milliseconds; past validFrom skipped, nested future one kept; broken block skipped;
 		// AggregateOffer without currency (euros), and the nested offer counted in the price range.
 		{"fnac.html", "www.fnacspectacles.com", Result{Artist: "Marc Essai", Date: "2027-11-04", Time: "20:00", Venue: "Théâtre Exemple", OnSaleDate: "2027-02-14", Price: "55–64 €"}},
@@ -49,7 +49,7 @@ func TestParseFixtures(t *testing.T) {
 		// Top-level array, local time without offset, validFrom null, performer object; description with
 		// CR LF, an HTML entity and a soft hyphen.
 		{"belle-electrique.html", "billetterie.la-belle-electrique.com", Result{Artist: "Collectif Exemple : Soirée Test", Date: "2027-04-23", Time: "20:00",
-			Venue: "La Salle Électrique Exemple", Address: "12, esplanade Exemple, 38000 GRENOBLE", Price: "26–29 €",
+			Venue: "La Salle Électrique Exemple", Address: "12, esplanade Exemple, 38000 Grenoble", Price: "26–29 €",
 			Description: "Une soirée, cinq figures du collectif.\nL'une d’elles chante."}},
 		// Venue page: no Event, its billetterie link rebuilt as an agenda one; a look-alike host's skipped.
 		{"belle-electrique-site.html", "www.la-belle-electrique.com", Result{Artist: "Les Hiboux + Nova Test",
@@ -267,6 +267,19 @@ func TestSiteRule(t *testing.T) {
 	} {
 		if got := siteRule(host) != nil; got != ok {
 			t.Errorf("siteRule(%q) found = %v, want %v", host, got, ok)
+		}
+	}
+}
+
+func TestCityCase(t *testing.T) {
+	t.Parallel()
+	for in, want := range map[string]string{
+		"GRENOBLE": "Grenoble", "SAINT-MARTIN-D'HÈRES": "Saint-Martin-d'Hères", "AIX-EN-PROVENCE": "Aix-en-Provence",
+		"LE PONT-DE-CLAIX": "Le Pont-de-Claix", "L’ISLE-D’ABEAU": "L’Isle-d’Abeau", "PARIS 11E": "Paris 11e",
+		"ÉCHIROLLES": "Échirolles", "Grenoble": "Grenoble", "La Tronche": "La Tronche", "38": "38", "": "",
+	} {
+		if got := cityCase(in); got != want {
+			t.Errorf("cityCase(%q) = %q, want %q", in, got, want)
 		}
 	}
 }

@@ -156,7 +156,7 @@ func TestRefreshConcert(t *testing.T) {
 			"Complété depuis la billetterie : Date, Heure, Adresse. Vérifie puis enregistre.",
 			`value="Mine"`, `value="Ma salle"`, `id="time" name="time" type="time" value="20:00">`,
 			`id="date" name="date" type="date" value="2027-01-24" required aria-describedby="prefill-msg" autofocus`,
-			`value="12, esplanade Exemple, 38000 GRENOBLE"`}},
+			`value="12, esplanade Exemple, 38000 Grenoble"`}},
 		{"price and description filled", concertValues("Mine", "2027-01-25", "21:00", "V", site.URL+"/belle-electrique.html", ""), []string{
 			"Complété depuis la billetterie\u202f: Adresse, Prix, Description.", `value="26–29 €"`,
 			">Une soirée, cinq figures du collectif."}},
@@ -188,7 +188,7 @@ func TestRefreshConcert(t *testing.T) {
 	}
 
 	// Nothing is saved before « Enregistrer ».
-	if _, body := b.follow(t, g+"/concerts/1"); strings.Contains(body, "GRENOBLE") || !strings.Contains(body, "2027-01-25") {
+	if _, body := b.follow(t, g+"/concerts/1"); strings.Contains(body, "esplanade Exemple") || !strings.Contains(body, "2027-01-25") {
 		t.Errorf("refresh saved the concert:\n%s", body)
 	}
 	if _, body := b.get(t, g+"/concerts/new"); strings.Contains(body, "Relire") {
