@@ -113,11 +113,15 @@ func (s *server) fromCookie(r *http.Request, groupID int64) (*groupRequest, erro
 
 type groupHandler = func(http.ResponseWriter, *http.Request, *groupRequest)
 
-// requireMe sends a request without identity to the picker.
+// requireMe sends a request without identity to the picker, which returns to the page asked for (GET only).
 func requireMe(h groupHandler) groupHandler {
 	return func(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
 		if gr.Me == nil {
-			seeOther(w, r, gr.Base)
+			target := gr.Base
+			if next := validNext(strings.TrimPrefix(r.URL.Path, gr.Base)); r.Method == http.MethodGet && next != "" {
+				target += "?next=" + next
+			}
+			seeOther(w, r, target)
 			return
 		}
 		h(w, r, gr)
@@ -146,8 +150,8 @@ type pickerPage struct {
 	Taken    *store.Member // existing member whose name was typed again
 }
 
-// nextPage keeps only a concert page as the picker's return target, so it cannot redirect elsewhere.
-var nextPage = regexp.MustCompile(`^/concerts/[0-9]+$`)
+// nextPage keeps only a group page that can be opened by a link as the picker's return target, so it cannot redirect elsewhere.
+var nextPage = regexp.MustCompile(`^/concerts/(new|[0-9]+(/edit)?)$`)
 
 func validNext(v string) string {
 	if nextPage.MatchString(v) {

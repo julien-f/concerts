@@ -386,9 +386,9 @@ func TestConcertAccess(t *testing.T) {
 		status int
 		to     string // Location of a 303, if checked: a successful write redirects too
 	}{
-		{"anonymous add form", anon, "GET", g + "/concerts/new", http.StatusSeeOther, g},
+		{"anonymous add form", anon, "GET", g + "/concerts/new", http.StatusSeeOther, g + "?next=/concerts/new"},
 		{"anonymous create", anon, "POST", g + "/concerts", http.StatusSeeOther, g},
-		{"anonymous edit", anon, "GET", g + "/concerts/1/edit", http.StatusSeeOther, g},
+		{"anonymous edit", anon, "GET", g + "/concerts/1/edit", http.StatusSeeOther, g + "?next=/concerts/1/edit"},
 		{"anonymous delete", anon, "POST", g + "/concerts/1/delete", http.StatusSeeOther, g},
 		{"anonymous concert page", anon, "GET", g + "/concerts/1", http.StatusSeeOther, ts.concertURL(t, secret, 1)},
 		{"other group's delete", intruder, "POST", "/g/" + other + "/concerts/1/delete", http.StatusNotFound, ""},
@@ -442,7 +442,13 @@ func TestPickerReturnsToConcert(t *testing.T) {
 	if loc := resp.Header.Get("Location"); loc != g+"/concerts/1" {
 		t.Fatalf("Location = %q, want the concert page", loc)
 	}
-	for _, next := range []string{"//evil.example", "/concerts/1/../../x", "https://evil.example", "/concerts/1x"} {
+	for _, next := range []string{"/concerts/new", "/concerts/1/edit"} {
+		resp, _ := ts.browser(t).post(t, g+"/me", url.Values{"member_id": {"1"}, "next": {next}})
+		if loc := resp.Header.Get("Location"); loc != g+next {
+			t.Errorf("next %q: Location = %q, want %q", next, loc, g+next)
+		}
+	}
+	for _, next := range []string{"//evil.example", "/concerts/1/../../x", "https://evil.example", "/concerts/1x", "/concerts/1/delete"} {
 		resp, _ := ts.browser(t).post(t, g+"/me", url.Values{"member_id": {"1"}, "next": {next}})
 		if loc := resp.Header.Get("Location"); loc != g {
 			t.Errorf("next %q: Location = %q, want %q", next, loc, g)

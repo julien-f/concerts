@@ -45,7 +45,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 
 ## User journeys
 
-1. **Join**: tap the link in WhatsApp → picker screen → tap « C'est moi » on one's name, or type a new first name → main screen. Later visits skip the picker (cookie). Opening a concert link after the group link but without identity, the concert page shows « Choisis ton prénom pour répondre », and the picker returns to that concert (`next`).
+1. **Join**: tap the link in WhatsApp → picker screen → tap « C'est moi » on one's name, or type a new first name → main screen. Later visits skip the picker (cookie). Opening a concert link after the group link but without identity, the concert page shows « Choisis ton prénom pour répondre », and the picker returns to that concert (`next`); the add and edit forms send there too, with `next`.
 2. **Add**: tap « Ajouter un concert » (fixed at the bottom on a phone, beside the filters on a computer) → paste a ticket URL, tap « Pré-remplir » → check or type the fields → « Enregistrer » → main screen with a banner « Concert ajouté » and « Partager » (the share sheet, else WhatsApp, with artist, date and the concert link; [ADR 0010](decisions/0010-share-sheet.md)).
 3. **Respond**: on a card, tap « Ça m'intéresse » or « J'y vais »; tapping the active one clears it. The status block updates in place (htmx) or after a full reload (no JS).
 4. **Plan**: filter « Mes concerts »; open a concert → « Écouter » searches the artist on YouTube (one « Écouter <artiste> » per artist of a line-up written with a spaced « + » or « / », the separator prefill joins the performers with); « Ajouter à mon agenda » downloads its `.ics`; « Billetterie » opens the ticket link.
@@ -182,7 +182,7 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 
 An import shows « annoncé par <Source> » where « ajouté par » goes; while upcoming and unanswered, its back link is « ← À l'affiche » (`…?affiche=1#c<id>`); past and unanswered, it is in no view, so « ← Tous les concerts » without anchor.
 
-Without identity: statuses shown, buttons and edit/delete replaced by « Choisis ton prénom pour répondre » (picker with `next`, accepted only as `/concerts/<id>`), then the page's filled accent button.
+Without identity: statuses shown, buttons and edit/delete replaced by « Choisis ton prénom pour répondre » (picker with `next`, accepted only as `/concerts/<id>`, `/concerts/<id>/edit` or `/concerts/new`), then the page's filled accent button.
 
 ### Public card (`/c/<token>`, without the group cookie)
 
@@ -310,7 +310,7 @@ All under `/g/{secret}` (written `…`) but the first two and the last two; unkn
 | GET | `/healthz` | DB ping | text |
 | GET | `/static/{name}` | hashed static file | file |
 | GET | `…` | picker (no identity, optional `next`; the group link's preview) or main list; `?mine=1` filter, `?affiche=1` (`&salle=<key>`, `&nouveau=1`) unanswered imports, `?past=all` every past concert, `?added=<id>` / `?restored=<id>` / `?deleted=<id>` banner | page |
-| POST | `…/me` | pick `member_id` or create `name`; sets cookie | 303 `next` (a concert path) or `…`; 422 picker |
+| POST | `…/me` | pick `member_id` or create `name`; sets cookie | 303 `next` (a concert, edit or add-form path) or `…`; 422 picker |
 | POST | `…/logout` | « Ce n'est pas moi »: clears cookie | 303 `…` |
 | GET | `…/concerts/new` | add form; `?url=` pre-fills from the ticket page | page; htmx swaps the form (`hx-select`) |
 | POST | `…/concerts` | create; `anyway=1` skips the duplicate check | 303 `…?added=<id>`; 422 form (invalid or duplicate); 422 if the group is full |
