@@ -67,7 +67,7 @@ func TestNewClientChecksDial(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("secret")) }))
 	t.Cleanup(srv.Close)
-	_, err := Fetch(context.Background(), NewClient(), srv.URL+"/g/SECRET?token=T", now)
+	_, _, err := Fetch(context.Background(), NewClient(), srv.URL+"/g/SECRET?token=T", now)
 	if err == nil || !strings.Contains(err.Error(), "refusing to dial") {
 		t.Fatalf("Fetch(%s) err = %v, want a refused dial", srv.URL, err)
 	}
@@ -100,12 +100,12 @@ func TestFetch(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 	// A plain client: the dial checks are TestNewClientChecksDial's job.
-	res, err := Fetch(context.Background(), srv.Client(), srv.URL+"/page", now)
+	res, _, err := Fetch(context.Background(), srv.Client(), srv.URL+"/page", now)
 	if err != nil || res.Artist != "Les Hiboux + Nova Test" || res.Date != "2026-11-27" {
 		t.Fatalf("Fetch = %+v, %v", res, err)
 	}
 	for _, path := range []string{"/json", "/challenge"} {
-		if _, err := Fetch(context.Background(), srv.Client(), srv.URL+path, now); err == nil {
+		if _, _, err := Fetch(context.Background(), srv.Client(), srv.URL+path, now); err == nil {
 			t.Errorf("Fetch(%s): want an error", path)
 		}
 	}
@@ -136,8 +136,71 @@ func TestFetchFinalHost(t *testing.T) {
 		}
 		return resp, nil
 	})}
-	res, err := Fetch(context.Background(), client, "https://a.example/x", now)
+	res, _, err := Fetch(context.Background(), client, "https://a.example/x", now)
 	if err != nil || res.Date != "2026-12-05" || res.Venue != "L'Exemple" {
 		t.Fatalf("Fetch = %+v, %v; want the lilyade.fr rule applied", res, err)
+	}
+}
+
+// TestFetchHop: a La Belle Électrique venue page is read through the billetterie it links to,
+// kept only from that host and with a date; else the venue page's result, with the reason.
+func TestFetchHop(t *testing.T) {
+	t.Parallel()
+	venue, ticket := fixture(t, "belle-electrique-site.html"), fixture(t, "belle-electrique.html")
+	const agenda = "https://billetterie.la-belle-electrique.com/agenda/747-Les-Hiboux?session=747"
+	venueOnly := Result{Artist: "Les Hiboux + Nova Test"}
+	tests := []struct {
+		name    string
+		serve   func(w http.ResponseWriter, r *http.Request) // the billetterie
+		want    Result
+		wantHop string // in the hop error, "" for none
+	}{
+		{"billetterie read", func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.String() != agenda {
+				http.NotFound(w, r)
+				return
+			}
+			_, _ = w.Write([]byte(ticket))
+		}, Result{Artist: "Collectif Exemple : Soirée Test", Date: "2027-04-23", Time: "20:00",
+			Venue: "La Salle Électrique Exemple", Address: "12, esplanade Exemple, 38000 GRENOBLE", Price: "26–29 €",
+			Description: "Une soirée, cinq figures du collectif.\nL'une d’elles chante.", TicketURL: agenda}, ""},
+		{"billetterie missing", http.NotFound, venueOnly, "status 404"},
+		{"no date there", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("<title>Billetterie</title>")) },
+			venueOnly, "no event date"},
+		{"redirected off the pinned host", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "https://evil.example/agenda", http.StatusFound)
+		}, venueOnly, "redirected to evil.example"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			client := &http.Client{CheckRedirect: checkRedirect, Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				w := httptest.NewRecorder()
+				w.Header().Set("Content-Type", "text/html")
+				switch r.URL.Host {
+				case "www.la-belle-electrique.com":
+					_, _ = w.Write([]byte(venue))
+				case "billetterie.la-belle-electrique.com":
+					tt.serve(w, r)
+				default: // evil.example serves the billetterie page, to be refused anyway
+					_, _ = w.Write([]byte(ticket))
+				}
+				resp := w.Result()
+				resp.Request = r
+				return resp, nil
+			})}
+			res, hopErr, err := Fetch(context.Background(), client, "https://www.la-belle-electrique.com/fr/agenda/les-hiboux", now)
+			if err != nil || res != tt.want {
+				t.Fatalf("Fetch = %+v, %v\nwant    %+v", res, err, tt.want)
+			}
+			switch {
+			case tt.wantHop == "" && hopErr != nil:
+				t.Errorf("hop error: %v", hopErr)
+			case tt.wantHop != "" && (hopErr == nil || !strings.Contains(hopErr.Error(), tt.wantHop)):
+				t.Errorf("hop error = %v, want %q", hopErr, tt.wantHop)
+			case hopErr != nil && strings.Contains(hopErr.Error(), "session"):
+				t.Errorf("hop error leaks the URL: %v", hopErr)
+			}
+		})
 	}
 }
