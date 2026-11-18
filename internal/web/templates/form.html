@@ -2,17 +2,21 @@
 {{- /* fieldAttrs are the attributes an input and a textarea share. */}}
 {{define "fieldAttrs"}}
 {{- if not .Optional}} required{{end}}{{with .Max}} maxlength="{{.}}"{{end}}{{with .Autocomplete}} autocomplete="{{.}}"{{end}}
-{{- with .Error}} aria-invalid="true" aria-describedby="{{$.Name}}-error"{{end}}
-{{- with .DescribedBy}} aria-describedby="{{.}}"{{end}}{{if .Autofocus}} autofocus{{end}}
+{{- if .Error}} aria-invalid="true"{{end}}
+{{- if or .Error .DescribedBy}} aria-describedby="{{if .Error}}{{.Name}}-error{{if .DescribedBy}} {{end}}{{end}}{{.DescribedBy}}"{{end}}
+{{- if .Autofocus}} autofocus{{end}}
 {{- end}}
 {{define "content"}}
 <p><a class="back" href="{{.Base}}{{with .ID}}/concerts/{{.}}{{end}}">← Annuler</a></p>
 <h1>{{if .ID}}Modifier le concert{{else}}Ajouter un concert{{end}}</h1>
 {{with .FormError}}<p class="error">{{.}}</p>
-{{- else with .Duplicate}}<p id="duplicate" class="error">{{.Artist}}, {{when .}}, est déjà dans la liste ({{.Venue}}{{with .AddedBy}}, ajouté par {{.}}{{end}}).
+{{- else with .Duplicate}}<p id="duplicate" class="error">
+{{- if $.OnAffiche}}{{.Artist}}, {{when .}}, est à l'affiche (annoncé par {{venue .Source}}), pas encore dans la liste. Réponds-y pour l'ajouter.
+{{- else}}{{.Artist}}, {{when .}}, est déjà dans la liste ({{.Venue}}{{with .AddedBy}}, ajouté par {{.}}{{end}}).{{end}}
 {{/* Focus on the link, not on « Ajouter quand même »: a stray Enter must not add the duplicate. */ -}}
 <a href="{{$.Base}}/concerts/{{.ID}}" aria-describedby="duplicate" autofocus>Voir ce concert</a></p>
 {{- else}}{{if .Notice}}<p class="error">Corrige les champs signalés.</p>{{end}}{{end}}
+{{with .Summary}}<p id="refresh-summary" class="prefill-msg">{{.}}</p>{{end}}
 {{if not .ID}}
 {{- /* Its own GET form, so Enter in the main form saves instead of prefilling. */}}
 <form method="get" action="{{.Base}}/concerts/new" class="prefill"
@@ -30,24 +34,34 @@
 </form>
 {{end}}
 <form method="post" action="{{.Base}}/concerts{{with .ID}}/{{.}}{{end}}" class="stack fields">
+{{- /* Enter submits the form's first button: « Enregistrer », not the first « Utiliser ». Safari ignores a display:none one. */}}
+{{if .Offers}}<button class="visually-hidden" tabindex="-1" aria-hidden="true">Enregistrer</button>{{end}}
 {{range .Fields}}{{$f := .}}
-<div class="field">
-<label for="{{.Name}}">{{.Label}}{{if .Optional}} <span class="hint">(facultatif)</span>{{end}}</label>
+<div class="field{{if eq .Type "checkbox"}} check-field{{end}}">
+{{if eq .Type "checkbox"}}<label class="check"><input id="{{.Name}}" name="{{.Name}}" type="checkbox" value="1"{{if .Value}} checked{{end}}{{template "fieldAttrs" .}}>{{.Label}}{{with .Hint}} <span class="hint">({{.}})</span>{{end}}</label>
+{{- else}}<label for="{{.Name}}">{{.Label}}{{if .Optional}} <span class="hint">(facultatif)</span>{{end}}</label>
 {{- /* No line break after <textarea>: the parser drops one, so a value starting with one would lose it. */}}
 {{if eq .Type "textarea"}}<textarea id="{{.Name}}" name="{{.Name}}" rows="6"{{template "fieldAttrs" .}}>{{.Value}}</textarea>
-{{- else}}<input id="{{.Name}}" name="{{.Name}}" type="{{.Type}}" value="{{.Value}}"{{template "fieldAttrs" .}}>{{end}}
+{{- else}}<input id="{{.Name}}" name="{{.Name}}" type="{{.Type}}" value="{{.Value}}"{{template "fieldAttrs" .}}>{{end}}{{end}}
 {{with .Error}}<p id="{{$f.Name}}-error" class="error">{{.}}</p>{{end}}
+{{- if .Offered}}
+<input type="hidden" name="source_{{.Name}}" value="{{.Source}}">
+<p id="{{.Name}}-source" class="source">La billetterie indique : {{.SourceText}}
+<button class="button secondary" name="use" value="{{.Name}}" formaction="{{$.Base}}/concerts/{{$.ID}}/refresh" formnovalidate
+ data-hx-post="{{$.Base}}/concerts/{{$.ID}}/refresh" data-hx-target="main" data-hx-select="main" data-hx-swap="outerHTML"
+ data-hx-sync="closest form:drop">Utiliser<span class="visually-hidden"> pour {{.Label}}</span></button></p>
+{{- end}}
 </div>
 {{end}}
 <div class="submit">
 <button class="big">Enregistrer</button>
 {{- /* After « Enregistrer », which stays the default button: Enter warns again. */}}
-{{if .Duplicate}}<button class="button secondary" name="anyway" value="1" aria-describedby="duplicate">Ajouter quand même</button>{{end}}
+{{if and .Duplicate (not .OnAffiche)}}<button class="button secondary" name="anyway" value="1" aria-describedby="duplicate">Ajouter quand même</button>{{end}}
 </div>
 {{if .ID}}
 {{- /* After « Enregistrer », so Enter saves; posts the fields as they are, so nothing typed is lost. */}}
 <div class="prefill">
-<p class="hint">Complète les champs vides à partir du lien de billetterie.</p>
+<p class="hint">Complète les champs vides et signale ce qui diffère, à partir de la billetterie.</p>
 <button class="button secondary" formaction="{{.Base}}/concerts/{{.ID}}/refresh" formnovalidate
  data-hx-post="{{.Base}}/concerts/{{.ID}}/refresh" data-hx-target="main" data-hx-select="main" data-hx-swap="outerHTML"
  data-hx-sync="closest form:drop" data-hx-indicator="next .wait"

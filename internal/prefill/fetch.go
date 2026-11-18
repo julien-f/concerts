@@ -172,5 +172,5 @@ func fetch(ctx context.Context, client *http.Client, url string, now time.Time) 
 		return Result{}, "", fmt.Errorf("content type %q", mt)
 	}
 	host = resp.Request.URL.Hostname()
-	return parse(io.LimitReader(resp.Body, maxPage), host, now), host, nil
+	return Parse(io.LimitReader(resp.Body, maxPage), host, now), host, nil
 }

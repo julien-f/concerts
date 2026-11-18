@@ -12,18 +12,20 @@ Design, threat model and later work: [docs/design.md](docs/design.md). Operation
 
 ## Structure
 
-- `cmd/concerts/`: subcommands (`serve`, `new-group`, `backup`, `demo`…).
+- `cmd/concerts/`: subcommands (`serve`, `new-group`, `backup`, `sync`, `demo`…).
 - `internal/store/`: SQLite, migrations (`migrations/NNNN_*.sql`, applied at startup), hand-written SQL.
 - `internal/web/`: handlers, templates (parsed at startup), static files.
 - `internal/prefill/`: ticketing-page parser (fixtures in `testdata/`) and SSRF-safe client.
-- `deploy/`: templates of the systemd units and Caddy site (`@NAME@`, `@PROXY_USER@`, `@HOST@`: nothing server-specific), `install.sh`/`uninstall.sh` (root) with `lib.sh`, and `admin` (run on the server as the service user). `docs/`: design, operations and ADRs. `scripts/`: dev tooling (`verify-ui` and `measure-scroll`, sharing `ui-lib.sh`; `measure`, `og-image` for the preview PNGs).
+- `internal/agenda/`: compiled-in venue list, one parser per venue (fixtures in `testdata/`), polite fetcher and `Sync` (`concerts sync`).
+- `internal/validate/`: concert validation shared by the form and the sync; Paris `Today`.
+- `deploy/`: templates of the systemd units (app, backup and sync) and Caddy site (`@NAME@`, `@PROXY_USER@`, `@HOST@`: nothing server-specific), `install.sh`/`uninstall.sh` (root) with `lib.sh`, and `admin` (run on the server as the service user). `docs/`: design, operations and ADRs. `scripts/`: dev tooling (`verify-ui` and `measure-scroll`, sharing `ui-lib.sh`; `measure`, `og-image` for the preview PNGs).
 - No interface without a second implementation, no speculative layers.
 
 ## Conventions
 
 - Time comes from an injected clock (`now func() time.Time`), never `time.Now()` in `internal/`.
 - The group secret never reaches logs or the database (only its SHA-256); request logs record the matched route pattern, never the raw path.
-- Every `/g/{secret}` handler goes through `inGroup` (`internal/web/identity.go`), and a `/c/{token}` handler resolves the group cookie through `fromCookie`; user input goes through `parseForm` and `cleanText` (`internal/web/form.go`).
+- Every `/g/{secret}` handler goes through `inGroup` (`internal/web/identity.go`), and a `/c/{token}` handler resolves the group cookie through `fromCookie`; user input goes through `parseForm` (`internal/web/form.go`) and `internal/validate`.
 - Every slice's HTTP tests reuse `newTestServer(t)` (`internal/web/testserver_test.go`): temp DB, fake clock, real router, `t.Parallel()`; table tests for several cases.
 - One vertical slice per branch (slices in `docs/design.md`), with its migration, handlers, tests and an update of `docs/design.md`; merged with `--no-ff`.
 - New schema change = new migration file; never edit a committed one.
@@ -34,7 +36,7 @@ Design, threat model and later work: [docs/design.md](docs/design.md). Operation
 
 - `make fmt` after editing Go files. `make run`, `make test` (`go test -race ./...`), `make lint`, `make vuln` (needs network), `make check` (lint + vuln + test; the pre-commit hook runs it when `go.mod`/`go.sum` are staged, else lint + test; `make deploy` runs vuln), `make build`.
 - Single test: `go test -race -run TestName ./internal/web`.
-- `make demo`: fresh `demo.db` with sample data, then serves it. `make verify-ui`: axe-core and vnu on every demo screen, plus the group page's weight; run before merging a UI change ([ADR 0006](docs/decisions/0006-scripted-ui-verification.md)). `make measure-scroll [REF=main]`: scroll fps of `style.css` at `REF` vs the working tree, on a phone on the same network; for CSS that may be costly to paint (masks, shadows, filters). `make measure`: Go lines, binary size and `make check` duration, for a merge commit's body.
+- `make demo`: fresh `demo.db` with sample data, then serves it. `make verify-ui`: axe-core and vnu on every demo screen, plus the group page's weight; run before merging a UI change ([ADR 0006](docs/decisions/0006-scripted-ui-verification.md)). `make measure-scroll [REF=main] [PAGE=affiche]`: scroll fps of `style.css` at `REF` vs the working tree, on « Tous » or « À l'affiche », on a phone on the same network; for CSS that may be costly to paint (masks, shadows, filters). `make measure`: Go lines, binary size and `make check` duration, for a merge commit's body.
 
 ## Pitfalls
 

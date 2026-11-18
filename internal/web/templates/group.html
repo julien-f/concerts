@@ -1,4 +1,4 @@
-{{define "title"}}{{.Group.Name}} · Concerts{{end}}
+{{define "title"}}{{if .Affiche}}À l'affiche · {{end}}{{.Group.Name}} · Concerts{{end}}
 {{define "meta"}}{{if .Added}}<script src="{{static "share.js"}}" defer></script>{{end}}{{end}}
 {{define "brand"}}<h1 class="brand">{{.Group.Name}}</h1>{{end}}
 {{define "content"}}
@@ -13,12 +13,30 @@
 </div>{{end}}
 <div class="toolbar">
 <nav class="filters" aria-label="Filtre">
-<a href="{{.Base}}"{{if not .Mine}} aria-current="page"{{end}}>Tous</a>
+<a href="{{.Base}}"{{if not (or .Mine .Affiche)}} aria-current="page"{{end}}>Tous</a>
 <a href="{{.Base}}?mine=1"{{if .Mine}} aria-current="page"{{end}}>Mes concerts</a>
+{{if .AfficheLink}}<a href="{{.Base}}?affiche=1"{{if .Affiche}} aria-current="page"{{end}}>À l'affiche</a>{{end}}
 </nav>
 {{- /* Fixed at the bottom on phones, within thumb reach; beside the filters from 48 rem. */}}
 <div class="add-bar"><a class="button add" href="{{.Base}}/concerts/new">+ Ajouter un concert</a></div>
 </div>
+{{if .Affiche}}
+<h2 class="visually-hidden">À l'affiche</h2>
+<p class="hint">Concerts annoncés par les salles suivies. Réponds pour les ajouter à la liste du groupe.</p>
+{{with .NewCount}}<p class="new-count"><a href="{{$.Base}}?affiche=1{{with $.Salle}}&amp;salle={{.}}{{end}}&amp;nouveau=1"{{if $.Nouveau}} aria-current="page"{{end}}>{{.}} {{if eq . 1}}nouveau{{else}}nouveaux{{end}} cette semaine</a></p>{{end}}
+{{with .Venues}}<nav class="filters venues" aria-labelledby="venues-label"><span id="venues-label">Annoncé par</span>
+{{range .}}<a href="{{$.Base}}?affiche=1&amp;salle={{.Key}}{{if $.Nouveau}}&amp;nouveau=1{{end}}"{{if eq .Key $.Salle}} aria-current="page"{{end}}>{{.Name}}</a>
+{{end}}</nav>{{end}}
+{{- /* Present before the first answer, so screen readers announce what an answer's swap writes into it. */}}
+<p id="affiche-status" class="visually-hidden" role="status"></p>
+{{range .Months}}
+<h2 class="month">{{.Label}}</h2>
+<ol class="concerts" role="list">
+{{range .Cards}}{{template "card" .}}{{end}}</ol>
+{{else}}
+<p class="empty">{{if .Nouveau}}Rien de nouveau cette semaine.{{else if .Salle}}Rien à l'affiche pour {{venue .Salle}}.{{else}}Rien à l'affiche pour l'instant.{{end}}</p>
+{{end}}
+{{else}}
 {{range .Months}}
 <h2 class="month">{{.Label}}</h2>
 {{- /* role=list: WebKit drops list semantics from unstyled lists. */}}
@@ -40,5 +58,6 @@
 {{- /* Lands on the first card not shown so far. */}}
 {{with $.PastMore}}<a class="more" href="{{$.Base}}?past=all{{if $.Mine}}&amp;mine=1{{end}}#c{{.}}">Afficher les {{$.PastTotal}} concerts passés</a>{{end}}
 </details>
+{{end}}
 {{end}}
 {{end}}

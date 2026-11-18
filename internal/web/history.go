@@ -3,11 +3,11 @@ package web
 import (
 	"errors"
 	"net/http"
-	"net/url"
 	"strconv"
 	"time"
 
 	"concerts/internal/store"
+	"concerts/internal/validate"
 )
 
 // change is one field an edit changed, formatted for reading.
@@ -40,7 +40,7 @@ func (s *server) showHistory(w http.ResponseWriter, r *http.Request, gr *groupRe
 	p := &historyPage{groupRequest: gr, Concert: c}
 	after := c // values each edit produced: the next newer revision's, or the current ones
 	for _, rev := range rs {
-		at := rev.EditedAt.In(paris)
+		at := rev.EditedAt.In(validate.Paris)
 		p.Edits = append(p.Edits, edit{RevID: rev.ID, By: rev.EditedBy,
 			At:      s.frDate(at.Format(time.DateOnly)) + " à " + frTime(at.Format("15:04")),
 			Changes: s.changes(rev.Concert, after)})
@@ -64,6 +64,10 @@ func (s *server) changes(before, after store.Concert) []change {
 // fieldText is a form value as the concert page shows it.
 func (s *server) fieldText(name, v string) string {
 	switch {
+	case name == "sold_out" && v == "":
+		return "non"
+	case name == "sold_out":
+		return "oui"
 	case v == "":
 		return "(vide)"
 	case name == "date" || name == "on_sale_date":
@@ -95,11 +99,7 @@ func (s *server) revertConcert(w http.ResponseWriter, r *http.Request, gr *group
 		s.fail(w, r, err)
 		return
 	}
-	vals := url.Values{}
-	for _, f := range newConcertForm(nil, rev.Concert, nil).Fields {
-		vals.Set(f.Name, f.Value)
-	}
-	c, errs := parseConcert(vals)
+	c, errs := validate.Concert(rev.Concert)
 	if len(errs) > 0 {
 		http.Error(w, "Cette version n'est plus valide : modifie le concert à la main.", http.StatusUnprocessableEntity)
 		return

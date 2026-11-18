@@ -1,16 +1,22 @@
 #!/usr/bin/env bash
-# Scroll smoothness of style.css at REF vs the working tree's, measured on a phone on the same network.
+# Scroll smoothness of style.css at REF vs the working tree's, measured on a phone on the same network,
+# on the group page's list (PAGE=list, the default) or « À l'affiche » (PAGE=affiche).
 # Compares CSS only: both run on the working tree's HTML. Details: measure-scroll.mjs.
 set -euo pipefail
 
 ref=${1:-main}
+case ${2:-list} in
+list) query= ;;
+affiche) query='?affiche=1' ;;
+*) echo "PAGE: list or affiche"; exit 1 ;;
+esac
 source "$(dirname "$0")/ui-lib.sh"
 ensure_tools
 ref_css=$(git -C "$repo" show "$ref:internal/web/static/style.css")
 start_demo
 printf '%s\n' "$ref_css" >"$work/ref.css"
 cp "$repo/internal/web/static/style.css" "$work/work.css"
-node "$repo/scripts/measure-scroll.mjs" snapshot "$tools" "http://$addr$link" "$work"
+node "$repo/scripts/measure-scroll.mjs" snapshot "$tools" "http://$addr$link" "$work" "$query"
 stop_demo
 read -r iface lan < <(ip -4 route get 1.1.1.1 | sed -n 's/.* dev \([^ ]*\).* src \([^ ]*\).*/\1 \2/p') || true # read fails on no output, which set -e would exit on
 [[ -n ${lan:-} ]] || { echo "no default route: is this machine on a network?"; exit 1; }

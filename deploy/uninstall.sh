@@ -18,8 +18,9 @@ printf 'Remove the %s site from the reverse proxy first (its socket goes away).\
 read -r answer
 [ "$answer" = "$NAME" ] || die "aborted"
 
-systemctl disable --now "$NAME.socket" "$NAME-backup.timer" 2>/dev/null || true
-systemctl stop "$NAME.service" "$NAME-backup.service" 2>/dev/null || true
+# One unit per call: a missing one (an install older than the sync) must not leave the others running.
+for u in .socket -backup.timer -sync.timer; do systemctl disable --now "$NAME$u" 2>/dev/null || true; done
+for u in .service -backup.service -sync.service; do systemctl stop "$NAME$u" 2>/dev/null || true; done
 loginctl terminate-user "$NAME" 2>/dev/null || true
 pkill -KILL -u "$NAME" 2>/dev/null || true
 userdel "$NAME"

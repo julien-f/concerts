@@ -3,7 +3,8 @@
 {{define "meta"}}{{template "ogCommon" .}}{{template "concertMeta" .}}<script src="{{static "share.js"}}" defer></script>
 {{end}}
 {{define "content"}}
-<p><a class="back" href="{{.Base}}#c{{.ID}}">← Tous les concerts</a></p>
+{{if .Affiche}}<p><a class="back" href="{{.Base}}?affiche=1#c{{.ID}}">← À l'affiche</a></p>
+{{- else}}<p><a class="back" href="{{.Base}}{{if .Listed}}#c{{.ID}}{{end}}">← Tous les concerts</a></p>{{end}}
 {{if or .Saved .Reverted}}<div class="banner" role="status">
 <p>{{if .Saved}}Modifications enregistrées.{{else}}Version rétablie.{{end}}</p>
 {{if and .UndoRev .Me}}<form method="post" action="{{.Base}}/concerts/{{.ID}}/revisions/{{.UndoRev}}/revert"><button class="button secondary">Annuler</button></form>{{end}}
@@ -11,7 +12,7 @@
 <article class="ticket">
 {{template "ticketHead" .}}
 <div class="facts">
-{{template "concertFacts" .}}{{with .AddedBy}}<p class="meta">ajouté par {{.}}</p>{{end}}
+{{template "concertFacts" .}}{{with .Source}}<p class="meta">annoncé par {{venue .}}</p>{{else with .AddedBy}}<p class="meta">ajouté par {{.}}</p>{{end}}
 {{if .LastRevID}}<p class="meta">modifié{{with .EditedBy}} par {{.}}{{end}} · <a href="{{.Base}}/concerts/{{.ID}}/history">Voir l'historique</a></p>{{end}}
 </div>
 <div class="side">

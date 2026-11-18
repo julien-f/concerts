@@ -14,8 +14,37 @@ import (
 // siteRules read a Result from the visible text or links of pages without a schema.org Event, by host without "www.".
 var siteRules = map[string]func(page) Result{
 	"la-belle-electrique.com": belleElectrique,
+	"lasource-fontaine.fr":    laSource,
 	"lilyade.fr":              lilyade,
 	"retourdescene.net":       retourDeScene,
+}
+
+// laSource reads « Date de début » (« 12 mai 2027 20 h 30 min »); the hall is the venue, its footer
+// address the address. Its « Salle » item is the room (« Grande Salle »).
+func laSource(p page) Result {
+	texts := p.texts
+	i := slices.IndexFunc(texts, func(t text) bool { return strings.EqualFold(t.s, "Date de début") })
+	if i < 0 || i+1 == len(texts) {
+		return Result{}
+	}
+	f := strings.Fields(texts[i+1].s)
+	if len(f) < 3 {
+		return Result{}
+	}
+	res := Result{Date: FrenchDate(strings.Join(f[:3], " ")), Time: FrenchTime(strings.Join(f[3:], " ")), Venue: "La Source"}
+	if res.Date == "" {
+		return Result{}
+	}
+	for _, t := range texts {
+		if slices.Contains(strings.Fields(t.class), "ls-ico-pin") {
+			res.Address = t.s
+			if at := postcode.FindStringIndex(t.s); at != nil && at[0] > 0 { // « 38 avenue Lénine 38600 Fontaine »
+				res.Address = strings.TrimRight(t.s[:at[0]], ", ") + ", " + t.s[at[0]:]
+			}
+			break
+		}
+	}
+	return res
 }
 
 // siteRule returns the rule for an exact host, case and trailing dot aside.
@@ -63,18 +92,18 @@ func lilyade(p page) Result {
 			items = append(items, t.s)
 		}
 	}
-	isDate := func(s string) bool { return frenchDate(s) != "" }
+	isDate := func(s string) bool { return FrenchDate(s) != "" }
 	i := slices.IndexFunc(items, isDate)
 	if i < 0 {
 		return Result{}
 	}
-	res := Result{Date: frenchDate(items[i])}
+	res := Result{Date: FrenchDate(items[i])}
 	block := items[i+1:]
 	if j := slices.IndexFunc(block, isDate); j >= 0 {
 		block = block[:j] // the next date starts the desktop copy of the same items
 	}
 	if len(block) > 0 {
-		res.Time = frenchTime(block[0])
+		res.Time = FrenchTime(block[0])
 	}
 	if res.Time != "" && len(block) > 1 {
 		res.Venue = strings.TrimRight(block[1], ", ") // related events write « L'ilyade, »
@@ -106,16 +135,16 @@ func retourDeScene(p page) Result {
 				res.Address = m[2] + " " + m[1]
 			}
 			if i == 2 { // one line between venue and city: the street
-				res.Address = lieu[1] + ", " + res.Address
+				res.Address = strings.TrimRight(lieu[1], ", ") + ", " + res.Address // some streets end with « , »
 			}
 			break
 		}
 	}
 	horaire := section(texts, "Horaire")
 	for i, s := range horaire {
-		if res.Date = frenchDate(s); res.Date != "" {
+		if res.Date = FrenchDate(s); res.Date != "" {
 			if i+1 < len(horaire) {
-				res.Time = frenchTime(horaire[i+1]) // « 20h > 01h (portes 20h, début de concert 20h30) »: the first
+				res.Time = FrenchTime(horaire[i+1]) // « 20h > 01h (portes 20h, début de concert 20h30) »: the first
 			}
 			break
 		}
@@ -195,8 +224,8 @@ var (
 	}
 )
 
-// frenchDate parses a whole text « [weekday] D[er] month YYYY » into YYYY-MM-DD, "" otherwise.
-func frenchDate(s string) string {
+// FrenchDate parses a whole text « [weekday] D[er] month YYYY » into YYYY-MM-DD, "" otherwise.
+func FrenchDate(s string) string {
 	f := strings.Fields(strings.ToLower(s))
 	if len(f) == 4 && slices.Contains(frenchDays, f[0]) {
 		f = f[1:]
@@ -220,8 +249,8 @@ func frenchDate(s string) string {
 // RE2's \s is ASCII only: French typography puts U+00A0 or U+202F around « h ».
 var frenchTimeRE = regexp.MustCompile(`(?i)\b([01]?\d|2[0-3])[ \x{a0}\x{202f}]?h[ \x{a0}\x{202f}]?([0-5]\d)?\b`)
 
-// frenchTime finds the first « 20h », « 20h30 » or « 20 h 30 » in s, as HH:MM; "" if none.
-func frenchTime(s string) string {
+// FrenchTime finds the first « 20h », « 20h30 » or « 20 h 30 » in s, as HH:MM; "" if none.
+func FrenchTime(s string) string {
 	m := frenchTimeRE.FindStringSubmatch(s)
 	if m == nil {
 		return ""

@@ -23,6 +23,7 @@ import (
 
 	"concerts/internal/prefill"
 	"concerts/internal/store"
+	"concerts/internal/validate"
 )
 
 //go:embed templates/*.html
@@ -49,15 +50,16 @@ func GroupURL(baseURL, secret string) string {
 }
 
 type server struct {
-	store   *store.Store
-	log     *slog.Logger
-	pages   map[string]*template.Template
-	static  staticAssets
-	secure  bool   // cookies get the Secure attribute
-	baseURL string // public URL without trailing slash, for absolute links
-	now     func() time.Time
-	fetch   *http.Client // ticketing pages, for prefill
-	fetches *fetchLimiter
+	store     *store.Store
+	log       *slog.Logger
+	pages     map[string]*template.Template
+	static    staticAssets
+	secure    bool   // cookies get the Secure attribute
+	baseURL   string // public URL without trailing slash, for absolute links
+	now       func() time.Time
+	fetch     *http.Client // ticketing pages, for prefill
+	fetches   *fetchLimiter
+	venueName func(key string) string
 }
 
 // Config is what the app takes from its environment.
@@ -65,22 +67,20 @@ type Config struct {
 	BaseURL string // public URL, e.g. https://concerts.example.com
 	Now     func() time.Time
 	Fetch   *http.Client // for ticketing pages; prefill.NewClient() if nil
+	// VenueName gives a followed venue's display name from its key; nil, or "" for a key no
+	// longer known, shows the key itself.
+	VenueName func(key string) string
 }
 
 // ParseBaseURL accepts only http(s)://host[:port], optionally with a trailing slash: absolute
 // links append their path to it, and the app serves the whole host.
 func ParseBaseURL(s string) (*url.URL, error) {
 	u, err := url.Parse(s)
-	if err != nil || !httpURL(u) || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.ForceQuery || strings.Contains(s, "#") ||
+	if err != nil || !validate.HTTPURL(u) || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.ForceQuery || strings.Contains(s, "#") ||
 		strings.HasSuffix(u.Host, ":") || !validPort(u.Port()) {
 		return nil, fmt.Errorf("base URL %q: want http(s)://host", s)
 	}
 	return u, nil
-}
-
-// httpURL: absolute http(s), a host name, no user part; the rule base URLs and ticket links share.
-func httpURL(u *url.URL) bool {
-	return (u.Scheme == "http" || u.Scheme == "https") && u.Hostname() != "" && u.User == nil
 }
 
 // validPort reports whether p, from url.URL.Port (digits only), is empty or 1–65535.
@@ -108,7 +108,7 @@ func New(st *store.Store, log *slog.Logger, cfg Config) (http.Handler, error) {
 	}
 	s := &server{store: st, log: log, static: static,
 		secure: u.Scheme == "https", baseURL: strings.TrimSuffix(cfg.BaseURL, "/"), now: cfg.Now,
-		fetch: cfg.Fetch, fetches: newFetchLimiter()}
+		fetch: cfg.Fetch, fetches: newFetchLimiter(), venueName: cfg.VenueName}
 	s.pages, err = parsePages(template.FuncMap{
 		"static":     static.url,
 		"abs":        s.abs,
@@ -120,6 +120,7 @@ func New(st *store.Store, log *slog.Logger, cfg Config) (http.Handler, error) {
 		"frtime":     frTime,
 		"datetime":   datetime,
 		"lines":      lines,
+		"venue":      s.venue,
 	})
 	if err != nil {
 		return nil, err
@@ -145,6 +146,14 @@ func New(st *store.Store, log *slog.Logger, cfg Config) (http.Handler, error) {
 	mux.HandleFunc("GET /c/{token}", s.publicConcert)
 	mux.HandleFunc("GET /c/{token}/agenda.ics", s.agenda)
 	return s.logRequests(securityHeaders(http.NewCrossOriginProtection().Handler(mux))), nil
+}
+
+// venue is the display name of a venue key, as « annoncé par » shows it.
+func (s *server) venue(key string) string {
+	if s.venueName == nil {
+		return key
+	}
+	return cmp.Or(s.venueName(key), key)
 }
 
 // staticAssets maps each static file to a content-hashed name, so it can be cached forever.

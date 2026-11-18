@@ -5,16 +5,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"text/tabwriter"
 	"time"
 
+	"concerts/internal/agenda"
 	"concerts/internal/store"
 	"concerts/internal/web"
 )
@@ -27,6 +30,10 @@ const usage = `usage:
   concerts delete-member <group-id> <first-name>
   concerts rename-member <group-id> <first-name> <new-first-name>   keeps their answers and concerts
   concerts backup <file>                         write a consistent snapshot of the database; <file> must not exist
+  concerts list-venues                           venues groups can follow, with the ids of the groups following each
+  concerts follow-venue <group-id> <venue-key>   import the venue's upcoming concerts into the group, from the next sync
+  concerts unfollow-venue <group-id> <venue-key> stop; deletes its imported concerts nobody answered or edited
+  concerts sync                                  import the followed venues' concerts (run daily by a timer)
   concerts demo                                  add a demo group (development)
 
 environment:
@@ -60,6 +67,7 @@ func run(args []string, log *slog.Logger) error {
 
 	var cmd func(*store.Store) error
 	needsURL := false
+	now := time.Now // the store's clock
 	switch {
 	case len(args) == 1 && args[0] == "serve":
 		needsURL = true
@@ -85,9 +93,21 @@ func run(args []string, log *slog.Logger) error {
 			}
 			return nil
 		}
+	case len(args) == 1 && args[0] == "list-venues":
+		cmd = func(st *store.Store) error { return listVenues(ctx, st, os.Stdout) }
+	case len(args) == 3 && args[0] == "follow-venue":
+		cmd = func(st *store.Store) error { return followVenue(ctx, st, args[1], args[2]) }
+	case len(args) == 3 && args[0] == "unfollow-venue":
+		cmd = func(st *store.Store) error { return unfollowVenue(ctx, st, args[1], args[2]) }
+	case len(args) == 1 && args[0] == "sync":
+		cmd = func(st *store.Store) error {
+			return agenda.Sync(ctx, st, agenda.NewClient(), agenda.Venues, time.Now, agenda.Sleep, log)
+		}
 	case len(args) == 1 && args[0] == "demo":
 		needsURL = true
-		cmd = func(st *store.Store) error { return demo(ctx, st, baseURL, time.Now()) }
+		clock := &demoClock{base: time.Now}
+		now = clock.now
+		cmd = func(st *store.Store) error { return demo(ctx, st, baseURL, clock) }
 	default:
 		fmt.Fprint(os.Stderr, usage)
 		return errors.New("invalid arguments")
@@ -98,7 +118,7 @@ func run(args []string, log *slog.Logger) error {
 		}
 	}
 
-	st, err := store.Open(ctx, dbPath, time.Now)
+	st, err := store.Open(ctx, dbPath, now)
 	if err != nil {
 		return err
 	}
@@ -182,6 +202,51 @@ func renameMember(ctx context.Context, st *store.Store, groupID, name, newName s
 	return nil
 }
 
+func listVenues(ctx context.Context, st *store.Store, w io.Writer) error {
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	_, _ = fmt.Fprintln(tw, "KEY\tNAME\tGROUPS")
+	for _, v := range agenda.Venues {
+		ids, err := st.Followers(ctx, v.Key)
+		if err != nil {
+			return err
+		}
+		groups := make([]string, len(ids))
+		for i, id := range ids {
+			groups[i] = strconv.FormatInt(id, 10)
+		}
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\n", v.Key, v.Name, strings.Join(groups, ","))
+	}
+	return tw.Flush()
+}
+
+func followVenue(ctx context.Context, st *store.Store, groupID, key string) error {
+	id, err := parseGroupID(groupID)
+	if err != nil {
+		return err
+	}
+	if agenda.Name(key) == "" {
+		return fmt.Errorf("venue %q: unknown (see list-venues)", key)
+	}
+	if err := st.Follow(ctx, id, key); err != nil {
+		return fmt.Errorf("group %d: %w", id, err)
+	}
+	return nil
+}
+
+// unfollowVenue takes any key: a venue no longer compiled in can still be followed.
+func unfollowVenue(ctx context.Context, st *store.Store, groupID, key string) error {
+	id, err := parseGroupID(groupID)
+	if err != nil {
+		return err
+	}
+	n, err := st.Unfollow(ctx, id, key)
+	if err != nil {
+		return fmt.Errorf("group %d, venue %q: %w", id, key, err)
+	}
+	fmt.Fprintf(os.Stderr, "Deleted %d imported concerts nobody answered or edited.\n", n)
+	return nil
+}
+
 // listen returns the socket systemd passes (fd 3, see sd_listen_fds(3)), else a TCP listener on addr.
 func listen(addr string) (net.Listener, error) {
 	// PID 1 is the process systemd started: systemd 257 with PrivatePIDs=yes sets LISTEN_PID to a host PID.
@@ -200,7 +265,7 @@ func listen(addr string) (net.Listener, error) {
 }
 
 func serve(ctx context.Context, log *slog.Logger, st *store.Store, addr, baseURL string) error {
-	h, err := web.New(st, log, web.Config{BaseURL: baseURL, Now: time.Now})
+	h, err := web.New(st, log, web.Config{BaseURL: baseURL, Now: time.Now, VenueName: agenda.Name})
 	if err != nil {
 		return err
 	}

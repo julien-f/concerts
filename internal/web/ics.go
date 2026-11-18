@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"concerts/internal/store"
+	"concerts/internal/validate"
 )
 
 const (
@@ -48,7 +49,7 @@ func ics(groupID int64, c store.Concert, stamp time.Time) string {
 		fmt.Sprintf("UID:concert-%d-%d", groupID, c.ID),
 		"DTSTAMP:" + stamp.UTC().Format(icsUTC),
 	}
-	if start, err := time.ParseInLocation(time.DateOnly+" 15:04", c.Date+" "+c.Time, paris); err == nil {
+	if start, err := time.ParseInLocation(time.DateOnly+" 15:04", c.Date+" "+c.Time, validate.Paris); err == nil {
 		lines = append(lines,
 			"DTSTART:"+start.UTC().Format(icsUTC),
 			"DTEND:"+start.Add(concertLength).UTC().Format(icsUTC))

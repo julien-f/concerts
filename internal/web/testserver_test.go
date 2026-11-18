@@ -155,7 +155,7 @@ func (ts *testServer) browser(t *testing.T) *browser {
 
 func (b *browser) do(t *testing.T, req *http.Request) (*http.Response, string) {
 	t.Helper()
-	resp, err := b.client.Do(req)
+	resp, err := b.client.Do(req) //nolint:gosec // G704: requests go to the test server only
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +192,7 @@ func (b *browser) follow(t *testing.T, path string) (*http.Response, string) {
 // postRequest builds a form submission.
 func (b *browser) postRequest(t *testing.T, path string, form url.Values) *http.Request {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodPost, b.ts.URL+path, strings.NewReader(form.Encode()))
+	req, err := http.NewRequest(http.MethodPost, b.ts.URL+path, strings.NewReader(form.Encode())) //nolint:gosec // G704: the test server's URL
 	if err != nil {
 		t.Fatal(err)
 	}

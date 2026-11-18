@@ -7,7 +7,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"concerts/internal/prefill"
+	"concerts/internal/validate"
 )
 
 // maxFormBytes caps request bodies; the largest form, a full description, takes about 24 kB.
@@ -23,47 +23,15 @@ func parseForm(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
-// cleanText trims v and collapses whitespace runs; it reports false unless the
-// result is valid UTF-8 of 1 to maxRunes runes without prefill.Invisible characters.
-// The result is returned either way, so a form sent back keeps what was typed.
-func cleanText(v string, maxRunes int) (string, bool) {
-	return valid(strings.Join(strings.Fields(v), " "), maxRunes)
-}
-
-// cleanParagraphs is cleanText for multi-line text: it keeps line feeds, folds runs of
-// blank lines into one and trims the whole.
-func cleanParagraphs(v string, maxRunes int) (string, bool) {
-	return valid(paragraphs(v), maxRunes)
-}
-
-// paragraphs collapses whitespace within each line (dropping CR) and keeps one blank line at most between lines.
-func paragraphs(v string) string {
-	var lines []string
-	for l := range strings.SplitSeq(v, "\n") {
-		l = strings.Join(strings.Fields(l), " ")
-		if l != "" || (len(lines) > 0 && lines[len(lines)-1] != "") {
-			lines = append(lines, l)
-		}
-	}
-	return strings.TrimRight(strings.Join(lines, "\n"), "\n")
-}
-
-// lines splits a text cleaned by paragraphs into its non-blank lines, one HTML paragraph each.
+// lines splits a text cleaned by validate.Paragraphs into its non-blank lines, one HTML paragraph each.
 func lines(v string) []string {
 	return slices.DeleteFunc(strings.Split(v, "\n"), func(l string) bool { return l == "" })
 }
 
-// valid returns v and whether it is valid UTF-8 of 1 to maxRunes runes without
-// prefill.Invisible characters other than line feeds.
-func valid(v string, maxRunes int) (string, bool) {
-	return v, utf8.ValidString(v) && v != "" && utf8.RuneCountInString(v) <= maxRunes &&
-		!strings.ContainsFunc(v, func(r rune) bool { return r != '\n' && prefill.Invisible(r) })
-}
-
-// CleanName is cleanText for first names, which must also start with a letter or digit;
+// CleanName is validate.Text for first names, which must also start with a letter or digit;
 // exported for the operator's rename-member.
 func CleanName(v string) (string, bool) {
-	v, ok := cleanText(v, maxNameRunes)
+	v, ok := validate.Text(v, maxNameRunes)
 	r, _ := utf8.DecodeRuneInString(v)
 	return v, ok && unicode.In(r, unicode.L, unicode.Nd)
 }

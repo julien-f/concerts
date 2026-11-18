@@ -1,0 +1,171 @@
+{
+ "events": [
+  {
+   "id": 61600,
+   "url": "https://www.mc2grenoble.fr/spectacle/raphael-cyril-teste-karaoke/",
+   "title": "Raphaël &#8211; Karaoké",
+   "all_day": false,
+   "start_date": "2026-11-19 20:00:00",
+   "end_date": "2026-11-19 20:00:00",
+   "timezone": "Europe/Paris",
+   "cost": "42€",
+   "categories": [
+    {
+     "name": "Musique",
+     "slug": "musique"
+    }
+   ],
+   "venue": {
+    "venue": "Auditorium",
+    "slug": "auditorium"
+   }
+  },
+  {
+   "id": 61424,
+   "url": "https://www.mc2grenoble.fr/spectacle/ultimo-helecho/",
+   "title": "Último helecho",
+   "all_day": false,
+   "start_date": "2026-11-19 20:00:00",
+   "end_date": "2026-11-19 20:00:00",
+   "timezone": "Europe/Paris",
+   "cost": "34€",
+   "categories": [
+    {
+     "name": "Danse",
+     "slug": "danse"
+    },
+    {
+     "name": "Musique",
+     "slug": "musique"
+    }
+   ],
+   "venue": {
+    "venue": "Salle Georges Lavaudant",
+    "slug": "salle-georges-lavaudant"
+   }
+  },
+  {
+   "id": 10026939,
+   "url": "https://www.mc2grenoble.fr/spectacle/lange-du-foyer/2026-11-19/",
+   "title": "L&rsquo;Ange du foyer",
+   "all_day": false,
+   "start_date": "2026-11-19 20:00:00",
+   "end_date": "2026-11-19 20:00:00",
+   "timezone": "Europe/Paris",
+   "cost": "30€",
+   "categories": [
+    {
+     "name": "Théâtre",
+     "slug": "theatre"
+    }
+   ],
+   "venue": {
+    "venue": "Salle René Rizzardo",
+    "slug": "salle-rene-rizzardo"
+   }
+  },
+  {
+   "id": 61602,
+   "url": "https://www.mc2grenoble.fr/spectacle/jouer-la-lumiere/",
+   "title": "Jouer la lumière",
+   "all_day": false,
+   "start_date": "2026-12-06 11:00:00",
+   "end_date": "2026-12-06 11:00:00",
+   "timezone": "Europe/Paris",
+   "cost": "13€",
+   "categories": [
+    {
+     "name": "Musique",
+     "slug": "musique"
+    }
+   ],
+   "venue": {
+    "venue": "Auditorium",
+    "slug": "auditorium"
+   }
+  },
+  {
+   "id": 10026968,
+   "url": "https://www.mc2grenoble.fr/spectacle/la-bouche/2026-12-17/",
+   "title": "La Bouche",
+   "all_day": false,
+   "start_date": "2026-12-17 20:00:00",
+   "end_date": "2026-12-17 20:00:00",
+   "timezone": "Europe/Paris",
+   "cost": "30€",
+   "categories": [
+    {
+     "name": "Cabaret",
+     "slug": "cabaret"
+    },
+    {
+     "name": "Danse",
+     "slug": "danse"
+    },
+    {
+     "name": "Musique",
+     "slug": "musique"
+    }
+   ],
+   "venue": {
+    "venue": "Salle René Rizzardo",
+    "slug": "salle-rene-rizzardo"
+   }
+  },
+  {
+   "id": 10026969,
+   "url": "https://www.mc2grenoble.fr/spectacle/la-bouche/2026-12-18/",
+   "title": "La Bouche",
+   "all_day": false,
+   "start_date": "2026-12-18 20:00:00",
+   "end_date": "2026-12-18 20:00:00",
+   "timezone": "Europe/Paris",
+   "cost": "30€",
+   "categories": [
+    {
+     "name": "Cabaret",
+     "slug": "cabaret"
+    },
+    {
+     "name": "Danse",
+     "slug": "danse"
+    },
+    {
+     "name": "Musique",
+     "slug": "musique"
+    }
+   ],
+   "venue": {
+    "venue": "Salle René Rizzardo",
+    "slug": "salle-rene-rizzardo"
+   }
+  },
+  {
+   "id": 61604,
+   "url": "https://www.mc2grenoble.fr/spectacle/symphonie-africaine/",
+   "title": "Symphonie africaine",
+   "all_day": false,
+   "start_date": "2026-12-19 20:00:00",
+   "end_date": "2026-12-19 20:00:00",
+   "timezone": "Europe/Paris",
+   "cost": "45€",
+   "categories": [
+    {
+     "name": "Jazz",
+     "slug": "jazz"
+    },
+    {
+     "name": "Musique",
+     "slug": "musique"
+    }
+   ],
+   "venue": {
+    "venue": "Salle Georges Lavaudant",
+    "slug": "salle-georges-lavaudant"
+   }
+  }
+ ],
+ "rest_url": "https://www.mc2grenoble.fr/wp-json/tribe/events/v1/events/?page=1&per_page=50&start_date=2026-11-18 00:00:00&end_date=2028-11-18 23:59:59&status=publish",
+ "total": 7,
+ "total_pages": 1
+}

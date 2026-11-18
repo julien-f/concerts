@@ -25,7 +25,7 @@ import (
 // Price is for display (« 29–32 € »); Description keeps line feeds, at any length (the caller caps it).
 // TicketURL is the ticketing page a venue page links to, read in its place (see Fetch).
 type Result struct {
-	Artist, Date, Time, Venue, Address, OnSaleDate, Price, Description, TicketURL string
+	Artist, Date, Time, Venue, Address, OnSaleDate, Price, Description, Genre, TicketURL string
 }
 
 // page holds the raw metadata found in a document.
@@ -141,8 +141,8 @@ func scan(r io.Reader, withTexts bool) page {
 	}
 }
 
-// parse extracts a Result from a page of host; now is in Europe/Paris and drops past on-sale dates.
-func parse(r io.Reader, host string, now time.Time) Result {
+// Parse extracts a Result from a page of host; now is in Europe/Paris and drops past on-sale dates.
+func Parse(r io.Reader, host string, now time.Time) Result {
 	rule := siteRule(host)
 	p := scan(r, rule != nil)
 	var res Result
@@ -238,6 +238,7 @@ func fromEvent(ev map[string]any, now time.Time) Result {
 	}
 	res.OnSaleDate = onSale(ev["offers"], now)
 	res.Price = price(ev["offers"])
+	res.Genre = genre(ev["genre"])
 	res.Description = unglue(prose(str(ev["description"])))
 	return res
 }
@@ -440,6 +441,21 @@ func performers(v any) string {
 		}
 	}
 	return strings.Join(names, " + ")
+}
+
+// genre joins schema.org genres, a string or an array of them, with « , ».
+func genre(v any) string {
+	a, ok := v.([]any)
+	if !ok {
+		a = []any{v}
+	}
+	var gs []string
+	for _, g := range a {
+		if s := clean(str(g)); s != "" && !slices.Contains(gs, s) {
+			gs = append(gs, s)
+		}
+	}
+	return strings.Join(gs, ", ")
 }
 
 // str is a JSON-LD string with HTML entities decoded: WordPress encodes them (« &#8217; », « &amp; »).

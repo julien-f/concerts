@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 	"unicode/utf8"
+
+	"concerts/internal/store"
 )
 
 // TestConcertLifecycle walks add, show, edit, delete and undo as a browser without JS.
@@ -152,6 +154,102 @@ func TestConcertDescriptionPrice(t *testing.T) {
 	b.postRedirect(t, g+"/concerts/1/revisions/1/revert", nil)
 	_, body = b.follow(t, g+"/concerts/1")
 	assertContains(t, body, "<p>Prix : 29–32 €</p>", `<details class="about">`)
+}
+
+// TestConcertSoldOut: « Complet » is a checkbox of the form, shown as a tag and kept in the history.
+func TestConcertSoldOut(t *testing.T) {
+	t.Parallel()
+	ts := newTestServer(t)
+	b, secret := ts.member(t, "Léa")
+	g := "/g/" + secret
+
+	_, body := b.get(t, g+"/concerts/new")
+	assertContains(t, body, `<label class="check"><input id="sold_out" name="sold_out" type="checkbox" value="1">Complet <span class="hint">(plus de billets en vente)</span></label>`)
+	form := concertValues("Zaz", "2026-06-13", "", "L'Olympia", "", "")
+	form.Set("sold_out", "1")
+	b.postRedirect(t, g+"/concerts", form)
+	b.postRedirect(t, g+"/concerts", concertValues("Air", "2026-06-14", "", "Pleyel", "", ""))
+	ts.importInto(t, secret, "salle-a", store.Concert{Artist: "Importé", Date: "2026-06-15", Venue: "Salle A", Price: "20 €", SoldOut: true})
+
+	tests := []struct {
+		name, path string
+		want       []string
+	}{
+		{"card", g, []string{`L&#39;Olympia <span class="sold">Complet</span></p>`}},
+		{"affiche card", g + "?affiche=1", []string{`Salle A <span class="price">· 20 €</span> <span class="sold">Complet</span></p>`}},
+		{"page without price", g + "/concerts/1", []string{`<p><span class="sold">Complet</span></p>`}},
+		{"page with a price", g + "/concerts/3", []string{"<p>Prix : 20 € <span class=\"sold\">Complet</span></p>"}},
+		{"form", g + "/concerts/1/edit", []string{`id="sold_out" name="sold_out" type="checkbox" value="1" checked>`}},
+	}
+	for _, tc := range tests {
+		_, body := b.follow(t, tc.path)
+		assertContains(t, body, tc.want...)
+	}
+	if _, body := b.follow(t, g+"/concerts/2"); strings.Contains(body, `class="sold"`) {
+		t.Error("a concert not sold out is tagged « Complet »")
+	}
+
+	// Unticking it is an edit like any other: in the history, and undone by going back.
+	b.postRedirect(t, g+"/concerts/1", concertValues("Zaz", "2026-06-13", "", "L'Olympia", "", ""))
+	_, body = b.get(t, g+"/concerts/1/history")
+	assertContains(t, body, "<li>Complet : oui → non</li>")
+	b.postRedirect(t, g+"/concerts/1/revisions/1/revert", nil)
+	_, body = b.follow(t, g+"/concerts/1")
+	assertContains(t, body, `<span class="sold">Complet</span>`)
+}
+
+// TestConcertGenre: « Genre » is an optional text field, on its own line under the meta line, kept in the history.
+func TestConcertGenre(t *testing.T) {
+	t.Parallel()
+	ts := newTestServer(t)
+	b, secret := ts.member(t, "Léa")
+	g := "/g/" + secret
+
+	_, body := b.get(t, g+"/concerts/new")
+	assertContains(t, body, `<label for="genre">Genre <span class="hint">(facultatif)</span></label>`+"\n"+
+		`<input id="genre" name="genre" type="text" value="" maxlength="60">`)
+	form := concertValues("Zaz", "2026-06-13", "", "L'Olympia", "", "")
+	form.Set("price", "29 €")
+	form.Set("genre", "  Jazz,   Chanson ")
+	b.postRedirect(t, g+"/concerts", form)
+	b.postRedirect(t, g+"/concerts", concertValues("Air", "2026-06-14", "", "Pleyel", "", ""))
+	ts.importInto(t, secret, "salle-a", store.Concert{Artist: "Importé", Date: "2026-06-15", Venue: "Salle A", Genre: "Électro, DJ set"})
+
+	tests := []struct {
+		name, path string
+		want       []string
+	}{
+		{"card", g, []string{`<span class="price">· 29 €</span></p>` + "\n" + `<p class="meta genre">Jazz, Chanson</p>`}},
+		{"affiche card, before « annoncé par »", g + "?affiche=1",
+			[]string{"Salle A</p>\n<p class=\"meta genre\">Électro, DJ set</p>\n<p class=\"meta announced\">annoncé par"}},
+		{"page", g + "/concerts/1", []string{"<p>Prix : 29 €</p>\n<p class=\"meta genre\">Jazz, Chanson</p>"}},
+		{"form", g + "/concerts/1/edit", []string{`id="genre" name="genre" type="text" value="Jazz, Chanson" maxlength="60">`}},
+	}
+	for _, tc := range tests {
+		_, body := b.follow(t, tc.path)
+		assertContains(t, body, tc.want...)
+	}
+	for _, path := range []string{g + "/concerts/2", g} {
+		if _, body := b.follow(t, path); strings.Contains(body, `class="meta genre"></p>`) {
+			t.Errorf("%s: empty genre line", path)
+		}
+	}
+
+	form.Set("genre", strings.Repeat("é", 61))
+	resp, body := b.post(t, g+"/concerts/1", form)
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("61-rune genre: status = %d", resp.StatusCode)
+	}
+	assertContains(t, body, "Genre invalide (60 caractères au plus).")
+
+	// Clearing it is an edit like any other: in the history, and undone by going back.
+	form.Del("genre")
+	b.postRedirect(t, g+"/concerts/1", form)
+	_, body = b.get(t, g+"/concerts/1/history")
+	assertContains(t, body, "<li>Genre : Jazz, Chanson → (vide)</li>")
+	b.postRedirect(t, g+"/concerts/1/revisions/1/revert", nil)
+	_, body = b.follow(t, g+"/concerts/1")
+	assertContains(t, body, `<p class="meta genre">Jazz, Chanson</p>`)
 }
 
 func TestConcertValidation(t *testing.T) {

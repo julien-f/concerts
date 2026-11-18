@@ -3,7 +3,7 @@
 
 # First line of every unit install.sh writes: what is not marked belongs to someone else.
 MARKER='# Installed by concerts install.sh, which replaces the NAME and PROXY_USER placeholders.'
-UNITS='.socket .service -backup.service -backup.timer'
+UNITS='.socket .service -backup.service -backup.timer -sync.service -sync.timer'
 
 die() {
 	echo "${0##*/}: $*" >&2

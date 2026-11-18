@@ -29,8 +29,8 @@ func TestMigrateFromPreviousSlice(t *testing.T) {
 	if _, err := db.ExecContext(ctx, `
 		INSERT INTO groups (id, name, secret_hash, created_at) VALUES (1, 'Old', ?, '2026-01-01T00:00:00Z');
 		INSERT INTO members (id, group_id, name, name_key, created_at) VALUES (1, 1, 'Léa', 'léa', '2026-01-01T00:00:00Z');
-		INSERT INTO concerts (id, group_id, artist, date, venue, created_by, created_at)
-			VALUES (1, 1, 'A', '2026-03-14', 'V', 1, '2026-01-01T00:00:00Z');
+		INSERT INTO concerts (id, group_id, token, artist, date, venue, created_by, created_at)
+			VALUES (1, 1, '0123456789abcdef01234567', 'A', '2026-03-14', 'V', 1, '2026-01-01T00:00:00Z');
 		INSERT INTO statuses (concert_id, member_id, status) VALUES (1, 1, 'going');
 		INSERT INTO concert_revisions (id, concert_id, artist, date, venue, edited_by, edited_at)
 			VALUES (1, 1, 'Before', '2026-03-14', 'V', 1, '2026-01-02T00:00:00Z');`,
@@ -51,7 +51,7 @@ func TestMigrateFromPreviousSlice(t *testing.T) {
 		t.Fatal(err)
 	}
 	c, err := s.Concert(ctx, g.ID, 1)
-	if err != nil || c.AddedBy != "Léa" || c.Price != "" || c.Description != "" || c.LastRevID != 1 || len(c.Token) != 24 {
+	if err != nil || c.AddedBy != "Léa" || c.Price != "" || c.Description != "" || c.Source != "" || c.LastRevID != 1 || c.Token != "0123456789abcdef01234567" {
 		t.Fatalf("Concert = %+v, %v", c, err)
 	}
 	if ss, err := s.Statuses(ctx, g.ID, 1); err != nil || len(ss) != 1 || ss[0].Status != Going {

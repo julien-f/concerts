@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"net/url"
+	"slices"
 	"strings"
 
 	"concerts/internal/store"
@@ -28,21 +30,30 @@ type statusBlock struct {
 	Base      string
 	ConcertID int64
 	Artist    string
-	Back      string // where a no-JS answer returns: "list", "mine" or "concert"
+	Back      string // where a no-JS answer returns: "list", "mine", "concert" or "affiche"
+	Salle     string // under « À l'affiche », the view's venue filter, kept by a no-JS answer
 	Lines     []statusLine
 	Buttons   []statusButton
+	Note      string // after a swap that sent the import back to « À l'affiche »
+	Said      string // after a swap under « À l'affiche », written out of band into its status region
+}
+
+// statusOf is memberID's answer among statuses, "" if none.
+func statusOf(statuses []store.Status, memberID int64) string {
+	for _, st := range statuses {
+		if st.Member.ID == memberID {
+			return st.Status
+		}
+	}
+	return ""
 }
 
 // newStatusBlock builds the block; buttons only for an identified member and an upcoming concert.
 func newStatusBlock(gr *groupRequest, c store.Concert, statuses []store.Status, back string, upcoming bool) statusBlock {
 	b := statusBlock{Base: gr.Base, ConcertID: c.ID, Artist: c.Artist, Back: back}
 	names := map[string][]string{}
-	mine := ""
 	for _, st := range statuses {
 		names[st.Status] = append(names[st.Status], st.Member.Name)
-		if gr.Me != nil && st.Member.ID == gr.Me.ID {
-			mine = st.Status
-		}
 	}
 	for i := len(statusLabels) - 1; i >= 0; i-- {
 		l := statusLabels[i]
@@ -55,6 +66,7 @@ func newStatusBlock(gr *groupRequest, c store.Concert, statuses []store.Status, 
 		}
 	}
 	if gr.Me != nil && upcoming {
+		mine := statusOf(statuses, gr.Me.ID)
 		for _, l := range statusLabels {
 			b.Buttons = append(b.Buttons, statusButton{l.Status, l.Button, l.Status == mine})
 		}
@@ -74,7 +86,8 @@ func validStatus(v string) bool {
 	return false
 }
 
-// setStatus records my answer; htmx gets the new status block, a browser without JS a 303 back.
+// setStatus records my answer; htmx gets the new status block (under « À l'affiche », with the
+// status region's text out of band), a browser without JS a 303 back.
 func (s *server) setStatus(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
 	c, ok := s.concert(w, r, gr)
 	if !ok || !parseForm(w, r) {
@@ -91,11 +104,18 @@ func (s *server) setStatus(w http.ResponseWriter, r *http.Request, gr *groupRequ
 		back, target = "concert", fmt.Sprintf("%s/concerts/%d", gr.Base, c.ID) // sets the group cookie on its way to /c
 	case "mine":
 		back, target = "mine", fmt.Sprintf("%s?mine=1#c%d", gr.Base, c.ID)
+	case "affiche":
+		back = "affiche"
 	}
 	// Past concerts show no buttons, but a late answer (a tab left open past midnight)
 	// is harmless, so the server still takes it.
 	err := s.store.SetStatus(r.Context(), gr.Group.ID, c.ID, gr.Me.ID, status)
-	if err != nil || !isHTMX(r) {
+	// Without JS, clearing an import's answer in the list may send it back to « À l'affiche ».
+	leaving := c.Source != "" && status == "" && (back == "list" || back == "mine")
+	if err == nil && back == "affiche" && !isHTMX(r) {
+		target, err = s.nextCard(r, gr, c, r.PostForm.Get("salle"))
+	}
+	if err != nil || (!isHTMX(r) && !leaving) {
 		s.done(w, r, gr, err, target)
 		return
 	}
@@ -104,7 +124,77 @@ func (s *server) setStatus(w http.ResponseWriter, r *http.Request, gr *groupRequ
 		s.fail(w, r, err)
 		return
 	}
-	s.fragment(w, r, "statuses", newStatusBlock(gr, c, ss, back, s.upcoming(c)))
+	switch {
+	case !isHTMX(r):
+		switch {
+		case visible(c, ss):
+		case s.upcoming(c):
+			target = afficheURL(gr, c.ID) // its card left the list: follow it
+		case back == "mine":
+			target = gr.Base + "?mine=1" // past, it is in no view
+		default:
+			target = gr.Base
+		}
+		seeOther(w, r, target)
+	default:
+		b := newStatusBlock(gr, c, ss, back, s.upcoming(c))
+		if leaving && !visible(c, ss) && s.upcoming(c) {
+			b.Note = "Retourné à l'affiche."
+		}
+		if back == "affiche" {
+			b.Salle, b.Said = r.PostForm.Get("salle"), "Retiré de la liste du groupe."
+			mine := statusOf(ss, gr.Me.ID)
+			for _, l := range statusLabels {
+				if l.Status == mine {
+					b.Said = c.Artist + "\u202f: " + l.Button + ". Ajouté à la liste du groupe."
+				}
+			}
+			if mine == "" && len(ss) > 0 {
+				b.Said = c.Artist + "\u202f: réponse retirée, toujours dans la liste du groupe."
+			}
+		}
+		s.fragment(w, r, "statuses", b)
+	}
+}
+
+// nextCard is « À l'affiche », under the venue filter salle if the group follows it, at the
+// first card from c on: the next one once an answer took c out, none past the last.
+func (s *server) nextCard(r *http.Request, gr *groupRequest, c store.Concert, salle string) (string, error) {
+	cs, err := s.store.Concerts(r.Context(), gr.Group.ID)
+	if err != nil {
+		return "", err
+	}
+	ss, err := s.store.Statuses(r.Context(), gr.Group.ID, 0)
+	if err != nil {
+		return "", err
+	}
+	followed, err := s.store.Followed(r.Context(), gr.Group.ID)
+	if err != nil {
+		return "", err
+	}
+	target := gr.Base + "?affiche=1"
+	if !slices.Contains(followed, salle) {
+		salle = ""
+	} else {
+		target += "&salle=" + url.QueryEscape(salle)
+	}
+	answered := map[int64]bool{}
+	for _, st := range ss {
+		answered[st.ConcertID] = true
+	}
+	today, from := s.today(), false
+	for _, o := range cs {
+		from = from || o.ID == c.ID
+		if from && o.Source != "" && !answered[o.ID] && o.Date >= today && (salle == "" || o.Source == salle) {
+			return fmt.Sprintf("%s#c%d", target, o.ID), nil
+		}
+	}
+	return target, nil
+}
+
+// afficheURL is « À l'affiche » at concert id.
+func afficheURL(gr *groupRequest, id int64) string {
+	return fmt.Sprintf("%s?affiche=1#c%d", gr.Base, id)
 }
 
 // fragment renders one shared template (from partials.html) for htmx to swap in.

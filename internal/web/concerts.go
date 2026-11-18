@@ -5,23 +5,27 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
-	"time"
-	"unicode/utf8"
 
 	"concerts/internal/store"
+	"concerts/internal/validate"
 )
 
-// field is one input of the concert form.
+// field is one input of the concert form; a checkbox's Value is "1" when ticked, else "".
 type field struct {
 	Name, Label, Type, Value string
+	Hint                     string // after the label, in parentheses
 	Autocomplete             string // "off" where browsers would offer the user's own data
 	Max                      int    // maxlength, 0 for none
 	Optional                 bool
 	Error                    string
 	Autofocus                bool   // first invalid field, or the artist after a prefill
-	DescribedBy              string // id of an extra description (the prefill outcome)
+	DescribedBy              string // ids of extra descriptions (the prefill outcome, the source's value)
+	// After « Relire la billetterie »: the source's value, differing from Value, offered with « Utiliser ».
+	Offered            bool
+	Source, SourceText string // as the form posts it, as the page shows it
 }
 
 // concertForm is the add (ID 0) and edit page.
@@ -34,20 +38,29 @@ type concertForm struct {
 	PrefillMsg   string         // outcome of that read, or of « Relire la billetterie » (edit form)
 	BadLink      bool           // the prefill link itself is invalid: focus goes there
 	RefreshFocus bool           // nothing filled by « Relire la billetterie »: focus stays on it
+	Summary      string         // above the form, once « Relire la billetterie » offered values
 	Duplicate    *store.Concert // live concert with the same artist and date (add form only)
+	OnAffiche    bool           // Duplicate is an import nobody answered: answering it adds it, not « Ajouter quand même »
+}
+
+// Offers reports whether a field offers the source's value.
+func (f *concertForm) Offers() bool {
+	return slices.ContainsFunc(f.Fields, func(fd field) bool { return fd.Offered })
 }
 
 func newConcertForm(gr *groupRequest, c store.Concert, errs map[string]string) *concertForm {
 	f := &concertForm{groupRequest: gr, ID: c.ID, FormError: errs[""], Fields: []field{
-		{Name: "artist", Label: "Artiste", Type: "text", Value: c.Artist, Max: maxTextRunes},
+		{Name: "artist", Label: "Artiste", Type: "text", Value: c.Artist, Max: validate.MaxTextRunes},
 		{Name: "date", Label: "Date", Type: "date", Value: c.Date},
 		{Name: "time", Label: "Heure", Type: "time", Value: c.Time, Optional: true},
-		{Name: "venue", Label: "Salle", Type: "text", Value: c.Venue, Max: maxTextRunes},
-		{Name: "address", Label: "Adresse", Type: "text", Value: c.Address, Max: maxTextRunes, Optional: true, Autocomplete: "off"},
-		{Name: "ticket_url", Label: "Lien de billetterie", Type: "url", Value: c.TicketURL, Max: maxURLBytes, Optional: true},
+		{Name: "venue", Label: "Salle", Type: "text", Value: c.Venue, Max: validate.MaxTextRunes},
+		{Name: "address", Label: "Adresse", Type: "text", Value: c.Address, Max: validate.MaxTextRunes, Optional: true, Autocomplete: "off"},
+		{Name: "ticket_url", Label: "Lien de billetterie", Type: "url", Value: c.TicketURL, Max: validate.MaxURLBytes, Optional: true},
+		{Name: "price", Label: "Prix", Type: "text", Value: c.Price, Max: validate.MaxPriceRunes, Optional: true},
+		{Name: "genre", Label: "Genre", Type: "text", Value: c.Genre, Max: validate.MaxGenreRunes, Optional: true},
+		{Name: "sold_out", Label: "Complet", Hint: "plus de billets en vente", Type: "checkbox", Value: checked(c.SoldOut), Optional: true},
 		{Name: "on_sale_date", Label: "Mise en vente", Type: "date", Value: c.OnSaleDate, Optional: true},
-		{Name: "price", Label: "Prix", Type: "text", Value: c.Price, Max: maxPriceRunes, Optional: true},
-		{Name: "description", Label: "Description", Type: "textarea", Value: c.Description, Max: maxDescriptionRunes, Optional: true},
+		{Name: "description", Label: "Description", Type: "textarea", Value: c.Description, Max: validate.MaxDescriptionRunes, Optional: true},
 	}}
 	focused := false
 	for i := range f.Fields {
@@ -64,70 +77,19 @@ func newConcertForm(gr *groupRequest, c store.Concert, errs map[string]string) *
 	return f
 }
 
-const (
-	maxTextRunes        = 100
-	maxURLBytes         = 2000
-	maxPriceRunes       = 30
-	maxDescriptionRunes = 2000
-)
+// checked is a checkbox field's Value.
+func checked(b bool) string {
+	if b {
+		return "1"
+	}
+	return ""
+}
 
 // parseConcert validates the concert form; errs is keyed by field name.
-func parseConcert(f url.Values) (c store.Concert, errs map[string]string) {
-	errs = map[string]string{}
-	var ok bool
-	if c.Artist, ok = cleanText(f.Get("artist"), maxTextRunes); !ok {
-		errs["artist"] = fmt.Sprintf("Indique l'artiste (%d caractères au plus).", maxTextRunes)
-	}
-	if c.Date = f.Get("date"); !validDate(c.Date) {
-		errs["date"] = "Indique une date valide."
-	}
-	if c.Time = f.Get("time"); c.Time != "" {
-		// Stored as HH:MM so text order is time order: "9:30" would sort after "20:00".
-		if t, err := time.Parse("15:04", c.Time); err != nil {
-			errs["time"] = "Heure invalide (ex. 20:30)."
-		} else {
-			c.Time = t.Format("15:04")
-		}
-	}
-	if c.Venue, ok = cleanText(f.Get("venue"), maxTextRunes); !ok {
-		errs["venue"] = fmt.Sprintf("Indique la salle (%d caractères au plus).", maxTextRunes)
-	}
-	if a := f.Get("address"); strings.TrimSpace(a) != "" {
-		if c.Address, ok = cleanText(a, maxTextRunes); !ok {
-			errs["address"] = fmt.Sprintf("Adresse invalide (%d caractères au plus).", maxTextRunes)
-		}
-	}
-	if c.TicketURL = strings.TrimSpace(f.Get("ticket_url")); c.TicketURL != "" && !validTicketURL(c.TicketURL) {
-		errs["ticket_url"] = "Lien invalide : il doit commencer par http:// ou https://."
-	}
-	if c.OnSaleDate = f.Get("on_sale_date"); c.OnSaleDate != "" && !validDate(c.OnSaleDate) {
-		errs["on_sale_date"] = "Date de mise en vente invalide."
-	}
-	if p := f.Get("price"); strings.TrimSpace(p) != "" {
-		if c.Price, ok = cleanText(p, maxPriceRunes); !ok {
-			errs["price"] = fmt.Sprintf("Prix invalide (%d caractères au plus).", maxPriceRunes)
-		}
-	}
-	if d := f.Get("description"); strings.TrimSpace(d) != "" {
-		if c.Description, ok = cleanParagraphs(d, maxDescriptionRunes); !ok {
-			errs["description"] = fmt.Sprintf("Description invalide (%d caractères au plus).", maxDescriptionRunes)
-		}
-	}
-	return c, errs
-}
-
-func validDate(s string) bool {
-	d, err := time.Parse(time.DateOnly, s)
-	return err == nil && d.Year() >= 2000 && d.Year() < 2100
-}
-
-// validTicketURL keeps javascript:, data: and look-alike links (« fnac.com@evil.example », non-ASCII hosts) off pages.
-func validTicketURL(s string) bool {
-	if len(s) > maxURLBytes || !utf8.ValidString(s) || strings.ContainsFunc(s, func(r rune) bool { return r <= ' ' || r == 0x7f }) {
-		return false
-	}
-	u, err := url.Parse(s)
-	return err == nil && httpURL(u) && !strings.ContainsFunc(u.Host, func(r rune) bool { return r > '~' })
+func parseConcert(f url.Values) (store.Concert, map[string]string) {
+	return validate.Concert(store.Concert{Artist: f.Get("artist"), Date: f.Get("date"), Time: f.Get("time"),
+		Venue: f.Get("venue"), Address: f.Get("address"), TicketURL: f.Get("ticket_url"), OnSaleDate: f.Get("on_sale_date"),
+		Price: f.Get("price"), Description: f.Get("description"), Genre: f.Get("genre"), SoldOut: f.Get("sold_out") != ""})
 }
 
 // pathID parses the {id} path value; it answers 404 and returns false if invalid.
@@ -210,10 +172,17 @@ func (s *server) createConcert(w http.ResponseWriter, r *http.Request, gr *group
 	}
 	if r.PostForm.Get("anyway") == "" {
 		d, err := s.store.SameConcert(r.Context(), gr.Group.ID, c.Artist, c.Date)
+		var ss []store.Status
+		if err == nil {
+			ss, err = s.store.Statuses(r.Context(), gr.Group.ID, d.ID)
+		}
 		switch {
 		case err == nil:
 			f := newConcertForm(gr, c, nil)
 			f.Duplicate, f.Notice = &d, "Déjà dans la liste"
+			if !visible(d, ss) && s.upcoming(d) { // a past one is in no view: the member may add it anyway
+				f.OnAffiche, f.Notice = true, "Déjà à l'affiche"
+			}
 			s.render(w, r, http.StatusUnprocessableEntity, "form", f)
 			return
 		case !errors.Is(err, store.ErrNotFound):
@@ -230,6 +199,8 @@ type concertPage struct {
 	concertFacts
 	Statuses statusBlock
 	Share    shareLink
+	Affiche  bool  // an upcoming import nobody answered: back to « À l'affiche », not the list
+	Listed   bool  // in the list: the back link aims at its card
 	Saved    bool  // banner after an edit
 	Reverted bool  // banner after going back to a revision
 	UndoRev  int64 // revision the banner offers to go back to, 0 for none
@@ -346,7 +317,7 @@ func (s *server) showConcertPage(w http.ResponseWriter, r *http.Request, gr *gro
 		return
 	}
 	p := &concertPage{groupRequest: gr, concertFacts: s.facts(c), Statuses: newStatusBlock(gr, c, ss, "concert", s.upcoming(c)),
-		Share: s.shareLink(c)}
+		Share: s.shareLink(c), Affiche: !visible(c, ss) && s.upcoming(c), Listed: visible(c, ss)}
 	q := r.URL.Query()
 	var rev string
 	switch {
@@ -396,8 +367,11 @@ func revisedURL(gr *groupRequest, id int64, banner string, rev int64) string {
 	return u
 }
 
-// refreshConcert is « Relire la billetterie »: it fills the empty fields of the edit form,
-// as posted, from its ticket link, and shows the form again without saving.
+// refreshConcert is « Relire la billetterie »: it fills the empty fields of the edit form, as
+// posted, from what the ticketing source says (and replaces a venue page's ticket link by the billetterie it names), offers its other differing values under their
+// field, and shows the form again without saving. The source is the venue's agenda for an
+// import the sync kept it of, else the ticket link's page. With use=<field>, « Utiliser »
+// takes that field's offered value, posted back with the form, and reads nothing.
 func (s *server) refreshConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
 	saved, ok := s.concert(w, r, gr)
 	if !ok || !parseForm(w, r) {
@@ -405,41 +379,123 @@ func (s *server) refreshConcert(w http.ResponseWriter, r *http.Request, gr *grou
 	}
 	c, errs := parseConcert(r.PostForm)
 	c.ID = saved.ID
-	if errs["ticket_url"] == "" && c.TicketURL == "" {
-		errs["ticket_url"] = "Indique d'abord le lien de billetterie."
-	}
-	// Other errors wait for « Enregistrer »; 200 like the add form's prefill, as htmx swaps no 4xx.
-	if errs["ticket_url"] != "" {
-		s.render(w, r, http.StatusOK, "form", newConcertForm(gr, c, map[string]string{"ticket_url": errs["ticket_url"]}))
-		return
-	}
-	page, problem, _ := s.prefill(r, gr, c.TicketURL)
-	f := newConcertForm(gr, c, nil)
-	var labels []string
-	if problem == "" {
-		fromPage := newConcertForm(nil, page, nil).Fields // same fields, same order
-		for i := range f.Fields {
-			// The ticket link is never empty here: a venue page's is replaced by the billetterie it names.
-			fd := &f.Fields[i]
-			if fromPage[i].Value != "" && (fd.Value == "" || fd.Name == "ticket_url" && fromPage[i].Value != fd.Value) {
-				fd.Value = fromPage[i].Value
-				if labels == nil {
-					fd.Autofocus, fd.DescribedBy = true, "prefill-msg"
-				}
-				labels = append(labels, fd.Label)
+	if use := r.PostForm.Get("use"); use != "" {
+		f := newConcertForm(gr, c, nil)
+		src := map[string]string{}
+		for _, fd := range f.Fields {
+			if k := "source_" + fd.Name; r.PostForm.Has(k) {
+				src[fd.Name] = r.PostForm.Get(k)
 			}
 		}
+		used := ""
+		for i := range f.Fields {
+			if fd := &f.Fields[i]; fd.Name == use && r.PostForm.Has("source_"+use) && src[use] != fd.Value {
+				fd.Value, fd.Autofocus, fd.DescribedBy, used = src[use], true, "refresh-summary", fd.Label
+			}
+		}
+		diffs := s.offer(f, src, used == "")
+		if used != "" {
+			f.Summary = used + " : valeur de la billetterie reprise. "
+		}
+		f.Summary += differ(diffs)
+		s.render(w, r, http.StatusOK, "form", f)
+		return
 	}
+	src, err := s.store.SourceEvent(r.Context(), gr.Group.ID, saved.ID)
+	soldOutKnown := err == nil
+	hopped := false // the ticket link was a venue page's, replaced by the billetterie it names
 	switch {
-	case problem != "":
-		f.PrefillMsg = problem
-	case labels == nil:
-		f.PrefillMsg = "Rien de plus sur la billetterie."
-	default:
-		f.PrefillMsg = "Complété depuis la billetterie : " + strings.Join(labels, ", ") + ". Vérifie puis enregistre."
+	case errors.Is(err, store.ErrNotFound):
+		if errs["ticket_url"] == "" && c.TicketURL == "" {
+			errs["ticket_url"] = "Indique d'abord le lien de billetterie."
+		}
+		// Other errors wait for « Enregistrer »; 200 like the add form's prefill, as htmx swaps no 4xx.
+		if errs["ticket_url"] != "" {
+			s.render(w, r, http.StatusOK, "form", newConcertForm(gr, c, map[string]string{"ticket_url": errs["ticket_url"]}))
+			return
+		}
+		var problem string
+		if src, problem, _ = s.prefill(r, gr, c.TicketURL); problem != "" {
+			f := newConcertForm(gr, c, nil)
+			f.PrefillMsg, f.RefreshFocus = problem, true
+			s.render(w, r, http.StatusOK, "form", f)
+			return
+		}
+		hopped = src.TicketURL != c.TicketURL
+	case err != nil:
+		s.fail(w, r, err)
+		return
 	}
-	f.RefreshFocus = labels == nil
+	f := newConcertForm(gr, c, nil)
+	values := map[string]string{} // by field name; sold_out only when the source tells
+	for _, fd := range newConcertForm(nil, src, nil).Fields {
+		if fd.Type != "checkbox" || soldOutKnown {
+			values[fd.Name] = fd.Value
+		}
+	}
+	var filled []string
+	firstFilled := 0
+	for i := range f.Fields {
+		fd := &f.Fields[i]
+		if fd.Type != "checkbox" && values[fd.Name] != "" && (fd.Value == "" || hopped && fd.Name == "ticket_url") {
+			fd.Value = values[fd.Name]
+			if filled == nil {
+				firstFilled = i
+			}
+			filled = append(filled, fd.Label)
+		}
+	}
+	diffs := s.offer(f, values, true) // focus on the first difference, if any
+	switch {
+	case diffs != nil:
+		if filled != nil {
+			f.Summary = "Complété depuis la billetterie : " + strings.Join(filled, ", ") + ". "
+		}
+		f.Summary += differ(diffs)
+	case filled == nil:
+		f.PrefillMsg, f.RefreshFocus = "Rien de nouveau sur la billetterie.", true
+	default:
+		f.PrefillMsg = "Complété depuis la billetterie : " + strings.Join(filled, ", ") + ". Vérifie puis enregistre."
+		f.Fields[firstFilled].Autofocus, f.Fields[firstFilled].DescribedBy = true, "prefill-msg"
+	}
 	s.render(w, r, http.StatusOK, "form", f)
+}
+
+// offer marks the fields whose source value differs from the form's, and returns their labels.
+// The description is never compared, and an empty source value is offered only for the
+// checkbox: a value the source leaves out is never cleared. With focus, the first one gets it.
+func (s *server) offer(f *concertForm, src map[string]string, focus bool) (labels []string) {
+	for i := range f.Fields {
+		fd := &f.Fields[i]
+		v, ok := src[fd.Name]
+		if !ok || v == fd.Value || fd.Name == "description" || (v == "" && fd.Type != "checkbox") {
+			continue
+		}
+		fd.Offered, fd.Source, fd.SourceText = true, v, s.fieldText(fd.Name, v)
+		if fd.Name == "sold_out" {
+			fd.SourceText = map[string]string{"": "pas complet", "1": "complet"}[v]
+		}
+		fd.DescribedBy = fd.Name + "-source"
+		if focus && labels == nil {
+			fd.Autofocus, fd.DescribedBy = true, "refresh-summary "+fd.DescribedBy
+		}
+		labels = append(labels, fd.Label)
+	}
+	return labels
+}
+
+// differ is the summary's sentence on the differing fields, then the reminder that nothing is saved.
+func differ(labels []string) string {
+	var b strings.Builder
+	switch len(labels) {
+	case 0:
+	case 1:
+		b.WriteString("1 champ diffère : " + labels[0] + ". ")
+	default:
+		fmt.Fprintf(&b, "%d champs diffèrent : %s. ", len(labels), strings.Join(labels, ", "))
+	}
+	b.WriteString("Rien n'est enregistré avant « Enregistrer ».")
+	return b.String()
 }
 
 func (s *server) deleteConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
@@ -450,10 +506,29 @@ func (s *server) deleteConcert(w http.ResponseWriter, r *http.Request, gr *group
 }
 
 func (s *server) restoreConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
-	if id, ok := s.pathID(w, r, gr); ok {
-		err := s.store.RestoreConcert(r.Context(), gr.Group.ID, id, s.today())
-		s.done(w, r, gr, err, fmt.Sprintf("%s?restored=%d#c%d", gr.Base, id, id))
+	id, ok := s.pathID(w, r, gr)
+	if !ok {
+		return
 	}
+	err := s.store.RestoreConcert(r.Context(), gr.Group.ID, id, s.today())
+	target := fmt.Sprintf("%s?restored=%d#c%d", gr.Base, id, id)
+	if err == nil {
+		// An import nobody answered is back in « À l'affiche », not in the list: the banner goes with
+		// its card; once past, it is in no view.
+		var c store.Concert
+		var ss []store.Status
+		if c, err = s.store.Concert(r.Context(), gr.Group.ID, id); err == nil {
+			ss, err = s.store.Statuses(r.Context(), gr.Group.ID, id)
+		}
+		switch {
+		case err != nil || visible(c, ss):
+		case s.upcoming(c):
+			target = fmt.Sprintf("%s?affiche=1&restored=%d#c%d", gr.Base, id, id)
+		default:
+			target = gr.Base
+		}
+	}
+	s.done(w, r, gr, err, target)
 }
 
 // pageURL is the absolute public link of a concert page, safe to hand outside the group.

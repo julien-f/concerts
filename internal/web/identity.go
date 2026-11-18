@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"concerts/internal/store"
+	"concerts/internal/validate"
 )
 
 const (
@@ -19,7 +20,7 @@ const (
 )
 
 // CleanGroupName applies the concert form's text rules to the operator's new-group.
-func CleanGroupName(v string) (string, bool) { return cleanText(v, maxTextRunes) }
+func CleanGroupName(v string) (string, bool) { return validate.Text(v, validate.MaxTextRunes) }
 
 // groupRequest is what every /g/{secret} handler gets: the group, its base path
 // and the member the identity cookie names (nil if none or stale).

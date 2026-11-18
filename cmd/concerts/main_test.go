@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -145,6 +146,68 @@ func TestRenameMember(t *testing.T) {
 	}
 }
 
+func TestVenueCommands(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	st := openStore(t)
+	g, err := st.CreateGroup(ctx, "g", "s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := strconv.FormatInt(g.ID, 10)
+	if err := followVenue(ctx, st, id, "nowhere"); err == nil {
+		t.Error("unknown venue followed")
+	}
+	if err := followVenue(ctx, st, "999", "mc2"); err == nil {
+		t.Error("unknown group followed a venue")
+	}
+	for _, key := range []string{"mc2", "lilyade", "mc2"} { // following twice changes nothing
+		if err := followVenue(ctx, st, id, key); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var out bytes.Buffer
+	if err := listVenues(ctx, st, &out); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"KEY", "mc2  ", "MC2", "La Belle Électrique", "retour-de-scene"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("list-venues lacks %q:\n%s", want, out.String())
+		}
+	}
+	for _, line := range strings.Split(out.String(), "\n") {
+		following := strings.HasSuffix(line, " "+id)
+		if (strings.HasPrefix(line, "mc2 ") || strings.HasPrefix(line, "lilyade ")) != following {
+			t.Errorf("list-venues line %q: want group %s on mc2 and lilyade only", line, id)
+		}
+	}
+	if err := unfollowVenue(ctx, st, id, "mc2"); err != nil {
+		t.Fatal(err)
+	}
+	if err := unfollowVenue(ctx, st, id, "mc2"); err == nil {
+		t.Error("unfollowing a venue not followed succeeded")
+	}
+	if got, err := st.Followed(ctx, g.ID); err != nil || !slices.Equal(got, []string{"lilyade"}) {
+		t.Errorf("followed = %v, %v; want lilyade", got, err)
+	}
+}
+
+// TestUsage: every command run accepts is in the usage text, and wrong arguments print it.
+func TestUsage(t *testing.T) {
+	t.Parallel()
+	for _, cmd := range []string{"serve", "new-group", "list-groups", "rotate-secret", "delete-member", "rename-member",
+		"backup", "list-venues", "follow-venue", "unfollow-venue", "sync", "demo"} {
+		if !strings.Contains(usage, "  concerts "+cmd+" ") && !strings.Contains(usage, "  concerts "+cmd+"\n") {
+			t.Errorf("usage lacks %s", cmd)
+		}
+	}
+	for _, args := range [][]string{nil, {"follow-venue", "1"}, {"sync", "now"}, {"unfollow-venue"}} {
+		if err := run(args, slog.New(slog.DiscardHandler)); err == nil || err.Error() != "invalid arguments" {
+			t.Errorf("run(%q) = %v, want invalid arguments", args, err)
+		}
+	}
+}
+
 func TestNewGroupCleansName(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -176,8 +239,13 @@ func TestRunChecksBaseURL(t *testing.T) {
 func TestDemo(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	st := openStore(t)
-	if err := demo(ctx, st, "http://x", time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)); err != nil {
+	clock := &demoClock{base: func() time.Time { return time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC) }}
+	st, err := store.Open(ctx, filepath.Join(t.TempDir(), "c.db"), clock.now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	if err := demo(ctx, st, "http://x", clock); err != nil {
 		t.Fatal(err)
 	}
 	gs, err := st.Groups(ctx)
@@ -185,8 +253,23 @@ func TestDemo(t *testing.T) {
 		t.Fatalf("groups = %+v, %v; want the demo group", gs, err)
 	}
 	cs, err := st.Concerts(ctx, gs[0].ID)
-	if err != nil || len(cs) != 34 {
-		t.Errorf("concerts = %d, %v; want 34", len(cs), err)
+	if err != nil || len(cs) != 40 {
+		t.Errorf("concerts = %d, %v; want 40", len(cs), err)
+	}
+	// « Nouveau » needs an import a day or more after its venue's first sync.
+	var first, last time.Time
+	for _, c := range cs {
+		if c.Source == "belle-electrique" {
+			if first.IsZero() || c.CreatedAt.Before(first) {
+				first = c.CreatedAt
+			}
+			if c.CreatedAt.After(last) {
+				last = c.CreatedAt
+			}
+		}
+	}
+	if last.Sub(first) < 24*time.Hour {
+		t.Errorf("belle-electrique imports created from %v to %v: none « Nouveau »", first, last)
 	}
 }
 

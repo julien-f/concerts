@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"time"
 )
 
 // MaxConcerts bounds a group's upcoming concerts, so a leaked link cannot flood the list while
@@ -27,20 +28,41 @@ type Concert struct {
 	OnSaleDate  string // YYYY-MM-DD or ""
 	Price       string // as shown, e.g. « 29–32 € », or ""
 	Description string // paragraphs separated by "\n", or ""
-	AddedBy     string // first name of the member who added it, "" if that member was deleted
+	Genre       string // free text, « Électro, DJ set », or ""
+	SoldOut     bool   // « Complet »: no tickets left on sale
+	AddedBy     string // first name of the member who added it, "" if that member was deleted or a venue did
+	Source      string // key of the venue it was imported from, "" if a member added it
 	Deleted     bool
-	LastRevID   int64  // newest revision, 0 if never edited (set by Concert only)
-	EditedBy    string // first name of the member behind LastRevID, "" if deleted (set by Concert only)
+	CreatedAt   time.Time // UTC: added, or imported
+	LastRevID   int64     // newest revision, 0 if never edited (set by Concert only)
+	EditedBy    string    // first name of the member behind LastRevID, "" if deleted (set by Concert only)
 }
 
 // concertSelect matches concertFields.
 const concertSelect = `SELECT c.id, c.token, c.artist, c.date, coalesce(c.time, ''), c.venue,
 	coalesce(c.address, ''), coalesce(c.ticket_url, ''), coalesce(c.on_sale_date, ''),
-	coalesce(c.price, ''), coalesce(c.description, ''), coalesce(m.name, ''), c.deleted_at IS NOT NULL
+	coalesce(c.price, ''), coalesce(c.description, ''), coalesce(c.genre, ''), c.sold_out, coalesce(m.name, ''), coalesce(c.source, ''), c.deleted_at IS NOT NULL,
+	c.created_at
 	FROM concerts c LEFT JOIN members m ON m.id = c.created_by`
 
 func concertFields(c *Concert) []any {
-	return []any{&c.ID, &c.Token, &c.Artist, &c.Date, &c.Time, &c.Venue, &c.Address, &c.TicketURL, &c.OnSaleDate, &c.Price, &c.Description, &c.AddedBy, &c.Deleted}
+	return []any{&c.ID, &c.Token, &c.Artist, &c.Date, &c.Time, &c.Venue, &c.Address, &c.TicketURL, &c.OnSaleDate, &c.Price, &c.Description, &c.Genre, &c.SoldOut, &c.AddedBy, &c.Source, &c.Deleted,
+		timestampScanner{&c.CreatedAt}}
+}
+
+// setEditable and differs take editable(c) as arguments; stored empties are NULL, ours "",
+// and IS NOT compares NULL-safely.
+const (
+	setEditable = `artist = ?, date = ?, time = nullif(?, ''), venue = ?, address = nullif(?, ''),
+		ticket_url = nullif(?, ''), on_sale_date = nullif(?, ''), price = nullif(?, ''), description = nullif(?, ''),
+		genre = nullif(?, ''), sold_out = ?`
+	differs = `(artist IS NOT ? OR date IS NOT ? OR time IS NOT nullif(?, '') OR venue IS NOT ? OR address IS NOT nullif(?, '')
+		OR ticket_url IS NOT nullif(?, '') OR on_sale_date IS NOT nullif(?, '') OR price IS NOT nullif(?, '') OR description IS NOT nullif(?, '')
+		OR genre IS NOT nullif(?, '') OR sold_out IS NOT ?)`
+)
+
+func editable(c Concert) []any {
+	return []any{c.Artist, c.Date, c.Time, c.Venue, c.Address, c.TicketURL, c.OnSaleDate, c.Price, c.Description, c.Genre, c.SoldOut}
 }
 
 // Concerts returns the group's live concerts in chronological order (no time first within a day).
@@ -89,31 +111,47 @@ func newToken() string {
 // SameConcert returns the group's oldest live concert dated date whose artist matches artist
 // as first names do (ignoring case), or ErrNotFound. Compared in Go: SQLite's lower() is ASCII-only.
 func (s *Store) SameConcert(ctx context.Context, groupID int64, artist, date string) (Concert, error) {
-	cs, err := queryAll(ctx, s.db, concertFields, concertSelect+`
-		WHERE c.group_id = ? AND c.date = ? AND c.deleted_at IS NULL ORDER BY c.id`, groupID, date)
+	cs, err := s.ConcertsOn(ctx, groupID, date)
 	if err != nil {
 		return Concert{}, err
 	}
 	for _, c := range cs {
-		if nameKey(c.Artist) == nameKey(artist) {
+		if !c.Deleted && nameKey(c.Artist) == nameKey(artist) {
 			return c, nil
 		}
 	}
 	return Concert{}, ErrNotFound
 }
 
-// purgeIfFull makes room for one more row at the row cap: it deletes the group's oldest
-// deleted concert, else its oldest past one, instead of locking the group.
+// ConcertsOn returns the group's concerts dated date, deleted ones included, oldest first.
+func (s *Store) ConcertsOn(ctx context.Context, groupID int64, date string) ([]Concert, error) {
+	return concertsOn(ctx, s.db, groupID, date)
+}
+
+func concertsOn(ctx context.Context, q querier, groupID int64, date string) ([]Concert, error) {
+	return queryAll(ctx, q, concertFields, concertSelect+" WHERE c.group_id = ? AND c.date = ? ORDER BY c.id", groupID, date)
+}
+
+// purgeIfFull makes room for one more row at the row cap instead of locking the group. It
+// deletes, oldest first: a past row that is deleted or an unanswered import; another deleted
+// row, except an upcoming import's tombstone; a past row; last, an upcoming import's tombstone
+// (only abuse gets there, and that import may then come back).
 func purgeIfFull(ctx context.Context, tx *sql.Tx, groupID int64, today string) error {
 	var all int
 	if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM concerts WHERE group_id = ?", groupID).Scan(&all); err != nil {
 		return err
 	}
 	if all >= 2*MaxConcerts {
-		// Never an upcoming concert, even if another request already moved today forward.
-		_, err := tx.ExecContext(ctx, `DELETE FROM concerts WHERE id = (SELECT id FROM concerts
-			WHERE group_id = ? AND (deleted_at IS NOT NULL OR date < ?)
-			ORDER BY deleted_at IS NULL, deleted_at, date, time, id LIMIT 1)`, groupID, today)
+		// Never a live upcoming concert, even if another request already moved today forward.
+		_, err := tx.ExecContext(ctx, `DELETE FROM concerts WHERE id = (SELECT id FROM concerts c
+			WHERE group_id = ?1 AND (deleted_at IS NOT NULL OR date < ?2)
+			ORDER BY CASE
+				WHEN date < ?2 AND (deleted_at IS NOT NULL OR (source IS NOT NULL
+					AND NOT EXISTS (SELECT 1 FROM statuses s WHERE s.concert_id = c.id))) THEN 0
+				WHEN deleted_at IS NOT NULL AND source IS NULL THEN 1
+				WHEN date < ?2 THEN 2
+				ELSE 3 END,
+			deleted_at IS NULL, deleted_at, date, time, id LIMIT 1)`, groupID, today)
 		return err
 	}
 	return nil
@@ -130,9 +168,10 @@ func (s *Store) CreateConcert(ctx context.Context, groupID, memberID int64, c Co
 		return 0, err
 	}
 	res, err := tx.ExecContext(ctx, `INSERT INTO concerts
-		(group_id, token, artist, date, time, venue, address, ticket_url, on_sale_date, price, description, created_by, created_at)
-		VALUES (?, ?, ?, ?, nullif(?, ''), ?, nullif(?, ''), nullif(?, ''), nullif(?, ''), nullif(?, ''), nullif(?, ''), ?, ?)`,
-		groupID, newToken(), c.Artist, c.Date, c.Time, c.Venue, c.Address, c.TicketURL, c.OnSaleDate, c.Price, c.Description, memberID, s.timestamp())
+		(group_id, token, artist, date, time, venue, address, ticket_url, on_sale_date, price, description, genre, sold_out,
+			created_by, created_at)
+		VALUES (?, ?, ?, ?, nullif(?, ''), ?, nullif(?, ''), nullif(?, ''), nullif(?, ''), nullif(?, ''), nullif(?, ''), nullif(?, ''), ?, ?, ?)`,
+		append(append([]any{groupID, newToken()}, editable(c)...), memberID, s.timestamp())...)
 	if err != nil {
 		return 0, err
 	}
@@ -156,16 +195,11 @@ func (s *Store) UpdateConcert(ctx context.Context, groupID, memberID, id int64, 
 		return 0, err
 	}
 	defer func() { _ = tx.Rollback() }()
-	// IS NOT compares NULL-safely: stored empties are NULL, form ones "".
 	res, err := tx.ExecContext(ctx, `INSERT INTO concert_revisions
-		(concert_id, artist, date, time, venue, address, ticket_url, on_sale_date, price, description, edited_by, edited_at)
-		SELECT id, artist, date, time, venue, address, ticket_url, on_sale_date, price, description, ?, ? FROM concerts
-		WHERE id = ? AND group_id = ? AND deleted_at IS NULL AND (artist IS NOT ? OR date IS NOT ?
-			OR time IS NOT nullif(?, '') OR venue IS NOT ? OR address IS NOT nullif(?, '')
-			OR ticket_url IS NOT nullif(?, '') OR on_sale_date IS NOT nullif(?, '')
-			OR price IS NOT nullif(?, '') OR description IS NOT nullif(?, ''))`,
-		memberID, s.timestamp(), id, groupID,
-		c.Artist, c.Date, c.Time, c.Venue, c.Address, c.TicketURL, c.OnSaleDate, c.Price, c.Description)
+		(concert_id, artist, date, time, venue, address, ticket_url, on_sale_date, price, description, genre, sold_out, edited_by, edited_at)
+		SELECT id, artist, date, time, venue, address, ticket_url, on_sale_date, price, description, genre, sold_out, ?, ? FROM concerts
+		WHERE id = ? AND group_id = ? AND deleted_at IS NULL AND `+differs,
+		append([]any{memberID, s.timestamp(), id, groupID}, editable(c)...)...)
 	if err != nil {
 		return 0, err
 	}
@@ -179,11 +213,8 @@ func (s *Store) UpdateConcert(ctx context.Context, groupID, memberID, id int64, 
 			return 0, err
 		}
 	}
-	res, err = tx.ExecContext(ctx, `UPDATE concerts SET artist = ?, date = ?, time = nullif(?, ''),
-		venue = ?, address = nullif(?, ''), ticket_url = nullif(?, ''), on_sale_date = nullif(?, ''),
-		price = nullif(?, ''), description = nullif(?, '')
-		WHERE id = ? AND group_id = ? AND deleted_at IS NULL`,
-		c.Artist, c.Date, c.Time, c.Venue, c.Address, c.TicketURL, c.OnSaleDate, c.Price, c.Description, id, groupID)
+	res, err = tx.ExecContext(ctx, "UPDATE concerts SET "+setEditable+" WHERE id = ? AND group_id = ? AND deleted_at IS NULL",
+		append(editable(c), id, groupID)...)
 	if err != nil {
 		return 0, err
 	}

@@ -15,6 +15,9 @@ const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
 // for an in-page change (htmx swap), whose DOM is then checked as is.
 // Screens run in order and share cookies, so later ones can rely on earlier steps.
 const submit = (p, selector) => Promise.all([p.waitForNavigation(), p.click(selector)]).then(([r]) => r);
+// htmx focuses an autofocus element once the swap settles, after the new content is in.
+const focusOn = (p, id) =>
+  p.waitForFunction((id) => document.activeElement?.id === id, id, { timeout: 2000 }).then(() => true, () => false);
 const screens = [
   { name: "picker", go: (p) => p.goto(groupURL) },
   {
@@ -61,6 +64,91 @@ const screens = [
     },
   },
   { name: "mine", go: (p) => p.goto(`${groupURL}?mine=1`) },
+  // « À l'affiche »: the demo's imports nobody answered, a long artist, venue and genre among them.
+  {
+    name: "affiche",
+    go: (p) => p.goto(`${groupURL}?affiche=1`),
+    // The list's tickets with their source and both answers, no status lines, one « Nouveau » (axe
+    // checks its contrast); the demo's long artist, venue and genre must not widen the page at 320 px either.
+    check: async (p) => {
+      const cards = await p.$$eval(".card", (cs) =>
+        cs.map((c) => ({
+          answers: c.querySelectorAll(".mine button").length,
+          source: c.querySelector(".announced")?.textContent.startsWith("annoncé par ") ?? false,
+          lines: c.querySelectorAll(".who").length,
+        })),
+      );
+      if (!cards.length) return "no ticket";
+      if (cards.some((c) => c.answers !== 2)) return "a ticket lacks one of its two answers";
+      if (cards.some((c) => !c.source)) return "a ticket lacks « annoncé par »";
+      if (cards.some((c) => c.lines)) return "a ticket shows status lines";
+      if ((await p.$$(".card .artist .new")).length !== 1) return "not one « Nouveau » tag";
+      if (!(await p.$(".card .genre"))) return "no genre line";
+      await p.setViewportSize({ width: 320, height: 844 });
+      const wide = await p.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+      await p.setViewportSize({ width: 390, height: 844 });
+      return wide ? "at 320 px the page scrolls horizontally" : null;
+    },
+  },
+  {
+    name: "affiche-nouveau",
+    go: (p) => submit(p, ".new-count a"),
+    check: async (p) => {
+      if ((await p.getAttribute(".new-count a", "aria-current")) !== "page") return "the count link is not current";
+      const tags = await p.$$eval(".card", (cs) => cs.map((c) => !!c.querySelector(".new")));
+      return tags.length && tags.every(Boolean) ? null : "lists a ticket that is not « Nouveau »";
+    },
+  },
+  { name: "affiche-venue", go: (p) => submit(p, ".venues a:nth-of-type(2)") },
+  {
+    name: "import-concert",
+    go: async (p) => {
+      await p.goto(`${groupURL}?affiche=1`);
+      return submit(p, ".card .artist a");
+    },
+    check: async (p) =>
+      (await p.textContent(".back")).includes("À l'affiche") ? null : "the back link does not lead to « À l'affiche »",
+  },
+  {
+    // An import nobody answered, added by hand: pointed to it, no « Ajouter quand même ».
+    name: "add-duplicate-import",
+    go: async (p) => {
+      await p.goto(`${groupURL}?affiche=1`);
+      const artist = await p.textContent(".card .artist a");
+      const date = (await p.getAttribute(".card time", "datetime")).slice(0, 10);
+      await p.goto(`${groupURL}/concerts/new`);
+      await p.fill("#artist", artist);
+      await p.fill("#date", date);
+      await p.fill("#venue", "Ailleurs");
+      return Promise.all([p.waitForNavigation(), p.press("#venue", "Enter")]).then(([r]) => r);
+    },
+    check: async (p) => {
+      if (!(await p.textContent("#duplicate")).includes("est à l'affiche")) return "not the « À l'affiche » warning";
+      if (await p.$('button:has-text("Ajouter quand même")')) return "« Ajouter quand même » is offered";
+      return (await p.evaluate(() => document.activeElement?.textContent)) === "Voir ce concert"
+        ? null
+        : "focus is not on « Voir ce concert »";
+    },
+  },
+  {
+    // Last of « À l'affiche »: the answer moves that import to the list.
+    name: "affiche-answer",
+    go: async (p) => {
+      await p.goto(`${groupURL}?affiche=1`);
+      const card = await p.getAttribute(".card", "id");
+      await p.focus(`#${card}-going`);
+      await p.keyboard.press("Enter");
+      await p.waitForSelector(`#${card}-going[aria-pressed="true"]`);
+      return null;
+    },
+    check: async (p) => {
+      const card = await p.getAttribute(".card", "id");
+      if (!(await focusOn(p, `${card}-going`))) return "focus left « J'y vais » after the swap";
+      const artist = await p.textContent(`#${card} .artist a`);
+      const said = await p.textContent("#affiche-status[role=status]");
+      return said === `${artist} : J'y vais. Ajouté à la liste du groupe.` ? null : `status region says « ${said} »`;
+    },
+  },
   { name: "concert", go: (p) => p.goto(`${groupURL}/concerts/1`) },
   {
     // axe skips the content of a closed <details>.
@@ -81,6 +169,35 @@ const screens = [
       await p.click('button:has-text("Relire la billetterie")');
       await p.waitForSelector(".prefill-msg");
       return null;
+    },
+  },
+  {
+    // The demo's Lysistrata: Marc moved it, then the venue sold it out.
+    name: "refresh-differs",
+    go: async (p) => {
+      await p.goto(`${groupURL}?affiche=1`);
+      const id = (await p.getAttribute('.card:has-text("Lysistrata")', "id")).slice(1);
+      await p.goto(`${groupURL}/concerts/${id}/edit`);
+      await p.click('button:has-text("Relire la billetterie")');
+      await p.waitForSelector("#refresh-summary");
+      return null;
+    },
+    check: async (p) => {
+      if (!(await focusOn(p, "time"))) return "focus is not on the first differing field";
+      const summary = await p.textContent("#refresh-summary");
+      return summary.startsWith("2 champs diffèrent") ? null : `summary says « ${summary} »`;
+    },
+  },
+  {
+    name: "refresh-use",
+    go: async (p) => {
+      await p.click('#sold_out-source button:has-text("Utiliser")');
+      await p.waitForSelector("#sold_out:checked");
+      return null;
+    },
+    check: async (p) => {
+      if (!(await focusOn(p, "sold_out"))) return "focus is not on the replaced field";
+      return (await p.$("#time-source")) ? null : "the other difference is no longer offered";
     },
   },
   { name: "add", go: (p) => p.goto(`${groupURL}/concerts/new`) },

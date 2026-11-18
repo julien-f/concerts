@@ -1,0 +1,55 @@
+# Installed by concerts install.sh, which replaces the NAME and PROXY_USER placeholders.
+[Unit]
+Description=@NAME@ venue agenda import
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=@NAME@
+Group=@NAME@
+ExecStart=/home/@NAME@/bin/concerts sync
+Environment=CONCERTS_DB=/home/@NAME@/data/concerts.db GOMEMLIMIT=160MiB
+# The venues' crawl delays make a run last minutes.
+TimeoutStartSec=15min
+Nice=10
+IOSchedulingClass=idle
+
+ProtectHome=tmpfs
+BindReadOnlyPaths=/home/@NAME@/bin
+BindPaths=/home/@NAME@/data
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateUsers=yes
+PrivateIPC=yes
+# Hides the deployer's processes, same UID.
+PrivatePIDs=yes
+ProtectProc=invisible
+ProcSubset=pid
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+# Fetches the venues' sites; no IPAddressDeny=, see ADR 0008.
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+# Go's startup prlimit gets EPERM, which it ignores, instead of a SIGSYS kill.
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=
+UMask=0077
+LimitCORE=0
+
+MemoryMax=256M
+TasksMax=64
