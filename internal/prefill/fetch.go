@@ -133,5 +133,5 @@ func fetch(ctx context.Context, client *http.Client, url string, now time.Time) 
 	if mt, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type")); mt != "text/html" && mt != "application/xhtml+xml" {
 		return Result{}, fmt.Errorf("content type %q", mt)
 	}
-	return parse(io.LimitReader(resp.Body, maxPage), resp.Request.URL.Hostname(), now), nil
+	return Parse(io.LimitReader(resp.Body, maxPage), resp.Request.URL.Hostname(), now), nil
 }

@@ -67,7 +67,7 @@ func TestParseFixtures(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.file+"@"+tt.host, func(t *testing.T) {
 			t.Parallel()
-			if got := parse(strings.NewReader(fixture(t, tt.file)), tt.host, now); got != tt.want {
+			if got := Parse(strings.NewReader(fixture(t, tt.file)), tt.host, now); got != tt.want {
 				t.Fatalf("parse = %+v\nwant    %+v", got, tt.want)
 			}
 		})
@@ -229,7 +229,7 @@ func TestParseSiteRules(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := parse(strings.NewReader(tt.html(t)), tt.host, now); got != tt.want {
+			if got := Parse(strings.NewReader(tt.html(t)), tt.host, now); got != tt.want {
 				t.Fatalf("parse = %+v\nwant    %+v", got, tt.want)
 			}
 		})
@@ -257,8 +257,8 @@ func TestFrenchDate(t *testing.T) {
 		"31 février 2027": "", "21 novembre": "", "le 21 novembre 2026": "", "Samedi 21 novembre 2026 – 20h": "",
 		"21 brumaire 2026": "", "samedi 2026": "", "": "",
 	} {
-		if got := frenchDate(s); got != want {
-			t.Errorf("frenchDate(%q) = %q, want %q", s, got, want)
+		if got := FrenchDate(s); got != want {
+			t.Errorf("FrenchDate(%q) = %q, want %q", s, got, want)
 		}
 	}
 }
@@ -269,8 +269,8 @@ func TestFrenchTime(t *testing.T) {
 		"20h00": "20:00", "20h": "20:00", "20 h 30": "20:30", "9h": "09:00", "20h > 01h (portes 20h, début 20h30)": "20:00",
 		"portes 19H30": "19:30", "20 h": "20:00", "20 h 30": "20:30", "24h": "", "120h": "", "20h75": "", "20:00": "", "": "",
 	} {
-		if got := frenchTime(s); got != want {
-			t.Errorf("frenchTime(%q) = %q, want %q", s, got, want)
+		if got := FrenchTime(s); got != want {
+			t.Errorf("FrenchTime(%q) = %q, want %q", s, got, want)
 		}
 	}
 }
@@ -318,7 +318,7 @@ func TestParseEdgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := parse(strings.NewReader(tt.html), "", now); got != tt.want {
+			if got := Parse(strings.NewReader(tt.html), "", now); got != tt.want {
 				t.Fatalf("parse = %+v, want %+v", got, tt.want)
 			}
 		})

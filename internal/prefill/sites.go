@@ -29,7 +29,7 @@ func laSource(texts []text) Result {
 	if len(f) < 3 {
 		return Result{}
 	}
-	res := Result{Date: frenchDate(strings.Join(f[:3], " ")), Time: frenchTime(strings.Join(f[3:], " ")), Venue: "La Source"}
+	res := Result{Date: FrenchDate(strings.Join(f[:3], " ")), Time: FrenchTime(strings.Join(f[3:], " ")), Venue: "La Source"}
 	if res.Date == "" {
 		return Result{}
 	}
@@ -62,18 +62,18 @@ func lilyade(texts []text) Result {
 			items = append(items, t.s)
 		}
 	}
-	isDate := func(s string) bool { return frenchDate(s) != "" }
+	isDate := func(s string) bool { return FrenchDate(s) != "" }
 	i := slices.IndexFunc(items, isDate)
 	if i < 0 {
 		return Result{}
 	}
-	res := Result{Date: frenchDate(items[i])}
+	res := Result{Date: FrenchDate(items[i])}
 	block := items[i+1:]
 	if j := slices.IndexFunc(block, isDate); j >= 0 {
 		block = block[:j] // the next date starts the desktop copy of the same items
 	}
 	if len(block) > 0 {
-		res.Time = frenchTime(block[0])
+		res.Time = FrenchTime(block[0])
 	}
 	if res.Time != "" && len(block) > 1 {
 		res.Venue = strings.TrimRight(block[1], ", ") // related events write « L'ilyade, »
@@ -111,9 +111,9 @@ func retourDeScene(texts []text) Result {
 	}
 	horaire := section(texts, "Horaire")
 	for i, s := range horaire {
-		if res.Date = frenchDate(s); res.Date != "" {
+		if res.Date = FrenchDate(s); res.Date != "" {
 			if i+1 < len(horaire) {
-				res.Time = frenchTime(horaire[i+1]) // « 20h > 01h (portes 20h, début de concert 20h30) »: the first
+				res.Time = FrenchTime(horaire[i+1]) // « 20h > 01h (portes 20h, début de concert 20h30) »: the first
 			}
 			break
 		}
@@ -193,8 +193,8 @@ var (
 	}
 )
 
-// frenchDate parses a whole text « [weekday] D[er] month YYYY » into YYYY-MM-DD, "" otherwise.
-func frenchDate(s string) string {
+// FrenchDate parses a whole text « [weekday] D[er] month YYYY » into YYYY-MM-DD, "" otherwise.
+func FrenchDate(s string) string {
 	f := strings.Fields(strings.ToLower(s))
 	if len(f) == 4 && slices.Contains(frenchDays, f[0]) {
 		f = f[1:]
@@ -218,8 +218,8 @@ func frenchDate(s string) string {
 // RE2's \s is ASCII only: French typography puts U+00A0 or U+202F around « h ».
 var frenchTimeRE = regexp.MustCompile(`(?i)\b([01]?\d|2[0-3])[ \x{a0}\x{202f}]?h[ \x{a0}\x{202f}]?([0-5]\d)?\b`)
 
-// frenchTime finds the first « 20h », « 20h30 » or « 20 h 30 » in s, as HH:MM; "" if none.
-func frenchTime(s string) string {
+// FrenchTime finds the first « 20h », « 20h30 » or « 20 h 30 » in s, as HH:MM; "" if none.
+func FrenchTime(s string) string {
 	m := frenchTimeRE.FindStringSubmatch(s)
 	if m == nil {
 		return ""

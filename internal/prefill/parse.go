@@ -132,8 +132,8 @@ func scan(r io.Reader, withTexts bool) page {
 	}
 }
 
-// parse extracts a Result from a page of host; now is in Europe/Paris and drops past on-sale dates.
-func parse(r io.Reader, host string, now time.Time) Result {
+// Parse extracts a Result from a page of host; now is in Europe/Paris and drops past on-sale dates.
+func Parse(r io.Reader, host string, now time.Time) Result {
 	rule := siteRule(host)
 	p := scan(r, rule != nil)
 	var res Result
