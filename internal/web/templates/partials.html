@@ -53,6 +53,8 @@ readers get the full date. */}}
 <h3 class="artist"><a href="/c/{{.Token}}">{{.Artist}}</a></h3>
 {{- /* The stub shows the date: here it is for screen readers only. */}}
 <p class="meta"><time datetime="{{datetime .Concert}}"><span class="visually-hidden">{{frdate .Date}} · </span>{{with .Time}}{{frtime .}}{{end}}</time>{{if .Time}} · {{end}}{{.Venue}}{{with .Price}} <span class="price">· {{.}}</span>{{end}}{{if .SoldOut}} <span class="sold">Complet</span>{{end}}</p>
+{{with .Genre}}<p class="meta genre">{{.}}</p>
+{{end -}}
 {{with .Announced}}<p class="meta announced">annoncé par {{.}}</p>
 {{end -}}
 {{template "statuses" .Statuses}}
@@ -89,6 +91,7 @@ readers get the full date. */}}
 {{with .Map}}<p>{{$.Address}}<br><a href="{{.}}" rel="noopener noreferrer">Voir sur la carte<span class="visually-hidden"> OpenStreetMap</span></a></p>{{end}}
 {{with .Price}}<p>Prix : {{.}}{{if $.SoldOut}} <span class="sold">Complet</span>{{end}}</p>
 {{- else}}{{if .SoldOut}}<p><span class="sold">Complet</span></p>{{end}}{{end}}
+{{with .Genre}}<p class="meta genre">{{.}}</p>{{end}}
 {{with .OnSaleDate}}<p>Mise en vente : <time datetime="{{.}}">{{frdate .}}</time></p>{{end}}
 {{template "agendaLink" .}}
 {{end}}

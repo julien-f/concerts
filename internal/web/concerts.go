@@ -57,6 +57,7 @@ func newConcertForm(gr *groupRequest, c store.Concert, errs map[string]string) *
 		{Name: "address", Label: "Adresse", Type: "text", Value: c.Address, Max: validate.MaxTextRunes, Optional: true, Autocomplete: "off"},
 		{Name: "ticket_url", Label: "Lien de billetterie", Type: "url", Value: c.TicketURL, Max: validate.MaxURLBytes, Optional: true},
 		{Name: "price", Label: "Prix", Type: "text", Value: c.Price, Max: validate.MaxPriceRunes, Optional: true},
+		{Name: "genre", Label: "Genre", Type: "text", Value: c.Genre, Max: validate.MaxGenreRunes, Optional: true},
 		{Name: "sold_out", Label: "Complet", Hint: "plus de billets en vente", Type: "checkbox", Value: checked(c.SoldOut), Optional: true},
 		{Name: "on_sale_date", Label: "Mise en vente", Type: "date", Value: c.OnSaleDate, Optional: true},
 		{Name: "description", Label: "Description", Type: "textarea", Value: c.Description, Max: validate.MaxDescriptionRunes, Optional: true},
@@ -88,7 +89,7 @@ func checked(b bool) string {
 func parseConcert(f url.Values) (store.Concert, map[string]string) {
 	return validate.Concert(store.Concert{Artist: f.Get("artist"), Date: f.Get("date"), Time: f.Get("time"),
 		Venue: f.Get("venue"), Address: f.Get("address"), TicketURL: f.Get("ticket_url"), OnSaleDate: f.Get("on_sale_date"),
-		Price: f.Get("price"), Description: f.Get("description"), SoldOut: f.Get("sold_out") != ""})
+		Price: f.Get("price"), Description: f.Get("description"), Genre: f.Get("genre"), SoldOut: f.Get("sold_out") != ""})
 }
 
 // pathID parses the {id} path value; it answers 404 and returns false if invalid.

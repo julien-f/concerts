@@ -127,12 +127,12 @@ func (s *Store) PutVenueEvents(ctx context.Context, source string, events []Even
 		}
 		c := e.Concert
 		if _, err := tx.ExecContext(ctx, `INSERT INTO venue_events
-			(source, source_id, artist, date, time, venue, address, ticket_url, price, sold_out, seen_at)
-			VALUES (?, ?, ?, ?, nullif(?, ''), ?, nullif(?, ''), nullif(?, ''), nullif(?, ''), ?, ?)
+			(source, source_id, artist, date, time, venue, address, ticket_url, price, genre, sold_out, seen_at)
+			VALUES (?, ?, ?, ?, nullif(?, ''), ?, nullif(?, ''), nullif(?, ''), nullif(?, ''), nullif(?, ''), ?, ?)
 			ON CONFLICT DO UPDATE SET artist = excluded.artist, date = excluded.date, time = excluded.time,
 				venue = excluded.venue, address = excluded.address, ticket_url = excluded.ticket_url,
-				price = excluded.price, sold_out = excluded.sold_out, seen_at = excluded.seen_at`,
-			source, id, c.Artist, c.Date, c.Time, c.Venue, c.Address, c.TicketURL, c.Price, c.SoldOut, s.timestamp()); err != nil {
+				price = excluded.price, genre = excluded.genre, sold_out = excluded.sold_out, seen_at = excluded.seen_at`,
+			source, id, c.Artist, c.Date, c.Time, c.Venue, c.Address, c.TicketURL, c.Price, c.Genre, c.SoldOut, s.timestamp()); err != nil {
 			return err
 		}
 	}
@@ -144,10 +144,10 @@ func (s *Store) PutVenueEvents(ctx context.Context, source string, events []Even
 func (s *Store) SourceEvent(ctx context.Context, groupID, id int64) (Concert, error) {
 	var c Concert
 	err := s.db.QueryRowContext(ctx, `SELECT v.artist, v.date, coalesce(v.time, ''), v.venue, coalesce(v.address, ''),
-		coalesce(v.ticket_url, ''), coalesce(v.price, ''), v.sold_out
+		coalesce(v.ticket_url, ''), coalesce(v.price, ''), coalesce(v.genre, ''), v.sold_out
 		FROM concerts c JOIN venue_events v ON v.source = c.source AND v.source_id = c.source_id
 		WHERE c.id = ? AND c.group_id = ?`, id, groupID).Scan(
-		&c.Artist, &c.Date, &c.Time, &c.Venue, &c.Address, &c.TicketURL, &c.Price, &c.SoldOut)
+		&c.Artist, &c.Date, &c.Time, &c.Venue, &c.Address, &c.TicketURL, &c.Price, &c.Genre, &c.SoldOut)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Concert{}, ErrNotFound
 	}

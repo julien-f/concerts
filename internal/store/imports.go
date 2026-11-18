@@ -181,9 +181,9 @@ func (s *Store) insertImport(ctx context.Context, tx *sql.Tx, groupID int64, sou
 		return false, err
 	}
 	res, err := tx.ExecContext(ctx, `INSERT INTO concerts
-		(group_id, token, artist, date, time, venue, address, ticket_url, on_sale_date, price, description, sold_out,
+		(group_id, token, artist, date, time, venue, address, ticket_url, on_sale_date, price, description, genre, sold_out,
 			source, source_id, created_at)
-		VALUES (?, ?, ?, ?, nullif(?, ''), ?, nullif(?, ''), nullif(?, ''), nullif(?, ''), nullif(?, ''), nullif(?, ''), ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, nullif(?, ''), ?, nullif(?, ''), nullif(?, ''), nullif(?, ''), nullif(?, ''), nullif(?, ''), nullif(?, ''), ?, ?, ?, ?)
 		ON CONFLICT (group_id, source, source_id) WHERE source IS NOT NULL DO NOTHING`,
 		append(append([]any{groupID, newToken()}, editable(c)...), source, sourceID, s.timestamp())...)
 	if err != nil {

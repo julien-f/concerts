@@ -143,7 +143,7 @@ func TestVenueEvents(t *testing.T) {
 	t.Cleanup(func() { _ = s.Close() })
 	g := mustGroup(t, s, "g", "s1")
 	m := mustMember(t, s, g.ID, "Léa")
-	a := Event{SourceID: "a", Concert: Concert{Artist: "A", Date: later, Time: "20:00", Venue: "V", Price: "20 €", SoldOut: true}}
+	a := Event{SourceID: "a", Concert: Concert{Artist: "A", Date: later, Time: "20:00", Venue: "V", Price: "20 €", Genre: "Rock", SoldOut: true}}
 	mustApply(t, s, g.ID, "src", testToday, a)
 	id := importedID(t, s, g.ID, "src", "a")
 	byHand := mustConcert(t, s, g.ID, m.ID, a.Concert, testToday)
@@ -152,7 +152,7 @@ func TestVenueEvents(t *testing.T) {
 		t.Errorf("before any sync kept it: %v", err)
 	}
 	moved := a
-	moved.Date, moved.Time, moved.SoldOut = "2026-07-02", "", false
+	moved.Date, moved.Time, moved.Genre, moved.SoldOut = "2026-07-02", "", "Pop", false
 	for _, es := range [][]Event{{a, ev(" ", "Bad id", later)}, {moved}} {
 		if err := s.PutVenueEvents(ctx, "src", es); err != nil {
 			t.Fatal(err)

@@ -265,22 +265,23 @@ textarea { resize: vertical; }
   .top, main { max-width: 56rem; }
 
   .card .body {
-    /* Info centred in rows 2-5 (an absent line takes no height), buttons on the right. */
-    display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 1fr auto auto auto auto 1fr;
+    /* Info centred in rows 2-6 (an absent line takes no height), buttons on the right. */
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 1fr auto auto auto auto auto 1fr;
     column-gap: 1rem; padding: 0.5rem 0.75rem;
   }
   .card .statuses { display: contents; }
   .card .artist { grid-area: 2 / 1; }
   .card .meta { grid-area: 3 / 1; }
-  .card .announced { grid-area: 4 / 1; }
+  .card .genre { grid-area: 4 / 1; }
+  .card .announced { grid-area: 5 / 1; }
   .card .mine { grid-area: 1 / 2 / -1; align-self: center; margin: 0; }
   .card .mine [role="group"] { flex-wrap: nowrap; }
   .card .mine button { flex: none; }
   .card .stub { padding-block: 0.4rem; }
   .card { margin-bottom: 0.5rem; }
-  .card .who-list { grid-area: 5 / 1; display: flex; flex-wrap: wrap; gap: 0 1rem; margin-top: 0.15rem; }
+  .card .who-list { grid-area: 6 / 1; display: flex; flex-wrap: wrap; gap: 0 1rem; margin-top: 0.15rem; }
   .card .who { margin: 0; }
-  .card .note { grid-area: 5 / 1; margin: 0.15rem 0 0; }
+  .card .note { grid-area: 6 / 1; margin: 0.15rem 0 0; }
 
   .ticket p { margin: 0 0 0.5rem; }
   .ticket .facts, .ticket .side { min-width: 0; }
@@ -290,7 +291,7 @@ textarea { resize: vertical; }
 
   .fields { grid-template-columns: 1fr 1fr; column-gap: 1.25rem; row-gap: 0.9rem; }
   .fields > :not(.field), .fields > .field:has(#artist, #ticket_url, #description) { grid-column: 1 / -1; }
-  .fields > .check-field { align-self: end; } /* level with the Prix input beside it */
+  .fields > .check-field { align-self: end; } /* level with the Mise en vente input beside it */
   .submit { display: flex; justify-content: flex-end; gap: 0.5rem; }
   .submit .big { width: auto; padding-inline: 2.5rem; }
 }

@@ -29,6 +29,7 @@ const (
 	MaxTextRunes        = 100
 	MaxURLBytes         = 2000
 	MaxPriceRunes       = 30
+	MaxGenreRunes       = 60
 	MaxDescriptionRunes = 2000
 )
 
@@ -68,6 +69,11 @@ func Concert(c store.Concert) (store.Concert, map[string]string) {
 		c.Price = ""
 	} else if c.Price, ok = Text(c.Price, MaxPriceRunes); !ok {
 		errs["price"] = fmt.Sprintf("Prix invalide (%d caractères au plus).", MaxPriceRunes)
+	}
+	if strings.TrimSpace(c.Genre) == "" {
+		c.Genre = ""
+	} else if c.Genre, ok = Text(c.Genre, MaxGenreRunes); !ok {
+		errs["genre"] = fmt.Sprintf("Genre invalide (%d caractères au plus).", MaxGenreRunes)
 	}
 	if strings.TrimSpace(c.Description) == "" {
 		c.Description = ""

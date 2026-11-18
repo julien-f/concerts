@@ -189,10 +189,11 @@ func TestRefreshFromVenue(t *testing.T) {
 	ts.importInto(t, secret, "salle-a", store.Concert{Artist: "Importé A", Date: "2026-07-02", Time: "20:00", Venue: "Salle A", Price: "20 €"})
 	edited := concertValues("Importé A", "2026-07-02", "21:00", "Salle A", "", "")
 	edited.Set("price", "18 €")
+	edited.Set("genre", "Pop")
 	b.postRedirect(t, g+"/concerts/1", edited)
-	// Since then the venue moved it a day, sold out, and no longer gives a price.
+	// Since then the venue moved it a day, sold out, no longer gives a price, and calls it rock.
 	if err := ts.store.PutVenueEvents(context.Background(), "salle-a", []store.Event{{SourceID: "salle-a/Importé A",
-		Concert: store.Concert{Artist: "Importé A", Date: "2026-07-03", Time: "20:00", Venue: "Salle A", SoldOut: true}}}); err != nil {
+		Concert: store.Concert{Artist: "Importé A", Date: "2026-07-03", Time: "20:00", Venue: "Salle A", Genre: "Rock", SoldOut: true}}}); err != nil {
 		t.Fatal(err)
 	}
 	with := func(kv ...string) url.Values {
@@ -211,9 +212,10 @@ func TestRefreshFromVenue(t *testing.T) {
 		want, lack []string
 	}{
 		{"differences, no link needed", edited, []string{
-			"3 champs diffèrent : Date, Heure, Complet.",
+			"4 champs diffèrent : Date, Heure, Genre, Complet.",
 			`id="date" name="date" type="date" value="2026-07-02" required aria-describedby="refresh-summary date-source" autofocus>`,
 			"La billetterie indique : ven. 3 juil.", "La billetterie indique : 20 h",
+			`<p id="genre-source" class="source">La billetterie indique : Rock`, `<input type="hidden" name="source_genre" value="Rock">`,
 			`<p id="sold_out-source" class="source">La billetterie indique : complet`,
 			`<input type="hidden" name="source_sold_out" value="1">`,
 			`id="sold_out" name="sold_out" type="checkbox" value="1" aria-describedby="sold_out-source">`},
@@ -235,7 +237,7 @@ func TestRefreshFromVenue(t *testing.T) {
 		assertLacks(t, body, tc.lack...)
 	}
 	// The same values: nothing new.
-	_, body := b.post(t, g+"/concerts/1/refresh", with("date", "2026-07-03", "time", "20:00", "sold_out", "1"))
+	_, body := b.post(t, g+"/concerts/1/refresh", with("date", "2026-07-03", "time", "20:00", "sold_out", "1", "genre", "Rock"))
 	assertContains(t, body, "Rien de nouveau sur la billetterie.")
 }
 

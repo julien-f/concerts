@@ -20,14 +20,14 @@ func TestConcert(t *testing.T) {
 	}{
 		{"minimal", ok, ok, nil},
 		{"cleaned", store.Concert{Artist: "  Zaz \t live ", Date: "2027-03-14", Time: "9:05", Venue: " La  Source ",
-			Address: "  ", TicketURL: " https://example.com/x ", Price: " 29 € ", Description: "Un\r\n\n\nDeux"},
+			Address: "  ", TicketURL: " https://example.com/x ", Price: " 29 € ", Genre: " Jazz,  Soul ", Description: "Un\r\n\n\nDeux"},
 			store.Concert{Artist: "Zaz live", Date: "2027-03-14", Time: "09:05", Venue: "La Source",
-				TicketURL: "https://example.com/x", Price: "29 €", Description: "Un\n\nDeux"}, nil},
+				TicketURL: "https://example.com/x", Price: "29 €", Genre: "Jazz, Soul", Description: "Un\n\nDeux"}, nil},
 		{"invalid", store.Concert{Artist: " ", Date: "14/03/2027", Time: "25:00", Venue: strings.Repeat("a", 101),
-			TicketURL: "javascript:alert(1)", OnSaleDate: "1999-12-31", Price: strings.Repeat("€", 31)},
+			TicketURL: "javascript:alert(1)", OnSaleDate: "1999-12-31", Price: strings.Repeat("€", 31), Genre: strings.Repeat("é", 61)},
 			store.Concert{Date: "14/03/2027", Time: "25:00", Venue: strings.Repeat("a", 101),
-				TicketURL: "javascript:alert(1)", OnSaleDate: "1999-12-31", Price: strings.Repeat("€", 31)},
-			[]string{"artist", "date", "on_sale_date", "price", "ticket_url", "time", "venue"}},
+				TicketURL: "javascript:alert(1)", OnSaleDate: "1999-12-31", Price: strings.Repeat("€", 31), Genre: strings.Repeat("é", 61)},
+			[]string{"artist", "date", "genre", "on_sale_date", "price", "ticket_url", "time", "venue"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
