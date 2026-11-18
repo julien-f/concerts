@@ -4,7 +4,7 @@
 {{end}}
 {{define "content"}}
 {{if .Affiche}}<p><a class="back" href="{{.Base}}?affiche=1#c{{.ID}}">← À l'affiche</a></p>
-{{- else}}<p><a class="back" href="{{.Base}}#c{{.ID}}">← Tous les concerts</a></p>{{end}}
+{{- else}}<p><a class="back" href="{{.Base}}{{if .Listed}}#c{{.ID}}{{end}}">← Tous les concerts</a></p>{{end}}
 {{if or .Saved .Reverted}}<div class="banner" role="status">
 <p>{{if .Saved}}Modifications enregistrées.{{else}}Version rétablie.{{end}}</p>
 {{if and .UndoRev .Me}}<form method="post" action="{{.Base}}/concerts/{{.ID}}/revisions/{{.UndoRev}}/revert"><button class="button secondary">Annuler</button></form>{{end}}

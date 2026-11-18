@@ -31,6 +31,7 @@ type statusBlock struct {
 	Back      string // where a no-JS answer returns: "list", "mine" or "concert"
 	Lines     []statusLine
 	Buttons   []statusButton
+	Note      string // after a swap that sent the import back to « À l'affiche »
 }
 
 // interestToggle is the one answer of a row of « À l'affiche », « Ça m'intéresse »; htmx swaps
@@ -128,8 +129,14 @@ func (s *server) setStatus(w http.ResponseWriter, r *http.Request, gr *groupRequ
 	}
 	switch {
 	case !isHTMX(r):
-		if !visible(c, ss) && s.upcoming(c) {
+		switch {
+		case visible(c, ss):
+		case s.upcoming(c):
 			target = afficheURL(gr, c.ID) // its card left the list: follow it
+		case back == "mine":
+			target = gr.Base + "?mine=1" // past, it is in no view
+		default:
+			target = gr.Base
 		}
 		seeOther(w, r, target)
 	case back == "affiche":
@@ -140,7 +147,11 @@ func (s *server) setStatus(w http.ResponseWriter, r *http.Request, gr *groupRequ
 		}
 		s.fragment(w, r, "toggle", t)
 	default:
-		s.fragment(w, r, "statuses", newStatusBlock(gr, c, ss, back, s.upcoming(c)))
+		b := newStatusBlock(gr, c, ss, back, s.upcoming(c))
+		if leaving && !visible(c, ss) && s.upcoming(c) {
+			b.Note = "Retourné à l'affiche."
+		}
+		s.fragment(w, r, "statuses", b)
 	}
 }
 

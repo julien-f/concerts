@@ -211,6 +211,7 @@ textarea { resize: vertical; }
 }
 .who { display: flex; gap: 0.35rem; align-items: baseline; margin: 0.25rem 0 0; font-size: 0.9rem; overflow-wrap: anywhere; }
 .who .icon { align-self: center; }
+.statuses .note { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.9rem; }
 /* Above the card-wide artist link. */
 .mine { position: relative; z-index: 1; margin: 0.5rem 0 0; }
 .mine [role="group"] { display: flex; flex-wrap: wrap; gap: 0.375rem; }
@@ -296,6 +297,7 @@ textarea { resize: vertical; }
   .card { margin-bottom: 0.5rem; }
   .card .who-list { grid-area: 4 / 1; display: flex; flex-wrap: wrap; gap: 0 1rem; margin-top: 0.15rem; }
   .card .who { margin: 0; }
+  .card .note { grid-area: 4 / 1; margin: 0.15rem 0 0; }
 
   .ticket p { margin: 0 0 0.5rem; }
   .ticket .facts, .ticket .side { min-width: 0; }

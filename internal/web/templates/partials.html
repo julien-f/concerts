@@ -37,6 +37,8 @@ readers get the full date. */}}
 {{end}}</div>
 </form>
 {{- end}}
+{{- with .Note}}
+<p class="note" role="status">{{.}}</p>{{end}}
 </div>{{end}}
 
 {{- /* card is a homePage card: the ticket of one concert in the list. */}}

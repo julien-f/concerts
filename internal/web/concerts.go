@@ -155,7 +155,7 @@ func (s *server) createConcert(w http.ResponseWriter, r *http.Request, gr *group
 		case err == nil:
 			f := newConcertForm(gr, c, nil)
 			f.Duplicate, f.Notice = &d, "Déjà dans la liste"
-			if !visible(d, ss) {
+			if !visible(d, ss) && s.upcoming(d) { // a past one is in no view: the member may add it anyway
 				f.OnAffiche, f.Notice = true, "Déjà à l'affiche"
 			}
 			s.render(w, r, http.StatusUnprocessableEntity, "form", f)
@@ -175,6 +175,7 @@ type concertPage struct {
 	Statuses statusBlock
 	Share    shareLink
 	Affiche  bool  // an upcoming import nobody answered: back to « À l'affiche », not the list
+	Listed   bool  // in the list: the back link aims at its card
 	Saved    bool  // banner after an edit
 	Reverted bool  // banner after going back to a revision
 	UndoRev  int64 // revision the banner offers to go back to, 0 for none
@@ -291,7 +292,7 @@ func (s *server) showConcertPage(w http.ResponseWriter, r *http.Request, gr *gro
 		return
 	}
 	p := &concertPage{groupRequest: gr, concertFacts: s.facts(c), Statuses: newStatusBlock(gr, c, ss, "concert", s.upcoming(c)),
-		Share: s.shareLink(c), Affiche: !visible(c, ss) && s.upcoming(c)}
+		Share: s.shareLink(c), Affiche: !visible(c, ss) && s.upcoming(c), Listed: visible(c, ss)}
 	q := r.URL.Query()
 	var rev string
 	switch {
@@ -400,14 +401,19 @@ func (s *server) restoreConcert(w http.ResponseWriter, r *http.Request, gr *grou
 	err := s.store.RestoreConcert(r.Context(), gr.Group.ID, id, s.today())
 	target := fmt.Sprintf("%s?restored=%d#c%d", gr.Base, id, id)
 	if err == nil {
-		// An import nobody answered is back in « À l'affiche », not in the list: the banner goes with its card.
+		// An import nobody answered is back in « À l'affiche », not in the list: the banner goes with
+		// its card; once past, it is in no view.
 		var c store.Concert
 		var ss []store.Status
 		if c, err = s.store.Concert(r.Context(), gr.Group.ID, id); err == nil {
 			ss, err = s.store.Statuses(r.Context(), gr.Group.ID, id)
 		}
-		if err == nil && !visible(c, ss) && s.upcoming(c) {
+		switch {
+		case err != nil || visible(c, ss):
+		case s.upcoming(c):
 			target = fmt.Sprintf("%s?affiche=1&restored=%d#c%d", gr.Base, id, id)
+		default:
+			target = gr.Base
 		}
 	}
 	s.done(w, r, gr, err, target)

@@ -32,7 +32,7 @@ type homePage struct {
 	Mine      bool        // « Mes concerts »: only concerts I answered
 	Affiche   bool        // « À l'affiche »: upcoming imports nobody answered, as compact rows
 	Salle     string      // under Affiche, the venue key the rows are limited to, or ""
-	Venues    []venueLink // followed venues: the « À l'affiche » filter shows only if any
+	Venues    []venueLink // followed venues, the « Annoncé par » filter
 	Months    []month     // upcoming, chronological
 	Past      []card      // newest first, in a collapsed section; the pastShown newest unless PastOpen
 	PastTotal int
@@ -42,6 +42,9 @@ type homePage struct {
 	Share     shareLink
 	Restored  *store.Concert // banner « Concert rétabli »
 	Deleted   *store.Concert // banner « Concert supprimé » with « Annuler la suppression »
+
+	// AfficheLink: the group follows a venue or has upcoming imports nobody answered (some kept after an unfollow).
+	AfficheLink bool
 }
 
 // visible reports whether a concert is in the list (« Tous », « Mes concerts », « Passés »):
@@ -78,9 +81,10 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 	}
 	p := &homePage{groupRequest: gr, Affiche: q.Get("affiche") == "1"}
 	p.Mine = !p.Affiche && q.Get("mine") == "1"
-	if p.Affiche {
-		p.Salle = q.Get("salle")
+	if salle := q.Get("salle"); p.Affiche && slices.Contains(followed, salle) {
+		p.Salle = salle
 	}
+	p.AfficheLink = len(followed) > 0
 	for _, v := range followed {
 		p.Venues = append(p.Venues, venueLink{v, s.venue(v)})
 	}
@@ -92,6 +96,9 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 	var upcoming, past []store.Concert
 	for _, c := range cs {
 		st := statuses[c.ID]
+		if !visible(c, st) && c.Date >= today {
+			p.AfficheLink = true
+		}
 		switch {
 		case p.Affiche:
 			// Past imports nobody answered show nowhere.

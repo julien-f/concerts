@@ -15,7 +15,7 @@
 <nav class="filters" aria-label="Filtre">
 <a href="{{.Base}}"{{if not (or .Mine .Affiche)}} aria-current="page"{{end}}>Tous</a>
 <a href="{{.Base}}?mine=1"{{if .Mine}} aria-current="page"{{end}}>Mes concerts</a>
-{{if .Venues}}<a href="{{.Base}}?affiche=1"{{if .Affiche}} aria-current="page"{{end}}>À l'affiche</a>{{end}}
+{{if .AfficheLink}}<a href="{{.Base}}?affiche=1"{{if .Affiche}} aria-current="page"{{end}}>À l'affiche</a>{{end}}
 </nav>
 {{- /* Fixed at the bottom on phones, within thumb reach; beside the filters from 48 rem. */}}
 <div class="add-bar"><a class="button add" href="{{.Base}}/concerts/new">+ Ajouter un concert</a></div>

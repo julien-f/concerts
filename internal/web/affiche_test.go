@@ -79,13 +79,14 @@ func TestAfficheViews(t *testing.T) {
 		{"affiche wins over mine", "?affiche=1&mine=1", "5,2,3,4", []string{`aria-current="page">À l'affiche</a>`}},
 		{"one venue", "?affiche=1&salle=salle-b", "4", []string{
 			`<a href="` + g + `?affiche=1&amp;salle=salle-b" aria-current="page">salle-b</a>`}},
-		{"venue with nothing", "?affiche=1&salle=autre", "", []string{"Rien à l'affiche pour autre."}},
+		{"venue not followed: ignored", "?affiche=1&salle=autre", "5,2,3,4", nil},
 	} {
 		_, body := b.get(t, g+tc.query)
 		if got := cards(body); got != tc.cards {
 			t.Errorf("%s: cards %q, want %q", tc.name, got, tc.cards)
 		}
 		assertContains(t, body, tc.want...)
+		assertLacks(t, body, "Rien à l'affiche pour")
 		if n := strings.Count(body, `aria-current="page"`); n != 1+strings.Count(tc.query, "salle=salle-") {
 			t.Errorf("%s: %d aria-current", tc.name, n)
 		}
@@ -108,6 +109,43 @@ func TestAfficheViews(t *testing.T) {
 			t.Errorf("%q shows a past import nobody answered", q)
 		}
 	}
+}
+
+// TestAfficheSalle: the venue filter names only a followed venue, never what the URL says.
+func TestAfficheSalle(t *testing.T) {
+	t.Parallel()
+	ts := newTestServer(t)
+	b, secret := afficheGroup(t, ts)
+	g := "/g/" + secret
+	ts.importInto(t, secret, "salle-c")
+	_, body := b.get(t, g+"?affiche=1&salle=salle-c")
+	assertContains(t, body, "Rien à l'affiche pour salle-c.")
+	_, body = b.get(t, g+"?affiche=1&salle=%3Cb%3Einvent%C3%A9e")
+	assertLacks(t, body, "inventée", "Rien à l'affiche pour")
+}
+
+// TestAfficheAfterUnfollow: imports kept after an unfollow (edited) are still reachable.
+func TestAfficheAfterUnfollow(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ts := newTestServer(t)
+	b, secret := afficheGroup(t, ts)
+	g := "/g/" + secret
+	b.postRedirect(t, g+"/concerts/2", concertValues("Importé A", "2026-07-02", "21:00", "Salle A", "", ""))
+	gr, err := ts.store.GroupBySecret(ctx, secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range []string{"salle-a", "salle-b"} {
+		if _, err := ts.store.Unfollow(ctx, gr.ID, v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, body := b.get(t, g)
+	assertContains(t, body, `href="`+g+`?affiche=1">À l'affiche</a>`)
+	_, body = b.get(t, g+"?affiche=1")
+	assertContains(t, body, `id="c2"`)
+	assertLacks(t, body, "Annoncé par")
 }
 
 func TestAfficheWithoutVenues(t *testing.T) {
@@ -190,6 +228,36 @@ func TestClearLastAnswer(t *testing.T) {
 			t.Errorf("%s: Location = %q, want %q", tc.name, loc, tc.want)
 		}
 	}
+
+	// A past import shows nowhere once unanswered: back to the list, at no card.
+	ts.clock.Advance(2 * 24 * time.Hour)
+	for back, want := range map[string]string{"list": g, "mine": g + "?mine=1"} {
+		b.postRedirect(t, g+"/concerts/5/status", url.Values{"status": {"going"}})
+		resp, _ := b.post(t, g+"/concerts/5/status", url.Values{"status": {""}, "back": {back}})
+		if loc := location(t, resp); loc != want {
+			t.Errorf("past import from %s: Location = %q, want %q", back, loc, want)
+		}
+	}
+}
+
+// TestClearLastAnswerHTMX: the swapped block says where the card went.
+func TestClearLastAnswerHTMX(t *testing.T) {
+	t.Parallel()
+	ts := newTestServer(t)
+	b, secret := afficheGroup(t, ts)
+	g := "/g/" + secret
+	for _, id := range []string{"1", "2"} {
+		b.postRedirect(t, g+"/concerts/"+id+"/status", url.Values{"status": {"going"}})
+	}
+	unanswer := func(id string) string {
+		t.Helper()
+		req := b.postRequest(t, g+"/concerts/"+id+"/status", url.Values{"status": {""}, "back": {"list"}})
+		req.Header.Set("HX-Request", "true")
+		_, body := b.do(t, req)
+		return body
+	}
+	assertContains(t, unanswer("2"), `<p class="note" role="status">Retourné à l&#39;affiche.</p>`)
+	assertLacks(t, unanswer("1"), "Retourné")
 }
 
 func TestImportConcertPage(t *testing.T) {
@@ -207,6 +275,12 @@ func TestImportConcertPage(t *testing.T) {
 	_, body = b.follow(t, g+"/concerts/1")
 	assertContains(t, body, "ajouté par Léa")
 	assertLacks(t, body, "annoncé par")
+
+	// A past import nobody answered has no card to go back to.
+	ts.clock.Advance(2 * 24 * time.Hour)
+	_, body = b.follow(t, g+"/concerts/5")
+	assertContains(t, body, `<a class="back" href="`+g+`">← Tous les concerts</a>`)
+	assertLacks(t, body, "#c5", "À l'affiche</a>")
 }
 
 func TestVenueName(t *testing.T) {
@@ -243,6 +317,12 @@ func TestDuplicateOfImport(t *testing.T) {
 	b.postRedirect(t, g+"/concerts/2/status", url.Values{"status": {"interested"}})
 	_, body = b.post(t, g+"/concerts", concertValues("importé a", "2026-07-02", "", "Ailleurs", "", ""))
 	assertContains(t, body, "est déjà dans la liste (Salle A)", "Ajouter quand même")
+
+	// A past import nobody answered is in no view: it can be added anyway.
+	ts.clock.Advance(2 * 24 * time.Hour)
+	_, body = b.post(t, g+"/concerts", concertValues("demain a", "2026-06-02", "", "Ailleurs", "", ""))
+	assertContains(t, body, "Ajouter quand même")
+	assertLacks(t, body, "est à l'affiche")
 }
 
 func TestRestoreImport(t *testing.T) {
@@ -267,4 +347,12 @@ func TestRestoreImport(t *testing.T) {
 	assertLacks(t, body, "Concert ajouté")
 	_, body = b.get(t, fmt.Sprintf("%s?added=%d", g, 1))
 	assertContains(t, body, "Concert ajouté\u202f: Manuel.")
+
+	// A past import nobody answered shows nowhere: no banner nor anchor to aim at.
+	ts.clock.Advance(2 * 24 * time.Hour)
+	b.postRedirect(t, g+"/concerts/5/delete", nil)
+	resp, _ = b.post(t, g+"/concerts/5/restore", nil)
+	if loc := location(t, resp); loc != g {
+		t.Errorf("past import restored: Location = %q, want %q", loc, g)
+	}
 }
