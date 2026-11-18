@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"net/http"
 	"net/url"
 	"slices"
@@ -66,22 +67,28 @@ func (s *server) prefill(r *http.Request, gr *groupRequest, u string) (c store.C
 		return c, "Trop de lectures en cours : réessaie dans une minute, ou remplis à la main.", false
 	}
 	defer release()
-	res, err := prefill.Fetch(r.Context(), s.fetch, u, s.now().In(paris))
+	res, hopErr, err := prefill.Fetch(r.Context(), s.fetch, u, s.now().In(paris))
+	if hopErr != nil { // host only, as err, see prefill.Fetch
+		s.log.InfoContext(r.Context(), "prefill hop failed", "err", hopErr)
+	}
 	if err != nil {
-		s.log.InfoContext(r.Context(), "prefill failed", "err", err) // host only, see prefill.Fetch
+		s.log.InfoContext(r.Context(), "prefill failed", "err", err)
 		return c, "Impossible de lire cette page : essaie le lien de la salle ou de l'organisateur, ou remplis à la main.", false
 	}
 	// The page is untrusted input: run it through the form's validation and drop what fails.
 	v := url.Values{"artist": {res.Artist}, "date": {res.Date}, "time": {res.Time},
-		"venue": {res.Venue}, "address": {res.Address}, "ticket_url": {u}, "on_sale_date": {res.OnSaleDate},
+		"venue": {res.Venue}, "address": {res.Address}, "ticket_url": {cmp.Or(res.TicketURL, u)}, "on_sale_date": {res.OnSaleDate},
 		"price": {res.Price}, "description": {fitParagraphs(res.Description, maxDescriptionRunes)}}
 	_, errs := parseConcert(v)
 	for name := range errs {
 		v.Del(name)
 	}
+	if errs["ticket_url"] != "" {
+		v.Set("ticket_url", u) // checked above
+	}
 	c, _ = parseConcert(v)
 	found := c
-	found.TicketURL = "" // the link is ours, not something found
+	found.TicketURL = "" // a link alone is no concert found
 	if found == (store.Concert{}) {
 		return c, "Rien trouvé sur cette page : remplis à la main.", false
 	}

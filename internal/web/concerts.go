@@ -179,7 +179,11 @@ func (s *server) newConcert(w http.ResponseWriter, r *http.Request, gr *groupReq
 		return
 	}
 	c, msg, bad := s.prefill(r, gr, u)
-	if msg == "" {
+	switch {
+	case msg != "":
+	case c.TicketURL != u:
+		msg = "Lien de billetterie trouvé sur la page de la salle. Vérifie les champs pré-remplis avant d'enregistrer."
+	default:
 		msg = "Vérifie les champs pré-remplis avant d'enregistrer."
 	}
 	f := newConcertForm(gr, c, nil)
@@ -415,7 +419,9 @@ func (s *server) refreshConcert(w http.ResponseWriter, r *http.Request, gr *grou
 	if problem == "" {
 		fromPage := newConcertForm(nil, page, nil).Fields // same fields, same order
 		for i := range f.Fields {
-			if fd := &f.Fields[i]; fd.Value == "" && fromPage[i].Value != "" {
+			// The ticket link is never empty here: a venue page's is replaced by the billetterie it names.
+			fd := &f.Fields[i]
+			if fromPage[i].Value != "" && (fd.Value == "" || fd.Name == "ticket_url" && fromPage[i].Value != fd.Value) {
 				fd.Value = fromPage[i].Value
 				if labels == nil {
 					fd.Autofocus, fd.DescribedBy = true, "prefill-msg"

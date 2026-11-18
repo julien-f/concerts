@@ -11,22 +11,51 @@ import (
 	"unicode"
 )
 
-// siteRules read a Result from the visible text of pages without a schema.org Event, by host without "www.".
-var siteRules = map[string]func([]text) Result{
-	"lilyade.fr":        lilyade,
-	"retourdescene.net": retourDeScene,
+// siteRules read a Result from the visible text or links of pages without a schema.org Event, by host without "www.".
+var siteRules = map[string]func(page) Result{
+	"la-belle-electrique.com": belleElectrique,
+	"lilyade.fr":              lilyade,
+	"retourdescene.net":       retourDeScene,
 }
 
 // siteRule returns the rule for an exact host, case and trailing dot aside.
-func siteRule(host string) func([]text) Result {
+func siteRule(host string) func(page) Result {
 	host = strings.TrimSuffix(strings.ToLower(host), ".")
 	return siteRules[strings.TrimPrefix(host, "www.")]
 }
 
+// belleTicketHost serves La Belle Électrique's ticketing pages, which carry the Event its venue pages lack.
+const belleTicketHost = "billetterie.la-belle-electrique.com"
+
+// belleTicketLink is a share or agenda link of belleTicketHost: id, then slug. Not anchored at
+// the end: an accented slug is cut short, harmless since the billetterie only reads the id.
+var belleTicketLink = regexp.MustCompile(`^https://billetterie\.la-belle-electrique\.com/(?:share/event|agenda)/(\d{1,9})-([A-Za-z0-9-]{0,200})`)
+
+// belleElectrique finds the venue page's billetterie link (a share link, whose page only
+// meta-refreshes to the agenda one) and rebuilds the agenda URL from its id and slug alone.
+// With links to two ids, none: a sold-out page links its resale site, and must not pick another concert.
+func belleElectrique(p page) Result {
+	var id, slug string
+	for _, l := range p.links {
+		m := belleTicketLink.FindStringSubmatch(l)
+		switch {
+		case m == nil:
+		case id == "":
+			id, slug = m[1], m[2]
+		case m[1] != id:
+			return Result{}
+		}
+	}
+	if id == "" {
+		return Result{}
+	}
+	return Result{TicketURL: "https://" + belleTicketHost + "/agenda/" + id + "-" + slug + "?session=" + id}
+}
+
 // lilyade reads the info items date, time, venue, city: the footer address is the hall's, not the event's.
-func lilyade(texts []text) Result {
+func lilyade(p page) Result {
 	var items []string
-	for _, t := range texts {
+	for _, t := range p.texts {
 		if t.heading && strings.EqualFold(t.s, "À découvrir également") {
 			break // other events follow, with their own dates
 		}
@@ -63,7 +92,8 @@ var (
 )
 
 // retourDeScene reads the « Lieu » (venue, street, city line) and « Horaire » (date, then times) blocks.
-func retourDeScene(texts []text) Result {
+func retourDeScene(p page) Result {
+	texts := p.texts
 	var res Result
 	if lieu := section(texts, "Lieu"); len(lieu) > 0 {
 		res.Venue = lieu[0]
