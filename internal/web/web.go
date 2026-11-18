@@ -23,6 +23,7 @@ import (
 
 	"concerts/internal/prefill"
 	"concerts/internal/store"
+	"concerts/internal/validate"
 )
 
 //go:embed templates/*.html
@@ -71,16 +72,11 @@ type Config struct {
 // links append their path to it, and the app serves the whole host.
 func ParseBaseURL(s string) (*url.URL, error) {
 	u, err := url.Parse(s)
-	if err != nil || !httpURL(u) || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.ForceQuery || strings.Contains(s, "#") ||
+	if err != nil || !validate.HTTPURL(u) || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.ForceQuery || strings.Contains(s, "#") ||
 		strings.HasSuffix(u.Host, ":") || !validPort(u.Port()) {
 		return nil, fmt.Errorf("base URL %q: want http(s)://host", s)
 	}
 	return u, nil
-}
-
-// httpURL: absolute http(s), a host name, no user part; the rule base URLs and ticket links share.
-func httpURL(u *url.URL) bool {
-	return (u.Scheme == "http" || u.Scheme == "https") && u.Hostname() != "" && u.User == nil
 }
 
 // validPort reports whether p, from url.URL.Port (digits only), is empty or 1–65535.

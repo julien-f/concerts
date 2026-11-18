@@ -11,6 +11,7 @@ import (
 
 	"concerts/internal/prefill"
 	"concerts/internal/store"
+	"concerts/internal/validate"
 )
 
 // fetchLimiter keeps prefill fetches cheap for the server and polite to ticketing
@@ -66,7 +67,7 @@ func (s *server) prefill(r *http.Request, gr *groupRequest, u string) (c store.C
 		return c, "Trop de lectures en cours : réessaie dans une minute, ou remplis à la main.", false
 	}
 	defer release()
-	res, err := prefill.Fetch(r.Context(), s.fetch, u, s.now().In(paris))
+	res, err := prefill.Fetch(r.Context(), s.fetch, u, s.now().In(validate.Paris))
 	if err != nil {
 		s.log.InfoContext(r.Context(), "prefill failed", "err", err) // host only, see prefill.Fetch
 		return c, "Impossible de lire cette page : essaie le lien de la salle ou de l'organisateur, ou remplis à la main.", false
@@ -74,7 +75,7 @@ func (s *server) prefill(r *http.Request, gr *groupRequest, u string) (c store.C
 	// The page is untrusted input: run it through the form's validation and drop what fails.
 	v := url.Values{"artist": {res.Artist}, "date": {res.Date}, "time": {res.Time},
 		"venue": {res.Venue}, "address": {res.Address}, "ticket_url": {u}, "on_sale_date": {res.OnSaleDate},
-		"price": {res.Price}, "description": {fitParagraphs(res.Description, maxDescriptionRunes)}}
+		"price": {res.Price}, "description": {fitParagraphs(res.Description, validate.MaxDescriptionRunes)}}
 	_, errs := parseConcert(v)
 	for name := range errs {
 		v.Del(name)
@@ -88,10 +89,10 @@ func (s *server) prefill(r *http.Request, gr *groupRequest, u string) (c store.C
 	return c, "", false
 }
 
-// fitParagraphs normalizes v as cleanParagraphs does and, if longer than maxRunes, cuts it
+// fitParagraphs normalizes v as validate.Paragraphs does and, if longer than maxRunes, cuts it
 // at the last line or sentence end, else word end, in the second half of what fits (else at the limit), with « … ».
 func fitParagraphs(v string, maxRunes int) string {
-	v = paragraphs(v)
+	v = validate.FoldParagraphs(v)
 	if utf8.RuneCountInString(v) <= maxRunes {
 		return v
 	}

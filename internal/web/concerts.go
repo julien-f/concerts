@@ -7,10 +7,9 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
-	"unicode/utf8"
 
 	"concerts/internal/store"
+	"concerts/internal/validate"
 )
 
 // field is one input of the concert form.
@@ -39,15 +38,15 @@ type concertForm struct {
 
 func newConcertForm(gr *groupRequest, c store.Concert, errs map[string]string) *concertForm {
 	f := &concertForm{groupRequest: gr, ID: c.ID, FormError: errs[""], Fields: []field{
-		{Name: "artist", Label: "Artiste", Type: "text", Value: c.Artist, Max: maxTextRunes},
+		{Name: "artist", Label: "Artiste", Type: "text", Value: c.Artist, Max: validate.MaxTextRunes},
 		{Name: "date", Label: "Date", Type: "date", Value: c.Date},
 		{Name: "time", Label: "Heure", Type: "time", Value: c.Time, Optional: true},
-		{Name: "venue", Label: "Salle", Type: "text", Value: c.Venue, Max: maxTextRunes},
-		{Name: "address", Label: "Adresse", Type: "text", Value: c.Address, Max: maxTextRunes, Optional: true, Autocomplete: "off"},
-		{Name: "ticket_url", Label: "Lien de billetterie", Type: "url", Value: c.TicketURL, Max: maxURLBytes, Optional: true},
+		{Name: "venue", Label: "Salle", Type: "text", Value: c.Venue, Max: validate.MaxTextRunes},
+		{Name: "address", Label: "Adresse", Type: "text", Value: c.Address, Max: validate.MaxTextRunes, Optional: true, Autocomplete: "off"},
+		{Name: "ticket_url", Label: "Lien de billetterie", Type: "url", Value: c.TicketURL, Max: validate.MaxURLBytes, Optional: true},
 		{Name: "on_sale_date", Label: "Mise en vente", Type: "date", Value: c.OnSaleDate, Optional: true},
-		{Name: "price", Label: "Prix", Type: "text", Value: c.Price, Max: maxPriceRunes, Optional: true},
-		{Name: "description", Label: "Description", Type: "textarea", Value: c.Description, Max: maxDescriptionRunes, Optional: true},
+		{Name: "price", Label: "Prix", Type: "text", Value: c.Price, Max: validate.MaxPriceRunes, Optional: true},
+		{Name: "description", Label: "Description", Type: "textarea", Value: c.Description, Max: validate.MaxDescriptionRunes, Optional: true},
 	}}
 	focused := false
 	for i := range f.Fields {
@@ -64,70 +63,11 @@ func newConcertForm(gr *groupRequest, c store.Concert, errs map[string]string) *
 	return f
 }
 
-const (
-	maxTextRunes        = 100
-	maxURLBytes         = 2000
-	maxPriceRunes       = 30
-	maxDescriptionRunes = 2000
-)
-
 // parseConcert validates the concert form; errs is keyed by field name.
-func parseConcert(f url.Values) (c store.Concert, errs map[string]string) {
-	errs = map[string]string{}
-	var ok bool
-	if c.Artist, ok = cleanText(f.Get("artist"), maxTextRunes); !ok {
-		errs["artist"] = fmt.Sprintf("Indique l'artiste (%d caractères au plus).", maxTextRunes)
-	}
-	if c.Date = f.Get("date"); !validDate(c.Date) {
-		errs["date"] = "Indique une date valide."
-	}
-	if c.Time = f.Get("time"); c.Time != "" {
-		// Stored as HH:MM so text order is time order: "9:30" would sort after "20:00".
-		if t, err := time.Parse("15:04", c.Time); err != nil {
-			errs["time"] = "Heure invalide (ex. 20:30)."
-		} else {
-			c.Time = t.Format("15:04")
-		}
-	}
-	if c.Venue, ok = cleanText(f.Get("venue"), maxTextRunes); !ok {
-		errs["venue"] = fmt.Sprintf("Indique la salle (%d caractères au plus).", maxTextRunes)
-	}
-	if a := f.Get("address"); strings.TrimSpace(a) != "" {
-		if c.Address, ok = cleanText(a, maxTextRunes); !ok {
-			errs["address"] = fmt.Sprintf("Adresse invalide (%d caractères au plus).", maxTextRunes)
-		}
-	}
-	if c.TicketURL = strings.TrimSpace(f.Get("ticket_url")); c.TicketURL != "" && !validTicketURL(c.TicketURL) {
-		errs["ticket_url"] = "Lien invalide : il doit commencer par http:// ou https://."
-	}
-	if c.OnSaleDate = f.Get("on_sale_date"); c.OnSaleDate != "" && !validDate(c.OnSaleDate) {
-		errs["on_sale_date"] = "Date de mise en vente invalide."
-	}
-	if p := f.Get("price"); strings.TrimSpace(p) != "" {
-		if c.Price, ok = cleanText(p, maxPriceRunes); !ok {
-			errs["price"] = fmt.Sprintf("Prix invalide (%d caractères au plus).", maxPriceRunes)
-		}
-	}
-	if d := f.Get("description"); strings.TrimSpace(d) != "" {
-		if c.Description, ok = cleanParagraphs(d, maxDescriptionRunes); !ok {
-			errs["description"] = fmt.Sprintf("Description invalide (%d caractères au plus).", maxDescriptionRunes)
-		}
-	}
-	return c, errs
-}
-
-func validDate(s string) bool {
-	d, err := time.Parse(time.DateOnly, s)
-	return err == nil && d.Year() >= 2000 && d.Year() < 2100
-}
-
-// validTicketURL keeps javascript:, data: and look-alike links (« fnac.com@evil.example », non-ASCII hosts) off pages.
-func validTicketURL(s string) bool {
-	if len(s) > maxURLBytes || !utf8.ValidString(s) || strings.ContainsFunc(s, func(r rune) bool { return r <= ' ' || r == 0x7f }) {
-		return false
-	}
-	u, err := url.Parse(s)
-	return err == nil && httpURL(u) && !strings.ContainsFunc(u.Host, func(r rune) bool { return r > '~' })
+func parseConcert(f url.Values) (store.Concert, map[string]string) {
+	return validate.Concert(store.Concert{Artist: f.Get("artist"), Date: f.Get("date"), Time: f.Get("time"),
+		Venue: f.Get("venue"), Address: f.Get("address"), TicketURL: f.Get("ticket_url"), OnSaleDate: f.Get("on_sale_date"),
+		Price: f.Get("price"), Description: f.Get("description")})
 }
 
 // pathID parses the {id} path value; it answers 404 and returns false if invalid.

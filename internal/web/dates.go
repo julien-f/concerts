@@ -4,19 +4,10 @@ import (
 	"fmt"
 	"strconv"
 	"time"
-	_ "time/tzdata" // Europe/Paris must not depend on the host's zoneinfo
 
 	"concerts/internal/store"
+	"concerts/internal/validate"
 )
-
-// paris is the one time zone of the app (ADR 0005); time/tzdata guarantees it loads.
-var paris = func() *time.Location {
-	loc, err := time.LoadLocation("Europe/Paris")
-	if err != nil {
-		panic(err)
-	}
-	return loc
-}()
 
 var (
 	weekdays = [...]string{"dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."}
@@ -34,8 +25,8 @@ func monthOf(date string) string {
 	return fullMonths[d.Month()-1] + " " + strconv.Itoa(d.Year())
 }
 
-// today is the clock's date in Paris, comparable with concert dates: a concert is past from the next day.
-func (s *server) today() string { return s.now().In(paris).Format(time.DateOnly) }
+// today is the clock's date in Paris (validate.Today).
+func (s *server) today() string { return validate.Today(s.now()) }
 
 func (s *server) upcoming(c store.Concert) bool { return c.Date >= s.today() }
 
@@ -50,7 +41,7 @@ func stubOf(date string) stub {
 
 // otherYear is d's year when it is not now's, else "".
 func (s *server) otherYear(d time.Time) string {
-	if d.Year() != s.now().In(paris).Year() {
+	if d.Year() != s.now().In(validate.Paris).Year() {
 		return strconv.Itoa(d.Year())
 	}
 	return ""

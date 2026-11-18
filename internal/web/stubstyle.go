@@ -16,7 +16,7 @@ const (
 // Classes, not style="--h:…": the CSP allows no inline style.
 func stubStyle(artist string) string {
 	h := fnv.New32a()
-	_, _ = h.Write([]byte(strings.ToLower(artist))) // never fails; the artist is already trimmed by cleanText
+	_, _ = h.Write([]byte(strings.ToLower(artist))) // never fails; the artist is already trimmed by validate.Text
 	n := h.Sum32()
 	return "hue-" + strconv.Itoa(int(n%stubHues)) + " pat-" + strconv.Itoa(int(n/stubHues%stubPatterns))
 }
