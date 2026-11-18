@@ -5,16 +5,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"strconv"
+	"strings"
 	"syscall"
 	"text/tabwriter"
 	"time"
 
+	"concerts/internal/agenda"
 	"concerts/internal/store"
 	"concerts/internal/web"
 )
@@ -27,6 +31,10 @@ const usage = `usage:
   concerts delete-member <group-id> <first-name>
   concerts rename-member <group-id> <first-name> <new-first-name>   keeps their answers and concerts
   concerts backup <file>                         write a consistent snapshot of the database; <file> must not exist
+  concerts list-venues                           venues groups can follow, with the ids of the groups following each
+  concerts follow-venue <group-id> <venue-key>   import the venue's upcoming concerts into the group, from the next sync
+  concerts unfollow-venue <group-id> <venue-key> stop; deletes its imported concerts nobody answered or edited
+  concerts sync                                  import the followed venues' concerts (run daily by a timer)
   concerts demo                                  add a demo group (development)
 
 environment:
@@ -84,6 +92,16 @@ func run(args []string, log *slog.Logger) error {
 				return fmt.Errorf("backup %s: %w", args[1], err)
 			}
 			return nil
+		}
+	case len(args) == 1 && args[0] == "list-venues":
+		cmd = func(st *store.Store) error { return listVenues(ctx, st, os.Stdout) }
+	case len(args) == 3 && args[0] == "follow-venue":
+		cmd = func(st *store.Store) error { return followVenue(ctx, st, args[1], args[2]) }
+	case len(args) == 3 && args[0] == "unfollow-venue":
+		cmd = func(st *store.Store) error { return unfollowVenue(ctx, st, args[1], args[2]) }
+	case len(args) == 1 && args[0] == "sync":
+		cmd = func(st *store.Store) error {
+			return agenda.Sync(ctx, st, agenda.NewClient(), agenda.Venues, time.Now, agenda.Sleep, log)
 		}
 	case len(args) == 1 && args[0] == "demo":
 		needsURL = true
@@ -179,6 +197,51 @@ func renameMember(ctx context.Context, st *store.Store, groupID, name, newName s
 	if err := st.RenameMember(ctx, id, name, clean); err != nil {
 		return fmt.Errorf("member %q of group %d: %w", name, id, err)
 	}
+	return nil
+}
+
+func listVenues(ctx context.Context, st *store.Store, w io.Writer) error {
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	_, _ = fmt.Fprintln(tw, "KEY\tNAME\tGROUPS")
+	for _, v := range agenda.Venues {
+		ids, err := st.Followers(ctx, v.Key)
+		if err != nil {
+			return err
+		}
+		groups := make([]string, len(ids))
+		for i, id := range ids {
+			groups[i] = strconv.FormatInt(id, 10)
+		}
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\n", v.Key, v.Name, strings.Join(groups, ","))
+	}
+	return tw.Flush()
+}
+
+func followVenue(ctx context.Context, st *store.Store, groupID, key string) error {
+	id, err := parseGroupID(groupID)
+	if err != nil {
+		return err
+	}
+	if !slices.ContainsFunc(agenda.Venues, func(v agenda.Venue) bool { return v.Key == key }) {
+		return fmt.Errorf("venue %q: unknown (see list-venues)", key)
+	}
+	if err := st.Follow(ctx, id, key); err != nil {
+		return fmt.Errorf("group %d: %w", id, err)
+	}
+	return nil
+}
+
+// unfollowVenue takes any key: a venue no longer compiled in can still be followed.
+func unfollowVenue(ctx context.Context, st *store.Store, groupID, key string) error {
+	id, err := parseGroupID(groupID)
+	if err != nil {
+		return err
+	}
+	n, err := st.Unfollow(ctx, id, key)
+	if err != nil {
+		return fmt.Errorf("group %d, venue %q: %w", id, key, err)
+	}
+	fmt.Fprintf(os.Stderr, "Deleted %d imported concerts nobody answered or edited.\n", n)
 	return nil
 }
 
