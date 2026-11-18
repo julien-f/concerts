@@ -64,6 +64,10 @@ func (s *server) changes(before, after store.Concert) []change {
 // fieldText is a form value as the concert page shows it.
 func (s *server) fieldText(name, v string) string {
 	switch {
+	case name == "sold_out" && v == "":
+		return "non"
+	case name == "sold_out":
+		return "oui"
 	case v == "":
 		return "(vide)"
 	case name == "date" || name == "on_sale_date":

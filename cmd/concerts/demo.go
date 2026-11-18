@@ -90,7 +90,7 @@ func demo(ctx context.Context, st *store.Store, baseURL string, now time.Time) e
 func demoImports(ctx context.Context, st *store.Store, groupID, marc int64, day func(int) string) error {
 	agendas := map[string][]store.Concert{
 		"belle-electrique": {
-			{Artist: "Bagarre", Date: day(12), Time: "20:00", Venue: "La Belle Électrique", Price: "22 € · Complet"},
+			{Artist: "Bagarre", Date: day(12), Time: "20:00", Venue: "La Belle Électrique", Price: "22 €", SoldOut: true},
 			{Artist: "Orchestre National de Barbès + Les Ogres de Barback & invités", Date: day(33), Time: "19:30",
 				Venue: "La Belle Électrique, grande salle (debout)", Price: "25–28 €"},
 			{Artist: "Lysistrata", Date: day(40), Time: "20:30", Venue: "La Belle Électrique"},

@@ -41,7 +41,7 @@ func afficheGroup(t *testing.T, ts *testServer) (*browser, string) {
 	b.postRedirect(t, "/g/"+secret+"/concerts", concertValues("Manuel", "2026-07-01", "", "V", "", ""))
 	ts.importInto(t, secret, "salle-a",
 		store.Concert{Artist: "Importé A", Date: "2026-07-02", Venue: "Salle A"},
-		store.Concert{Artist: "Complet A", Date: "2026-07-03", Time: "20:00", Venue: "Salle A", Price: "29 € · Complet"})
+		store.Concert{Artist: "Complet A", Date: "2026-07-03", Time: "20:00", Venue: "Salle A", Price: "29 €", SoldOut: true})
 	ts.importInto(t, secret, "salle-b", store.Concert{Artist: "Importé B", Date: "2026-08-01", Venue: "Salle B"})
 	ts.importInto(t, secret, "salle-a", store.Concert{Artist: "Demain A", Date: "2026-06-02", Venue: "Salle A"})
 	return b, secret

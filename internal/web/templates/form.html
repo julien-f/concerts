@@ -33,6 +33,11 @@
 {{end}}
 <form method="post" action="{{.Base}}/concerts{{with .ID}}/{{.}}{{end}}" class="stack fields">
 {{range .Fields}}{{$f := .}}
+{{- if eq .Type "checkbox"}}
+<div class="field check-field">
+<label class="check"><input id="{{.Name}}" name="{{.Name}}" type="checkbox" value="1"{{if .Value}} checked{{end}}{{template "fieldAttrs" .}}>{{.Label}}{{with .Hint}} <span class="hint">({{.}})</span>{{end}}</label>
+</div>
+{{- continue}}{{end}}
 <div class="field">
 <label for="{{.Name}}">{{.Label}}{{if .Optional}} <span class="hint">(facultatif)</span>{{end}}</label>
 {{- /* No line break after <textarea>: the parser drops one, so a value starting with one would lose it. */}}

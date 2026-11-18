@@ -121,7 +121,6 @@ func New(st *store.Store, log *slog.Logger, cfg Config) (http.Handler, error) {
 		"datetime":   datetime,
 		"lines":      lines,
 		"venue":      s.venue,
-		"soldOut":    soldOut,
 	})
 	if err != nil {
 		return nil, err
@@ -156,9 +155,6 @@ func (s *server) venue(key string) string {
 	}
 	return cmp.Or(s.venueName(key), key)
 }
-
-// soldOut reports whether a price says « Complet », as venue parsers write it (« 29 € · Complet »).
-func soldOut(price string) bool { return strings.Contains(strings.ToLower(price), "complet") }
 
 // staticAssets maps each static file to a content-hashed name, so it can be cached forever.
 type staticAssets struct {

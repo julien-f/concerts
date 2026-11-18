@@ -184,13 +184,6 @@ func (v *Venue) event(l listed) (store.Event, bool) {
 	if utf8.RuneCountInString(price) > validate.MaxPriceRunes {
 		price = ""
 	}
-	if l.full {
-		if price == "" || utf8.RuneCountInString(price+" · Complet") > validate.MaxPriceRunes {
-			price = "Complet"
-		} else {
-			price += " · Complet"
-		}
-	}
 	c, errs := validate.Concert(store.Concert{
 		Artist:    clip(l.artist, validate.MaxTextRunes),
 		Date:      l.date,
@@ -199,6 +192,7 @@ func (v *Venue) event(l listed) (store.Event, bool) {
 		Address:   clip(l.address, validate.MaxTextRunes),
 		TicketURL: v.ticketLink(l),
 		Price:     price,
+		SoldOut:   l.full,
 	})
 	id, ok := store.CleanSourceID(l.id)
 	return store.Event{SourceID: id, Concert: c}, ok && len(errs) == 0

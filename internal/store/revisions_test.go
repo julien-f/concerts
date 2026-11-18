@@ -116,3 +116,29 @@ func TestRevisions(t *testing.T) {
 		t.Fatalf("kept %d revisions, ids %d…%d; want the %d newest ending at %d", len(rs), rs[len(rs)-1].ID, rs[0].ID, maxRevisions, last)
 	}
 }
+
+// TestSoldOutRevision: « Complet » is an editable field like the others: saved, compared, kept in revisions.
+func TestSoldOutRevision(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s := openTest(t)
+	g := mustGroup(t, s, "g", "s1")
+	lea := mustMember(t, s, g.ID, "Léa")
+	orig := Concert{Artist: "A", Date: "2027-03-14", Venue: "V"}
+	id := mustConcert(t, s, g.ID, lea.ID, orig, testToday)
+	full := orig
+	full.SoldOut = true
+	rev, err := s.UpdateConcert(ctx, g.ID, lea.ID, id, full, testToday)
+	if err != nil || rev == 0 {
+		t.Fatalf("sold out: revision %d, %v", rev, err)
+	}
+	if c, _ := s.Concert(ctx, g.ID, id); !c.SoldOut {
+		t.Error("sold out not saved")
+	}
+	if r, _ := s.Revision(ctx, g.ID, id, rev); r.SoldOut {
+		t.Error("revision holds the new value, not the replaced one")
+	}
+	if rev, err := s.UpdateConcert(ctx, g.ID, lea.ID, id, full, testToday); err != nil || rev != 0 {
+		t.Errorf("unchanged: revision %d, %v", rev, err)
+	}
+}

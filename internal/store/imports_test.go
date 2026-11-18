@@ -60,11 +60,11 @@ func TestApplyImports(t *testing.T) {
 		{"256-byte id accepted", nil, []Event{ev(strings.Repeat("é", 128), "A", later)}, ImportCounts{Inserted: 1}, nil},
 		{"owned row updated in place, without a revision",
 			func(t *testing.T, s *Store, g, _ int64) { mustApply(t, s, g, "src", testToday, ev("a", "A", later)) },
-			[]Event{{SourceID: "a", Concert: Concert{Artist: "A2", Date: "2026-07-02", Time: "20:00", Venue: "V", Price: "Complet"}}},
+			[]Event{{SourceID: "a", Concert: Concert{Artist: "A2", Date: "2026-07-02", Time: "20:00", Venue: "V", SoldOut: true}}},
 			ImportCounts{Updated: 1, Moved: 1},
 			func(t *testing.T, s *Store, g int64) {
 				id := importedID(t, s, g, "src", "a")
-				if c, _ := s.Concert(ctx, g, id); c.Artist != "A2" || c.Date != "2026-07-02" || c.Time != "20:00" || c.Price != "Complet" || c.LastRevID != 0 {
+				if c, _ := s.Concert(ctx, g, id); c.Artist != "A2" || c.Date != "2026-07-02" || c.Time != "20:00" || !c.SoldOut || c.LastRevID != 0 {
 					t.Errorf("updated row = %+v", c)
 				}
 			}},

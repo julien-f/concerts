@@ -47,7 +47,7 @@ readers get the full date. */}}
 <div class="body">
 <h3 class="artist"><a href="/c/{{.Token}}">{{.Artist}}</a></h3>
 {{- /* The stub shows the date: here it is for screen readers only. */}}
-<p class="meta"><time datetime="{{datetime .Concert}}"><span class="visually-hidden">{{frdate .Date}} · </span>{{with .Time}}{{frtime .}}{{end}}</time>{{if .Time}} · {{end}}{{.Venue}}{{with .Price}} <span class="price">· {{.}}</span>{{end}}</p>
+<p class="meta"><time datetime="{{datetime .Concert}}"><span class="visually-hidden">{{frdate .Date}} · </span>{{with .Time}}{{frtime .}}{{end}}</time>{{if .Time}} · {{end}}{{.Venue}}{{with .Price}} <span class="price">· {{.}}</span>{{end}}{{if .SoldOut}} <span class="sold">Complet</span>{{end}}</p>
 {{template "statuses" .Statuses}}
 </div>
 </article></li>
@@ -58,7 +58,7 @@ readers get the full date. */}}
 {{with stub .Date}}<span class="day" aria-hidden="true"><span>{{.Weekday}}</span><b>{{.Day}}</b><span>{{.Month}}</span></span>{{end}}
 <div class="what">
 <a class="title" href="/c/{{.Token}}">{{.Artist}}</a>
-<p class="meta"><time datetime="{{datetime .Concert}}"><span class="visually-hidden">{{frdate .Date}} · </span>{{with .Time}}{{frtime .}}{{end}}</time>{{if .Time}} · {{end}}{{.Venue}}{{if soldOut .Price}} <span class="sold">Complet</span>{{end}}</p>
+<p class="meta"><time datetime="{{datetime .Concert}}"><span class="visually-hidden">{{frdate .Date}} · </span>{{with .Time}}{{frtime .}}{{end}}</time>{{if .Time}} · {{end}}{{.Venue}}{{if .SoldOut}} <span class="sold">Complet</span>{{end}}</p>
 </div>
 {{template "toggle" .Toggle}}
 </li>
@@ -101,7 +101,8 @@ and fills the status region out of band. */}}
 {{end}}
 {{define "concertFacts"}}<p>{{.Venue}}</p>
 {{with .Map}}<p>{{$.Address}}<br><a href="{{.}}" rel="noopener noreferrer">Voir sur la carte<span class="visually-hidden"> OpenStreetMap</span></a></p>{{end}}
-{{with .Price}}<p>Prix : {{.}}</p>{{end}}
+{{with .Price}}<p>Prix : {{.}}{{if $.SoldOut}} <span class="sold">Complet</span>{{end}}</p>
+{{- else}}{{if .SoldOut}}<p><span class="sold">Complet</span></p>{{end}}{{end}}
 {{with .OnSaleDate}}<p>Mise en vente : <time datetime="{{.}}">{{frdate .}}</time></p>{{end}}
 {{template "agendaLink" .}}
 {{end}}

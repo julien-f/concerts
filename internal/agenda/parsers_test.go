@@ -28,10 +28,15 @@ func venue(t *testing.T, key string) *Venue {
 	return &Venues[i]
 }
 
-// row shows an event on one line, whitespace runs collapsed: id | artist | date time | venue, address | link | price.
+// row shows an event on one line, whitespace runs collapsed: id | artist | date time | venue, address | link | price,
+// then « | complet » if sold out.
 func row(e store.Event) string {
-	return strings.Join(strings.Fields(fmt.Sprintf("%s | %s | %s %s | %s, %s | %s | %s",
-		e.SourceID, e.Artist, e.Date, e.Time, e.Venue, e.Address, e.TicketURL, e.Price)), " ")
+	s := fmt.Sprintf("%s | %s | %s %s | %s, %s | %s | %s",
+		e.SourceID, e.Artist, e.Date, e.Time, e.Venue, e.Address, e.TicketURL, e.Price)
+	if e.SoldOut {
+		s += " | complet"
+	}
+	return strings.Join(strings.Fields(s), " ")
 }
 
 // parseFixture parses testdata/file as v's listing page at pageURL, then cleans the events
@@ -85,7 +90,7 @@ func TestParsers(t *testing.T) {
 			venue: "belle-electrique", file: "belle-electrique.html", page: "https://www.la-belle-electrique.com/fr/programmation",
 			want: []string{
 				"the-inspector-cluzo | The Inspector Cluzo + Grant Haua | 2026-11-18 20:00 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/the-inspector-cluzo |",
-				"sniper | Sniper + Kenz | 2026-11-19 20:00 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/sniper | Complet",
+				"sniper | Sniper + Kenz | 2026-11-19 20:00 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/sniper | | complet",
 				"face-b-live-milena | Milena | 2026-11-19 20:30 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/face-b-live-milena |",
 				"les-femmes-sen-melent-jasmine-not-jafar-op16-goupile-2026 | Jasmine Not Jafar + Goupile + OP.16 | 2026-11-21 20:00 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/les-femmes-sen-melent-jasmine-not-jafar-op16-goupile-2026 |",
 				"aperomix-non-binary-beats | Non-Binary Beats + Pat'Soucis | 2026-11-24 20:00 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/aperomix-non-binary-beats |",
@@ -101,7 +106,7 @@ func TestParsers(t *testing.T) {
 			want: []string{
 				"acid-arab-live | Acid Arab live + Kasbah + Kbira | 2027-02-05 20:00 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/acid-arab-live |",
 				"eczodia-nkn-rouge | ECZODIA + NKN + ROÜGE | 2027-02-20 23:55 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/eczodia-nkn-rouge |",
-				"skip-the-use | Skip The Use + SUPREME NIGHTCLUB | 2027-03-13 20:00 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/skip-the-use | Complet",
+				"skip-the-use | Skip The Use + SUPREME NIGHTCLUB | 2027-03-13 20:00 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/skip-the-use | | complet",
 			},
 			next: []string{"https://www.la-belle-electrique.com/fr/programmation"},
 		},
@@ -137,7 +142,7 @@ func TestParsers(t *testing.T) {
 			want: []string{
 				"aitawa-captain-xxi | Aïtawa + Captain XXI | 2026-11-19 | La Source, | https://lasource-fontaine.fr/event/aitawa-captain-xxi/ |",
 				"6331 | Harold Lopez-Nussa – Suite Habana | 2026-11-25 | La Source, | https://lasource-fontaine.fr/event/6331/ |",
-				"le-truc | Le TRUC | 2027-01-15 | La Source, | https://lasource-fontaine.fr/event/le-truc/ | Complet",
+				"le-truc | Le TRUC | 2027-01-15 | La Source, | https://lasource-fontaine.fr/event/le-truc/ | | complet",
 				"manon-lisa | Manon Lisa | 2027-05-12 | La Source, | https://lasource-fontaine.fr/event/manon-lisa/ |",
 			},
 		},
@@ -148,7 +153,7 @@ func TestParsers(t *testing.T) {
 				"390755 | Micro’live – Ada Unn | 2026-11-19 | Bibliothèque Centre Ville, | https://www.retourdescene.net/microlive-ada-unn/ |",
 				"389827 | RAKOON + SUMAC DUB + BLADI SOUND SYSTEM | 2026-11-21 | Ilyade, Seyssinet-Pariset | https://www.retourdescene.net/rakoon-sumac-dub-bladi-sound-system/ |",
 				"390570 | BONNE NUIT + LOREN 6 | 2026-12-03 | L'Aquarium, | https://www.retourdescene.net/bonne-nuit/ |",
-				"390401 | BEN PLG | 2026-12-09 | La Belle Electrique, Grenoble | https://www.retourdescene.net/ben-plg/ | Complet",
+				"390401 | BEN PLG | 2026-12-09 | La Belle Electrique, Grenoble | https://www.retourdescene.net/ben-plg/ | | complet",
 				"390873 | HK | 2027-05-15 | La Belle Electrique, | https://www.retourdescene.net/hk/ |",
 			},
 		},
@@ -262,12 +267,10 @@ func TestEvent(t *testing.T) {
 		{"ticket elsewhere: the event page", func(l *listed) { l.ticket = "https://evil.example/pay" },
 			"x | Les Hiboux | 2026-12-01 | La Salle, | https://www.example.com/e/x |"},
 		{"page elsewhere: no link", func(l *listed) { l.page = "https://evil.example/e" }, "x | Les Hiboux | 2026-12-01 | La Salle, | |"},
-		{"full with a price", func(l *listed) { l.price, l.full = "29 €", true },
-			"x | Les Hiboux | 2026-12-01 | La Salle, | https://www.example.com/e/x | 29 € · Complet"},
+		{"full: a flag, the price kept whole", func(l *listed) { l.price, l.full = "De 12 € à 35 € selon tarif", true },
+			"x | Les Hiboux | 2026-12-01 | La Salle, | https://www.example.com/e/x | De 12 € à 35 € selon tarif | complet"},
 		{"full without a price", func(l *listed) { l.full = true },
-			"x | Les Hiboux | 2026-12-01 | La Salle, | https://www.example.com/e/x | Complet"},
-		{"full, price too long for both", func(l *listed) { l.price, l.full = "De 12 € à 35 € selon tarif", true },
-			"x | Les Hiboux | 2026-12-01 | La Salle, | https://www.example.com/e/x | Complet"},
+			"x | Les Hiboux | 2026-12-01 | La Salle, | https://www.example.com/e/x | | complet"},
 		{"price over 30 runes dropped", func(l *listed) { l.price = long },
 			"x | Les Hiboux | 2026-12-01 | La Salle, | https://www.example.com/e/x |"},
 		{"artist clipped", func(l *listed) { l.artist = long },

@@ -12,9 +12,10 @@ import (
 	"concerts/internal/validate"
 )
 
-// field is one input of the concert form.
+// field is one input of the concert form; a checkbox's Value is "1" when ticked, else "".
 type field struct {
 	Name, Label, Type, Value string
+	Hint                     string // after the label, in parentheses
 	Autocomplete             string // "off" where browsers would offer the user's own data
 	Max                      int    // maxlength, 0 for none
 	Optional                 bool
@@ -45,8 +46,9 @@ func newConcertForm(gr *groupRequest, c store.Concert, errs map[string]string) *
 		{Name: "venue", Label: "Salle", Type: "text", Value: c.Venue, Max: validate.MaxTextRunes},
 		{Name: "address", Label: "Adresse", Type: "text", Value: c.Address, Max: validate.MaxTextRunes, Optional: true, Autocomplete: "off"},
 		{Name: "ticket_url", Label: "Lien de billetterie", Type: "url", Value: c.TicketURL, Max: validate.MaxURLBytes, Optional: true},
-		{Name: "on_sale_date", Label: "Mise en vente", Type: "date", Value: c.OnSaleDate, Optional: true},
 		{Name: "price", Label: "Prix", Type: "text", Value: c.Price, Max: validate.MaxPriceRunes, Optional: true},
+		{Name: "sold_out", Label: "Complet", Hint: "plus de billets en vente", Type: "checkbox", Value: checked(c.SoldOut), Optional: true},
+		{Name: "on_sale_date", Label: "Mise en vente", Type: "date", Value: c.OnSaleDate, Optional: true},
 		{Name: "description", Label: "Description", Type: "textarea", Value: c.Description, Max: validate.MaxDescriptionRunes, Optional: true},
 	}}
 	focused := false
@@ -64,11 +66,19 @@ func newConcertForm(gr *groupRequest, c store.Concert, errs map[string]string) *
 	return f
 }
 
+// checked is a checkbox field's Value.
+func checked(b bool) string {
+	if b {
+		return "1"
+	}
+	return ""
+}
+
 // parseConcert validates the concert form; errs is keyed by field name.
 func parseConcert(f url.Values) (store.Concert, map[string]string) {
 	return validate.Concert(store.Concert{Artist: f.Get("artist"), Date: f.Get("date"), Time: f.Get("time"),
 		Venue: f.Get("venue"), Address: f.Get("address"), TicketURL: f.Get("ticket_url"), OnSaleDate: f.Get("on_sale_date"),
-		Price: f.Get("price"), Description: f.Get("description")})
+		Price: f.Get("price"), Description: f.Get("description"), SoldOut: f.Get("sold_out") != ""})
 }
 
 // pathID parses the {id} path value; it answers 404 and returns false if invalid.

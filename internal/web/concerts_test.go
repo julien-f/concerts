@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 	"unicode/utf8"
+
+	"concerts/internal/store"
 )
 
 // TestConcertLifecycle walks add, show, edit, delete and undo as a browser without JS.
@@ -152,6 +154,48 @@ func TestConcertDescriptionPrice(t *testing.T) {
 	b.postRedirect(t, g+"/concerts/1/revisions/1/revert", nil)
 	_, body = b.follow(t, g+"/concerts/1")
 	assertContains(t, body, "<p>Prix : 29–32 €</p>", `<details class="about">`)
+}
+
+// TestConcertSoldOut: « Complet » is a checkbox of the form, shown as a tag and kept in the history.
+func TestConcertSoldOut(t *testing.T) {
+	t.Parallel()
+	ts := newTestServer(t)
+	b, secret := ts.member(t, "Léa")
+	g := "/g/" + secret
+
+	_, body := b.get(t, g+"/concerts/new")
+	assertContains(t, body, `<label class="check"><input id="sold_out" name="sold_out" type="checkbox" value="1">Complet <span class="hint">(plus de billets en vente)</span></label>`)
+	form := concertValues("Zaz", "2026-06-13", "", "L'Olympia", "", "")
+	form.Set("sold_out", "1")
+	b.postRedirect(t, g+"/concerts", form)
+	b.postRedirect(t, g+"/concerts", concertValues("Air", "2026-06-14", "", "Pleyel", "", ""))
+	ts.importInto(t, secret, "salle-a", store.Concert{Artist: "Importé", Date: "2026-06-15", Venue: "Salle A", Price: "20 €", SoldOut: true})
+
+	tests := []struct {
+		name, path string
+		want       []string
+	}{
+		{"card", g, []string{`L&#39;Olympia <span class="sold">Complet</span></p>`}},
+		{"row", g + "?affiche=1", []string{`Salle A <span class="sold">Complet</span></p>`}},
+		{"page without price", g + "/concerts/1", []string{`<p><span class="sold">Complet</span></p>`}},
+		{"page with a price", g + "/concerts/3", []string{"<p>Prix : 20 € <span class=\"sold\">Complet</span></p>"}},
+		{"form", g + "/concerts/1/edit", []string{`id="sold_out" name="sold_out" type="checkbox" value="1" checked>`}},
+	}
+	for _, tc := range tests {
+		_, body := b.follow(t, tc.path)
+		assertContains(t, body, tc.want...)
+	}
+	if _, body := b.follow(t, g+"/concerts/2"); strings.Contains(body, `class="sold"`) {
+		t.Error("a concert not sold out is tagged « Complet »")
+	}
+
+	// Unticking it is an edit like any other: in the history, and undone by going back.
+	b.postRedirect(t, g+"/concerts/1", concertValues("Zaz", "2026-06-13", "", "L'Olympia", "", ""))
+	_, body = b.get(t, g+"/concerts/1/history")
+	assertContains(t, body, "<li>Complet : oui → non</li>")
+	b.postRedirect(t, g+"/concerts/1/revisions/1/revert", nil)
+	_, body = b.follow(t, g+"/concerts/1")
+	assertContains(t, body, `<span class="sold">Complet</span>`)
 }
 
 func TestConcertValidation(t *testing.T) {

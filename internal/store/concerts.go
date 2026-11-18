@@ -27,6 +27,7 @@ type Concert struct {
 	OnSaleDate  string // YYYY-MM-DD or ""
 	Price       string // as shown, e.g. « 29–32 € », or ""
 	Description string // paragraphs separated by "\n", or ""
+	SoldOut     bool   // « Complet »: no tickets left on sale
 	AddedBy     string // first name of the member who added it, "" if that member was deleted or a venue did
 	Source      string // key of the venue it was imported from, "" if a member added it
 	Deleted     bool
@@ -37,24 +38,26 @@ type Concert struct {
 // concertSelect matches concertFields.
 const concertSelect = `SELECT c.id, c.token, c.artist, c.date, coalesce(c.time, ''), c.venue,
 	coalesce(c.address, ''), coalesce(c.ticket_url, ''), coalesce(c.on_sale_date, ''),
-	coalesce(c.price, ''), coalesce(c.description, ''), coalesce(m.name, ''), coalesce(c.source, ''), c.deleted_at IS NOT NULL
+	coalesce(c.price, ''), coalesce(c.description, ''), c.sold_out, coalesce(m.name, ''), coalesce(c.source, ''), c.deleted_at IS NOT NULL
 	FROM concerts c LEFT JOIN members m ON m.id = c.created_by`
 
 func concertFields(c *Concert) []any {
-	return []any{&c.ID, &c.Token, &c.Artist, &c.Date, &c.Time, &c.Venue, &c.Address, &c.TicketURL, &c.OnSaleDate, &c.Price, &c.Description, &c.AddedBy, &c.Source, &c.Deleted}
+	return []any{&c.ID, &c.Token, &c.Artist, &c.Date, &c.Time, &c.Venue, &c.Address, &c.TicketURL, &c.OnSaleDate, &c.Price, &c.Description, &c.SoldOut, &c.AddedBy, &c.Source, &c.Deleted}
 }
 
 // setEditable and differs take editable(c) as arguments; stored empties are NULL, ours "",
 // and IS NOT compares NULL-safely.
 const (
 	setEditable = `artist = ?, date = ?, time = nullif(?, ''), venue = ?, address = nullif(?, ''),
-		ticket_url = nullif(?, ''), on_sale_date = nullif(?, ''), price = nullif(?, ''), description = nullif(?, '')`
+		ticket_url = nullif(?, ''), on_sale_date = nullif(?, ''), price = nullif(?, ''), description = nullif(?, ''),
+		sold_out = ?`
 	differs = `(artist IS NOT ? OR date IS NOT ? OR time IS NOT nullif(?, '') OR venue IS NOT ? OR address IS NOT nullif(?, '')
-		OR ticket_url IS NOT nullif(?, '') OR on_sale_date IS NOT nullif(?, '') OR price IS NOT nullif(?, '') OR description IS NOT nullif(?, ''))`
+		OR ticket_url IS NOT nullif(?, '') OR on_sale_date IS NOT nullif(?, '') OR price IS NOT nullif(?, '') OR description IS NOT nullif(?, '')
+		OR sold_out IS NOT ?)`
 )
 
 func editable(c Concert) []any {
-	return []any{c.Artist, c.Date, c.Time, c.Venue, c.Address, c.TicketURL, c.OnSaleDate, c.Price, c.Description}
+	return []any{c.Artist, c.Date, c.Time, c.Venue, c.Address, c.TicketURL, c.OnSaleDate, c.Price, c.Description, c.SoldOut}
 }
 
 // Concerts returns the group's live concerts in chronological order (no time first within a day).
@@ -160,9 +163,10 @@ func (s *Store) CreateConcert(ctx context.Context, groupID, memberID int64, c Co
 		return 0, err
 	}
 	res, err := tx.ExecContext(ctx, `INSERT INTO concerts
-		(group_id, token, artist, date, time, venue, address, ticket_url, on_sale_date, price, description, created_by, created_at)
-		VALUES (?, ?, ?, ?, nullif(?, ''), ?, nullif(?, ''), nullif(?, ''), nullif(?, ''), nullif(?, ''), nullif(?, ''), ?, ?)`,
-		groupID, newToken(), c.Artist, c.Date, c.Time, c.Venue, c.Address, c.TicketURL, c.OnSaleDate, c.Price, c.Description, memberID, s.timestamp())
+		(group_id, token, artist, date, time, venue, address, ticket_url, on_sale_date, price, description, sold_out,
+			created_by, created_at)
+		VALUES (?, ?, ?, ?, nullif(?, ''), ?, nullif(?, ''), nullif(?, ''), nullif(?, ''), nullif(?, ''), nullif(?, ''), ?, ?, ?)`,
+		append(append([]any{groupID, newToken()}, editable(c)...), memberID, s.timestamp())...)
 	if err != nil {
 		return 0, err
 	}
@@ -187,8 +191,8 @@ func (s *Store) UpdateConcert(ctx context.Context, groupID, memberID, id int64, 
 	}
 	defer func() { _ = tx.Rollback() }()
 	res, err := tx.ExecContext(ctx, `INSERT INTO concert_revisions
-		(concert_id, artist, date, time, venue, address, ticket_url, on_sale_date, price, description, edited_by, edited_at)
-		SELECT id, artist, date, time, venue, address, ticket_url, on_sale_date, price, description, ?, ? FROM concerts
+		(concert_id, artist, date, time, venue, address, ticket_url, on_sale_date, price, description, sold_out, edited_by, edited_at)
+		SELECT id, artist, date, time, venue, address, ticket_url, on_sale_date, price, description, sold_out, ?, ? FROM concerts
 		WHERE id = ? AND group_id = ? AND deleted_at IS NULL AND `+differs,
 		append([]any{memberID, s.timestamp(), id, groupID}, editable(c)...)...)
 	if err != nil {
