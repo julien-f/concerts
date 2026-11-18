@@ -59,6 +59,10 @@ func TestParseFixtures(t *testing.T) {
 		{"retourdescene.html", "www.retourdescene.net", Result{Artist: "LES HIBOUX + NOVA TEST", Date: "2026-12-05", Time: "20:00",
 			Venue: "L’Exemple", Address: "1 Rue de l’Exemple, 38000 Villefictive", Price: "20–23 €",
 			Description: "LES HIBOUX\nUne musique électronique hybride, le samedi 12 décembre 2026 en tournée.\n\nNOVA TEST\nUn duo électro venu\nde Grenoble."}},
+		// No Event in JSON-LD: « Date de début » with « 20 h 30 min », the hall as venue, the footer address;
+		// the « Date de fin » and the description's date are not taken.
+		{"lasource.html", "lasource-fontaine.fr", Result{Artist: "Nova Test", Date: "2027-05-12", Time: "20:30",
+			Venue: "La Source", Address: "1 avenue de l’Exemple, 38600 Fontaine"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.file+"@"+tt.host, func(t *testing.T) {
@@ -189,6 +193,11 @@ func TestParseSiteRules(t *testing.T) {
 				return `<h3>Lieu</h3><p>Salle<br>Ville, Isère 38000 France</p><h3>Horaire</h3><p>1er mars 2027<br>21h</p>`
 			},
 			Result{Date: "2027-03-01", Time: "21:00", Venue: "Salle", Address: "38000 Ville"}},
+		{"street ending with a comma, bare city line, zero-padded day", "www.retourdescene.net",
+			func(*testing.T) string {
+				return `<h3>Lieu</h3><p>Salle<br>1 All. X, <br>38400 Ville</p><h3>Horaire</h3><p>Jeudi 03 décembre 2026<br>20h &gt; 00h</p>`
+			},
+			Result{Date: "2026-12-03", Time: "20:00", Venue: "Salle", Address: "1 All. X, 38400 Ville"}},
 		{"Lieu without postcode: no address", "www.retourdescene.net",
 			func(*testing.T) string {
 				return `<h3>Lieu</h3><p>Salle<br>Rue X<br>Lyon</p><h3>Horaire</h3><p>Le soir</p>`
@@ -205,6 +214,14 @@ func TestParseSiteRules(t *testing.T) {
 		{"price with spaces and cents", "www.retourdescene.net",
 			func(*testing.T) string { return "<a>Billetterie</a><p>12,50 € / 15 €</p><h3>Lieu</h3>" },
 			Result{Price: "12,50–15 €"}},
+		{"La Source without time or footer", "lasource-fontaine.fr",
+			func(*testing.T) string { return "<strong>Date de début</strong><span>3 juin 2027</span>" },
+			Result{Date: "2027-06-03", Venue: "La Source"}},
+		{"La Source page without start date: not an event, no venue", "lasource-fontaine.fr",
+			func(*testing.T) string {
+				return `<strong>Date de début</strong><span>Bientôt</span><p class="ls-ico ls-ico-pin">1 rue X 38600 Fontaine</p>`
+			},
+			Result{}},
 		{"rule of another host not applied", "www.retourdescene.net",
 			func(t *testing.T) string { return fixture(t, "lilyade.html") },
 			Result{Artist: "Les Hiboux + Nova Test"}},
@@ -222,7 +239,7 @@ func TestParseSiteRules(t *testing.T) {
 func TestSiteRule(t *testing.T) {
 	t.Parallel()
 	for host, ok := range map[string]bool{
-		"www.lilyade.fr": true, "lilyade.fr": true, "WWW.LILYADE.FR": true, "www.lilyade.fr.": true, "www.retourdescene.net": true,
+		"www.lilyade.fr": true, "lilyade.fr": true, "WWW.LILYADE.FR": true, "www.lilyade.fr.": true, "www.retourdescene.net": true, "lasource-fontaine.fr": true,
 		"lilyade.fr.evil.com": false, "evil-lilyade.fr": false, "www.www.lilyade.fr": false, "lilyade.fr:443": false, "": false,
 	} {
 		if got := siteRule(host) != nil; got != ok {

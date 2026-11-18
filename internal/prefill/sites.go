@@ -13,8 +13,36 @@ import (
 
 // siteRules read a Result from the visible text of pages without a schema.org Event, by host without "www.".
 var siteRules = map[string]func([]text) Result{
-	"lilyade.fr":        lilyade,
-	"retourdescene.net": retourDeScene,
+	"lasource-fontaine.fr": laSource,
+	"lilyade.fr":           lilyade,
+	"retourdescene.net":    retourDeScene,
+}
+
+// laSource reads « Date de début » (« 12 mai 2027 20 h 30 min »); the hall is the venue, its footer
+// address the address. Its « Salle » item is the room (« Grande Salle »).
+func laSource(texts []text) Result {
+	i := slices.IndexFunc(texts, func(t text) bool { return strings.EqualFold(t.s, "Date de début") })
+	if i < 0 || i+1 == len(texts) {
+		return Result{}
+	}
+	f := strings.Fields(texts[i+1].s)
+	if len(f) < 3 {
+		return Result{}
+	}
+	res := Result{Date: frenchDate(strings.Join(f[:3], " ")), Time: frenchTime(strings.Join(f[3:], " ")), Venue: "La Source"}
+	if res.Date == "" {
+		return Result{}
+	}
+	for _, t := range texts {
+		if slices.Contains(strings.Fields(t.class), "ls-ico-pin") {
+			res.Address = t.s
+			if at := postcode.FindStringIndex(t.s); at != nil && at[0] > 0 { // « 38 avenue Lénine 38600 Fontaine »
+				res.Address = strings.TrimRight(t.s[:at[0]], ", ") + ", " + t.s[at[0]:]
+			}
+			break
+		}
+	}
+	return res
 }
 
 // siteRule returns the rule for an exact host, case and trailing dot aside.
@@ -76,7 +104,7 @@ func retourDeScene(texts []text) Result {
 				res.Address = m[2] + " " + m[1]
 			}
 			if i == 2 { // one line between venue and city: the street
-				res.Address = lieu[1] + ", " + res.Address
+				res.Address = strings.TrimRight(lieu[1], ", ") + ", " + res.Address // some streets end with « , »
 			}
 			break
 		}
