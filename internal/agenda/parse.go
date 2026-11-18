@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"golang.org/x/net/html"
@@ -178,11 +179,50 @@ func clip(s string, n int) string {
 	return strings.TrimSpace(string(r[:n-1])) + "…"
 }
 
+// accents restores the accents of genre words that listings write in capitals without them.
+var accents = map[string]string{
+	"cine": "ciné", "electro": "électro", "electronique": "électronique", "electroniques": "électroniques",
+	"experimental": "expérimental", "experimentale": "expérimentale", "francaise": "française",
+	"metal": "métal", "opera": "opéra", "scene": "scène", "theatre": "théâtre",
+}
+
+var word = regexp.MustCompile(`\pL+`)
+
+// genre joins a listing's genre labels with « , », each split at « / », in order, duplicates
+// dropped. A label in capitals is lowercased, with accents back from the table; mixed case is
+// kept (« DJ set »); each starts with a capital.
+func genre(labels ...string) string {
+	var parts, keys []string
+	for _, l := range labels {
+		for p := range strings.SplitSeq(l, "/") {
+			p = strings.Join(strings.Fields(p), " ")
+			if p == "" {
+				continue
+			}
+			// Capitals: no ASCII lowercase letter, as « SCèNE » keeps its accented one.
+			if !strings.ContainsFunc(p, func(r rune) bool { return r >= 'a' && r <= 'z' }) {
+				p = word.ReplaceAllStringFunc(strings.ToLower(p), func(w string) string { return cmp.Or(accents[w], w) })
+			}
+			r, n := utf8.DecodeRuneInString(p)
+			p = string(unicode.ToUpper(r)) + p[n:]
+			if !slices.Contains(keys, strings.ToLower(p)) {
+				parts, keys = append(parts, p), append(keys, strings.ToLower(p))
+			}
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
 // event cleans and validates what a listing gave; false if the concert form would refuse it.
+// A price or genre the form would refuse is dropped, never the event.
 func (v *Venue) event(l listed) (store.Event, bool) {
 	price := strings.Join(strings.Fields(l.price), " ")
 	if utf8.RuneCountInString(price) > validate.MaxPriceRunes {
 		price = ""
+	}
+	g, ok := validate.Text(clip(l.genre, validate.MaxGenreRunes), validate.MaxGenreRunes)
+	if !ok {
+		g = ""
 	}
 	c, errs := validate.Concert(store.Concert{
 		Artist:    clip(l.artist, validate.MaxTextRunes),
@@ -192,6 +232,7 @@ func (v *Venue) event(l listed) (store.Event, bool) {
 		Address:   clip(l.address, validate.MaxTextRunes),
 		TicketURL: v.ticketLink(l),
 		Price:     price,
+		Genre:     g,
 		SoldOut:   l.full,
 	})
 	id, ok := store.CleanSourceID(l.id)

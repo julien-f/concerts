@@ -27,7 +27,7 @@ func ticketSite(t *testing.T) *httptest.Server {
 			http.Error(w, "Just a moment...", http.StatusForbidden)
 		case "/hostile":
 			_, _ = w.Write([]byte(`<script type="application/ld+json">{"@type":"MusicEvent","name":"` +
-				strings.Repeat("x", 101) + `","startDate":"2026-07-01T20:00","location":{"name":"Salle` + "\u200b" + `","address":"` + strings.Repeat("x", 101) + `"}}</script>`))
+				strings.Repeat("x", 101) + `","startDate":"2026-07-01T20:00","location":{"name":"Salle` + "\u200b" + `","address":"` + strings.Repeat("x", 101) + `"},"genre":"` + strings.Repeat("x", 61) + `"}</script>`))
 		case "/rejected": // something found, but nothing the form accepts
 			_, _ = w.Write([]byte("<title>" + strings.Repeat("Concert ", 20) + "</title>"))
 		case "/long":
@@ -53,7 +53,7 @@ func TestPrefill(t *testing.T) {
 		want       []string
 	}{
 		{"dice", site.URL + "/dice.html", []string{"Vérifie les champs pré-remplis", `value="Les Hiboux &#43; Nova Test"`, `value="2026-11-27"`,
-			`value="20:00"`, `value="Salle Exemple"`, `id="address" name="address" type="text" value="Paris"`, `id="ticket_url" name="ticket_url" type="url" value="` + site.URL + `/dice.html"`, "autofocus"}},
+			`value="20:00"`, `value="Salle Exemple"`, `id="address" name="address" type="text" value="Paris"`, `id="genre" name="genre" type="text" value="Rock &amp; Roll"`, `id="ticket_url" name="ticket_url" type="url" value="` + site.URL + `/dice.html"`, "autofocus"}},
 		{"blocked site", site.URL + "/blocked", []string{"Impossible de lire cette page\u202f: essaie le lien de la salle ou de l", "ou remplis \u00e0 la main.", `name="ticket_url" type="url" value="` + site.URL + `/blocked"`}},
 		{"og:title only", site.URL + "/accor.html", []string{`value="Duo Fictif"`}},
 		{"price and description", site.URL + "/belle-electrique.html", []string{`id="price" name="price" type="text" value="26–29 €"`,
@@ -64,7 +64,8 @@ func TestPrefill(t *testing.T) {
 		{"nothing found", site.URL + "/empty", []string{"Rien trouvé sur cette page\u202f: remplis", `aria-describedby="prefill-msg" autofocus`}},
 		{"nothing acceptable", site.URL + "/rejected", []string{"Rien trouvé sur cette page"}},
 		// Too long: dropped; an invisible character: stripped by prefill, the rest kept.
-		{"hostile values dropped", site.URL + "/hostile", []string{`id="artist" name="artist" type="text" value=""`, `id="venue" name="venue" type="text" value="Salle"`, `id="address" name="address" type="text" value=""`, `value="2026-07-01"`}},
+		{"hostile values dropped", site.URL + "/hostile", []string{`id="artist" name="artist" type="text" value=""`, `id="venue" name="venue" type="text" value="Salle"`, `id="address" name="address" type="text" value=""`, `value="2026-07-01"`,
+			`id="genre" name="genre" type="text" value=""`}},
 		{"not a web link", "javascript:alert(1)", []string{"Lien invalide\u202f: il doit",
 			`id="url" name="url" type="url" value="javascript:alert(1)" maxlength="2000" inputmode="url" aria-invalid="true" aria-describedby="prefill-msg" autofocus`}},
 	}

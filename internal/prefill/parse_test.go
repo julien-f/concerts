@@ -35,10 +35,14 @@ func TestParseFixtures(t *testing.T) {
 		file, host string
 		want       Result
 	}{
-		// Performer array (blank and repeated names skipped), offset date, no on-sale date, a non-event block beside.
-		{"dice.html", "dice.fm", Result{Artist: "Les Hiboux + Nova Test", Date: "2026-11-27", Time: "20:00", Venue: "Salle Exemple", Address: "Paris", Price: "30 €"}},
-		// Generic Event, local time without offset, pretty-printed JSON after a WebSite block.
-		{"olympia.html", "www.olympiahall.com", Result{Artist: "Jeanne Exemple", Date: "2026-12-08", Time: "20:00", Venue: "L'Exemple", Price: "39,90 €"}},
+		// Performer array (blank and repeated names skipped), offset date, no on-sale date, a non-event block beside;
+		// genre a string with an entity.
+		{"dice.html", "dice.fm", Result{Artist: "Les Hiboux + Nova Test", Date: "2026-11-27", Time: "20:00", Venue: "Salle Exemple", Address: "Paris", Price: "30 €",
+			Genre: "Rock & Roll"}},
+		// Generic Event, local time without offset, pretty-printed JSON after a WebSite block; genre an array
+		// (blank, repeated and non-string items skipped).
+		{"olympia.html", "www.olympiahall.com", Result{Artist: "Jeanne Exemple", Date: "2026-12-08", Time: "20:00", Venue: "L'Exemple", Price: "39,90 €",
+			Genre: "Chanson, Pop"}},
 		// Minutes only, date-only endDate ignored, full PostalAddress (country dropped).
 		{"zenith.html", "www.zenith-grenoble.fr", Result{Artist: "Nova Test", Date: "2027-01-24", Time: "20:00", Venue: "Arène Exemple", Address: "12, esplanade Exemple, 38000 GRENOBLE"}},
 		// ComedyEvent, EventVenue, milliseconds; past validFrom skipped, nested future one kept; broken block skipped;

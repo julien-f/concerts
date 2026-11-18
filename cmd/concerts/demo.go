@@ -29,7 +29,7 @@ func demo(ctx context.Context, st *store.Store, baseURL string, now time.Time) e
 	var concerts []int64
 	seed := []store.Concert{
 		{Artist: "Fontaines D.C. + Kneecap", Date: day(10), Time: "20:00", Venue: "Zénith Paris", Address: "211 av. Jean Jaurès, 75019 Paris", TicketURL: "https://example.com/billets/fontaines",
-			Price: "39,90–52 €",
+			Price: "39,90–52 €", Genre: "Post-punk, Rap",
 			// A glued word and a long link, as pasted pages bring: they must not widen the page.
 			Description: "FONTAINES D.C.Le groupe de Dublin revient avec Romance, son quatrième album.\n\n" +
 				"Première partie à 19 h 30. Infos : https://example.com/billets/fontaines/informations-pratiques-et-acces"},
@@ -85,19 +85,21 @@ func demo(ctx context.Context, st *store.Store, baseURL string, now time.Time) e
 }
 
 // demoImports follows two venues and imports their agenda, created last (verify-ui relies on the
-// ids above): « À l'affiche » with a sold-out concert, one without time and a long artist and venue,
-// one import answered, so in the list, and one edited that its venue changed since.
+// ids above): « À l'affiche » with a sold-out concert, one without time and a long artist, venue
+// and genre, one import answered, so in the list, and one edited that its venue changed since.
 func demoImports(ctx context.Context, st *store.Store, groupID, marc int64, day func(int) string) error {
 	agendas := map[string][]store.Concert{
 		"belle-electrique": {
-			{Artist: "Bagarre", Date: day(12), Time: "20:00", Venue: "La Belle Électrique", Price: "22 €", SoldOut: true},
+			{Artist: "Bagarre", Date: day(12), Time: "20:00", Venue: "La Belle Électrique", Price: "22 €", Genre: "Pop, Électro",
+				SoldOut: true},
 			{Artist: "Orchestre National de Barbès + Les Ogres de Barback & invités", Date: day(33), Time: "19:30",
-				Venue: "La Belle Électrique, grande salle (debout)", Price: "25–28 €"},
-			{Artist: "Lysistrata", Date: day(40), Time: "20:30", Venue: "La Belle Électrique"},
+				Venue: "La Belle Électrique, grande salle (debout)", Price: "25–28 €",
+				Genre: "Musiques du monde, Chanson festive, Fanfare, Raï, DJ set"},
+			{Artist: "Lysistrata", Date: day(40), Time: "20:30", Venue: "La Belle Électrique", Genre: "Rock"},
 		},
 		"la-source": {
-			{Artist: "Pomme", Date: day(18), Venue: "La Source"},
-			{Artist: "Kompromat", Date: day(45), Time: "21:00", Venue: "La Source"},
+			{Artist: "Pomme", Date: day(18), Venue: "La Source", Genre: "Chanson, Folk"},
+			{Artist: "Kompromat", Date: day(45), Time: "21:00", Venue: "La Source", Genre: "Électro, Techno"},
 		},
 	}
 	for _, venue := range []string{"belle-electrique", "la-source"} {

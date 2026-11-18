@@ -29,10 +29,13 @@ func venue(t *testing.T, key string) *Venue {
 }
 
 // row shows an event on one line, whitespace runs collapsed: id | artist | date time | venue, address | link | price,
-// then « | complet » if sold out.
+// then « | genre <genre> » if any and « | complet » if sold out.
 func row(e store.Event) string {
 	s := fmt.Sprintf("%s | %s | %s %s | %s, %s | %s | %s",
 		e.SourceID, e.Artist, e.Date, e.Time, e.Venue, e.Address, e.TicketURL, e.Price)
+	if e.Genre != "" {
+		s += " | genre " + e.Genre
+	}
 	if e.SoldOut {
 		s += " | complet"
 	}
@@ -78,24 +81,24 @@ func TestParsers(t *testing.T) {
 			venue: "mc2", file: "mc2.json", page: "https://www.mc2grenoble.fr/wp-json/tribe/events/v1/events?categories=musique&per_page=50",
 			want: []string{
 				"61600 | Raphaël – Karaoké | 2026-11-19 20:00 | MC2, | https://www.mc2grenoble.fr/spectacle/raphael-cyril-teste-karaoke/ | 42 €",
-				"61424 | Último helecho | 2026-11-19 20:00 | MC2, | https://www.mc2grenoble.fr/spectacle/ultimo-helecho/ | 34 €",
+				"61424 | Último helecho | 2026-11-19 20:00 | MC2, | https://www.mc2grenoble.fr/spectacle/ultimo-helecho/ | 34 € | genre Danse",
 				"61602 | Jouer la lumière | 2026-12-06 11:00 | MC2, | https://www.mc2grenoble.fr/spectacle/jouer-la-lumiere/ | 13 €",
-				"10026968 | La Bouche | 2026-12-17 20:00 | MC2, | https://www.mc2grenoble.fr/spectacle/la-bouche/2026-12-17/ | 30 €",
-				"10026969 | La Bouche | 2026-12-18 20:00 | MC2, | https://www.mc2grenoble.fr/spectacle/la-bouche/2026-12-18/ | 30 €",
-				"61604 | Symphonie africaine | 2026-12-19 20:00 | MC2, | https://www.mc2grenoble.fr/spectacle/symphonie-africaine/ | 45 €",
+				"10026968 | La Bouche | 2026-12-17 20:00 | MC2, | https://www.mc2grenoble.fr/spectacle/la-bouche/2026-12-17/ | 30 € | genre Cabaret, Danse",
+				"10026969 | La Bouche | 2026-12-18 20:00 | MC2, | https://www.mc2grenoble.fr/spectacle/la-bouche/2026-12-18/ | 30 € | genre Cabaret, Danse",
+				"61604 | Symphonie africaine | 2026-12-19 20:00 | MC2, | https://www.mc2grenoble.fr/spectacle/symphonie-africaine/ | 45 € | genre Jazz",
 			},
 		},
 		{
 			// Visit and training left out; « COMPLET • », « REPORTÉ • » and series names stripped.
 			venue: "belle-electrique", file: "belle-electrique.html", page: "https://www.la-belle-electrique.com/fr/programmation",
 			want: []string{
-				"the-inspector-cluzo | The Inspector Cluzo + Grant Haua | 2026-11-18 20:00 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/the-inspector-cluzo |",
-				"sniper | Sniper + Kenz | 2026-11-19 20:00 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/sniper | | complet",
-				"face-b-live-milena | Milena | 2026-11-19 20:30 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/face-b-live-milena |",
-				"les-femmes-sen-melent-jasmine-not-jafar-op16-goupile-2026 | Jasmine Not Jafar + Goupile + OP.16 | 2026-11-21 20:00 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/les-femmes-sen-melent-jasmine-not-jafar-op16-goupile-2026 |",
-				"aperomix-non-binary-beats | Non-Binary Beats + Pat'Soucis | 2026-11-24 20:00 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/aperomix-non-binary-beats |",
-				"face-b-festival-dolce-cinema | Soirée d'ouverture - Festival Dolce Cinema | 2026-11-26 20:30 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/face-b-festival-dolce-cinema |",
-				"kadavar | Kadavar + Scott Hepple and the Sun Band | 2026-12-01 20:00 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/kadavar |",
+				"the-inspector-cluzo | The Inspector Cluzo + Grant Haua | 2026-11-18 20:00 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/the-inspector-cluzo | | genre Rock",
+				"sniper | Sniper + Kenz | 2026-11-19 20:00 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/sniper | | genre Rap | complet",
+				"face-b-live-milena | Milena | 2026-11-19 20:30 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/face-b-live-milena | | genre Pop, Folk",
+				"les-femmes-sen-melent-jasmine-not-jafar-op16-goupile-2026 | Jasmine Not Jafar + Goupile + OP.16 | 2026-11-21 20:00 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/les-femmes-sen-melent-jasmine-not-jafar-op16-goupile-2026 | | genre Électro",
+				"aperomix-non-binary-beats | Non-Binary Beats + Pat'Soucis | 2026-11-24 20:00 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/aperomix-non-binary-beats | | genre Reggaeton, Shatta, Tekno, DJ sets",
+				"face-b-festival-dolce-cinema | Soirée d'ouverture - Festival Dolce Cinema | 2026-11-26 20:30 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/face-b-festival-dolce-cinema | | genre Récit polyphonique méditerranéen",
+				"kadavar | Kadavar + Scott Hepple and the Sun Band | 2026-12-01 20:00 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/kadavar | | genre Rock",
 			},
 			next: []string{"https://www.la-belle-electrique.com/fr/programmation?from=2027-02"},
 		},
@@ -104,9 +107,9 @@ func TestParsers(t *testing.T) {
 			// Its « Suivant » was edited to point back to the first page.
 			venue: "belle-electrique", file: "belle-electrique-2.html", page: "https://www.la-belle-electrique.com/fr/programmation?from=2027-02",
 			want: []string{
-				"acid-arab-live | Acid Arab live + Kasbah + Kbira | 2027-02-05 20:00 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/acid-arab-live |",
-				"eczodia-nkn-rouge | ECZODIA + NKN + ROÜGE | 2027-02-20 23:55 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/eczodia-nkn-rouge |",
-				"skip-the-use | Skip The Use + SUPREME NIGHTCLUB | 2027-03-13 20:00 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/skip-the-use | | complet",
+				"acid-arab-live | Acid Arab live + Kasbah + Kbira | 2027-02-05 20:00 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/acid-arab-live | | genre Électro",
+				"eczodia-nkn-rouge | ECZODIA + NKN + ROÜGE | 2027-02-20 23:55 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/eczodia-nkn-rouge | | genre Techno, Soirées Electro",
+				"skip-the-use | Skip The Use + SUPREME NIGHTCLUB | 2027-03-13 20:00 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/skip-the-use | | genre Rock | complet",
 			},
 			next: []string{"https://www.la-belle-electrique.com/fr/programmation"},
 		},
@@ -129,28 +132,28 @@ func TestParsers(t *testing.T) {
 			// The talk left out; the year from the month block; « 00h00 – 06h00 » starts at midnight.
 			venue: "amperage", file: "amperage.html", page: "https://www.amperage.fr/la-programmation/",
 			want: []string{
-				"930 | Mon Corps Sait ! Du corset au corps qui sait. | 2026-11-18 19:30 | L'Ampérage, | https://www.amperage.fr/evenements/mon-corps-sait-du-corset-au-corps-qui-sait/ |",
-				"892 | Doomsday | 2026-11-20 00:00 | L'Ampérage, | https://www.amperage.fr/evenements/doomsday/ |",
-				"752 | MDNS | 2026-11-26 20:00 | L'Ampérage, | https://www.amperage.fr/evenements/mdns/ |",
-				"834 | Desire and Johnny Jewel | 2026-12-01 20:00 | L'Ampérage, | https://www.amperage.fr/evenements/desire-and-johnny-jewel/ |",
-				"937 | Lenaïg | 2027-02-10 20:00 | L'Ampérage, | https://www.amperage.fr/evenements/lenaig/ |",
+				"930 | Mon Corps Sait ! Du corset au corps qui sait. | 2026-11-18 19:30 | L'Ampérage, | https://www.amperage.fr/evenements/mon-corps-sait-du-corset-au-corps-qui-sait/ | | genre Show, Seule en scène",
+				"892 | Doomsday | 2026-11-20 00:00 | L'Ampérage, | https://www.amperage.fr/evenements/doomsday/ | | genre Techno, Club",
+				"752 | MDNS | 2026-11-26 20:00 | L'Ampérage, | https://www.amperage.fr/evenements/mdns/ | | genre Pop, Rock",
+				"834 | Desire and Johnny Jewel | 2026-12-01 20:00 | L'Ampérage, | https://www.amperage.fr/evenements/desire-and-johnny-jewel/ | | genre Synth pop",
+				"937 | Lenaïg | 2027-02-10 20:00 | L'Ampérage, | https://www.amperage.fr/evenements/lenaig/ | | genre Dark pop, Pop rock",
 			},
 		},
 		{
 			// Young audience and stand-up left out; « \ COMPLET / » and a trailing « – » stripped.
 			venue: "la-source", file: "la-source.html", page: "https://lasource-fontaine.fr/programme/",
 			want: []string{
-				"aitawa-captain-xxi | Aïtawa + Captain XXI | 2026-11-19 | La Source, | https://lasource-fontaine.fr/event/aitawa-captain-xxi/ |",
-				"6331 | Harold Lopez-Nussa – Suite Habana | 2026-11-25 | La Source, | https://lasource-fontaine.fr/event/6331/ |",
-				"le-truc | Le TRUC | 2027-01-15 | La Source, | https://lasource-fontaine.fr/event/le-truc/ | | complet",
-				"manon-lisa | Manon Lisa | 2027-05-12 | La Source, | https://lasource-fontaine.fr/event/manon-lisa/ |",
+				"aitawa-captain-xxi | Aïtawa + Captain XXI | 2026-11-19 | La Source, | https://lasource-fontaine.fr/event/aitawa-captain-xxi/ | | genre Latin, Psychédélique",
+				"6331 | Harold Lopez-Nussa – Suite Habana | 2026-11-25 | La Source, | https://lasource-fontaine.fr/event/6331/ | | genre Ciné-concert, Jazz, Latin",
+				"le-truc | Le TRUC | 2027-01-15 | La Source, | https://lasource-fontaine.fr/event/le-truc/ | | genre Animation, Chanson | complet",
+				"manon-lisa | Manon Lisa | 2027-05-12 | La Source, | https://lasource-fontaine.fr/event/manon-lisa/ | | genre Chanson, Pop",
 			},
 		},
 		{
 			// Training left out; « (COMPLET) » stripped; halls with and without their town.
 			venue: "retour-de-scene", file: "retour-de-scene.html", page: "https://www.retourdescene.net/agenda/",
 			want: []string{
-				"390755 | Micro’live – Ada Unn | 2026-11-19 | Bibliothèque Centre Ville, | https://www.retourdescene.net/microlive-ada-unn/ |",
+				"390755 | Micro’live – Ada Unn | 2026-11-19 | Bibliothèque Centre Ville, | https://www.retourdescene.net/microlive-ada-unn/ | | genre Micro-live",
 				"389827 | RAKOON + SUMAC DUB + BLADI SOUND SYSTEM | 2026-11-21 | Ilyade, Seyssinet-Pariset | https://www.retourdescene.net/rakoon-sumac-dub-bladi-sound-system/ |",
 				"390570 | BONNE NUIT + LOREN 6 | 2026-12-03 | L'Aquarium, | https://www.retourdescene.net/bonne-nuit/ |",
 				"390401 | BEN PLG | 2026-12-09 | La Belle Electrique, Grenoble | https://www.retourdescene.net/ben-plg/ | | complet",
@@ -273,6 +276,10 @@ func TestEvent(t *testing.T) {
 			"x | Les Hiboux | 2026-12-01 | La Salle, | https://www.example.com/e/x | | complet"},
 		{"price over 30 runes dropped", func(l *listed) { l.price = long },
 			"x | Les Hiboux | 2026-12-01 | La Salle, | https://www.example.com/e/x |"},
+		{"genre clipped", func(l *listed) { l.genre = long },
+			"x | Les Hiboux | 2026-12-01 | La Salle, | https://www.example.com/e/x | | genre " + strings.Repeat("a", 59) + "…"},
+		{"invalid genre dropped, the event kept", func(l *listed) { l.genre = "Ro\x07ck" },
+			"x | Les Hiboux | 2026-12-01 | La Salle, | https://www.example.com/e/x |"},
 		{"artist clipped", func(l *listed) { l.artist = long },
 			"x | " + strings.Repeat("a", 99) + "… | 2026-12-01 | La Salle, | https://www.example.com/e/x |"},
 		{"another hall", func(l *listed) { l.venue, l.address = "L'Aquarium", "Grenoble" },
@@ -291,6 +298,28 @@ func TestEvent(t *testing.T) {
 		}
 		if got != tc.want {
 			t.Errorf("%s: got %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+// TestGenre: listing labels joined in order, duplicates dropped; all-caps ones lowercased then
+// capitalised, with their accents back; mixed case kept.
+func TestGenre(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		in   []string
+		want string
+	}{
+		{[]string{"ELECTRO CUIVRé"}, "Électro cuivré"},
+		{[]string{"ELECTRO / CINE-CONCERT", "club"}, "Électro, Ciné-concert, Club"},
+		{[]string{"MUSIQUE ELECTRONIQUE EXPERIMENTALE"}, "Musique électronique expérimentale"},
+		{[]string{"DJ set", "ciné-concert"}, "DJ set, Ciné-concert"},
+		{[]string{"Pop / Folk", " pop ", "FOLK", ""}, "Pop, Folk"},
+		{[]string{" / ", "  "}, ""},
+		{nil, ""},
+	} {
+		if got := genre(tc.in...); got != tc.want {
+			t.Errorf("genre(%q) = %q, want %q", tc.in, got, tc.want)
 		}
 	}
 }

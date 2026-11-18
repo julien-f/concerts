@@ -20,6 +20,7 @@ import (
 var euroGlued = regexp.MustCompile(`(\d)\s*€`)
 
 type mc2Category struct {
+	Name string `json:"name"` // HTML-escaped, like the title
 	Slug string `json:"slug"`
 }
 
@@ -43,8 +44,14 @@ func mc2(page *neturl.URL, body []byte, _ string) ([]listed, []*neturl.URL, erro
 	}
 	var items []listed
 	for _, e := range p.Events {
-		if e.ID <= 0 || !slices.Contains(e.Categories, mc2Category{"musique"}) {
+		if e.ID <= 0 || !slices.ContainsFunc(e.Categories, func(c mc2Category) bool { return c.Slug == "musique" }) {
 			continue
+		}
+		var labels []string // « Musique » tells nothing more
+		for _, c := range e.Categories {
+			if c.Slug != "musique" {
+				labels = append(labels, html.UnescapeString(c.Name))
+			}
 		}
 		l := listed{id: strconv.FormatInt(e.ID, 10), page: e.URL}
 		var hms string
@@ -54,6 +61,7 @@ func mc2(page *neturl.URL, body []byte, _ string) ([]listed, []*neturl.URL, erro
 		}
 		l.artist, l.full = cleanTitle(html.UnescapeString(e.Title))
 		l.price = euroGlued.ReplaceAllString(html.UnescapeString(e.Cost), "$1 €")
+		l.genre = genre(labels...)
 		items = append(items, l)
 	}
 	var next []*neturl.URL
@@ -84,7 +92,8 @@ func belle(page *neturl.URL, body []byte, _ string) ([]listed, []*neturl.URL, er
 	}
 	var items []listed
 	for _, card := range all(doc, class("event-card")) {
-		if !belleKeep(text(first(card, class("tag")))) {
+		kind := text(first(card, class("tag")))
+		if !belleKeep(kind) {
 			continue
 		}
 		l := listed{page: link(page, first(card, tag(atom.A)))}
@@ -107,6 +116,17 @@ func belle(page *neturl.URL, body []byte, _ string) ([]listed, []*neturl.URL, er
 			l.date = d.Format(time.DateOnly)
 		}
 		l.time = prefill.FrenchTime(hour)
+		// « Rock<br>Grande Salle • Concert »: the genre line, then the hall.
+		var line strings.Builder
+		if h4 := first(card, class("h4")); h4 != nil {
+			for c := h4.FirstChild; c != nil && c.DataAtom != atom.Br; c = c.NextSibling {
+				line.WriteString(" " + text(c))
+			}
+		}
+		if k := strings.ToLower(kind); k == "concert" || k == "gratuit" {
+			kind = ""
+		}
+		l.genre = genre(line.String(), kind)
 		items = append(items, l)
 	}
 	var next []*neturl.URL
@@ -186,7 +206,8 @@ func amperage(page *neturl.URL, body []byte, _ string) ([]listed, []*neturl.URL,
 	}) {
 		year, _, _ := strings.Cut(classPrefix(month, "month-"), "-")
 		for _, it := range all(month, func(n *html.Node) bool { return attr(n, "data-event-id") != "" }) {
-			if kind := strings.ToLower(text(first(it, class("type")))); kind != "concert" && kind != "club" {
+			kind := strings.ToLower(text(first(it, class("type"))))
+			if kind != "concert" && kind != "club" {
 				continue
 			}
 			l := listed{id: attr(it, "data-event-id"), page: link(page, first(it, class("btn-link")))}
@@ -195,6 +216,10 @@ func amperage(page *neturl.URL, body []byte, _ string) ([]listed, []*neturl.URL,
 				l.date = prefill.FrenchDate(f[1] + " " + f[2] + " " + year)
 			}
 			l.time = prefill.FrenchTime(text(first(it, class("heure")))) // « 19h30 – 23h30 »: the start
+			if kind == "concert" {
+				kind = ""
+			}
+			l.genre = genre(text(first(it, class("style"))), kind)
 			items = append(items, l)
 		}
 	}
@@ -212,9 +237,11 @@ func laSource(page *neturl.URL, body []byte, today string) ([]listed, []*neturl.
 	}
 	var items []listed
 	for _, card := range all(doc, class("ls-event-card")) {
-		if slices.ContainsFunc(all(card, class("ls-tag")), func(n *html.Node) bool {
-			return slices.Contains(laSourceSkip, strings.ToLower(text(n)))
-		}) {
+		var tags []string
+		for _, n := range all(card, class("ls-tag")) {
+			tags = append(tags, text(n))
+		}
+		if slices.ContainsFunc(tags, func(t string) bool { return slices.Contains(laSourceSkip, strings.ToLower(t)) }) {
 			continue
 		}
 		title := first(card, class("ls-event-title"))
@@ -227,6 +254,7 @@ func laSource(page *neturl.URL, body []byte, today string) ([]listed, []*neturl.
 			l.id = strings.Trim(p, "/")
 		}
 		l.artist, l.full = cleanTitle(text(title))
+		l.genre = genre(tags...)
 		if lines := all(card, class("ls-ev-line")); len(lines) > 0 {
 			l.date = listingDate(text(lines[0]), today)
 		}
@@ -244,10 +272,14 @@ func retourDeScene(page *neturl.URL, body []byte, _ string) ([]listed, []*neturl
 	}
 	var items []listed
 	for _, it := range all(doc, class("dp-dfg-item")) {
-		if cs := classes(it); !slices.Contains(cs, "category-concert") && !slices.Contains(cs, "category-micro-live") {
+		micro := slices.Contains(classes(it), "category-micro-live")
+		if !micro && !slices.Contains(classes(it), "category-concert") {
 			continue
 		}
 		l := listed{id: classPrefix(it, "post-"), page: link(page, first(it, tag(atom.A)))}
+		if micro {
+			l.genre = "Micro-live"
+		}
 		l.artist, l.full = cleanTitle(text(first(it, class("entry-title"))))
 		if d, err := time.Parse("02/01/2006", text(first(it, class("dp-dfg-cf-date")))); err == nil {
 			l.date = d.Format(time.DateOnly)

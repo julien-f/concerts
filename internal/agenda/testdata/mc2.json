@@ -151,6 +151,10 @@
    "cost": "45€",
    "categories": [
     {
+     "name": "Jazz",
+     "slug": "jazz"
+    },
+    {
      "name": "Musique",
      "slug": "musique"
     }

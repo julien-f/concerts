@@ -87,4 +87,5 @@ type listed struct {
 	venue, address, price string // venue "" for the venue itself
 	page, ticket          string // the event's page on the venue's site; a ticket link or ""
 	full                  bool   // « Complet »
+	genre                 string // genre(…) of the listing's labels
 }

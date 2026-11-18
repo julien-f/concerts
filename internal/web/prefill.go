@@ -75,7 +75,7 @@ func (s *server) prefill(r *http.Request, gr *groupRequest, u string) (c store.C
 	// The page is untrusted input: run it through the form's validation and drop what fails.
 	v := url.Values{"artist": {res.Artist}, "date": {res.Date}, "time": {res.Time},
 		"venue": {res.Venue}, "address": {res.Address}, "ticket_url": {u}, "on_sale_date": {res.OnSaleDate},
-		"price": {res.Price}, "description": {fitParagraphs(res.Description, validate.MaxDescriptionRunes)}}
+		"price": {res.Price}, "genre": {res.Genre}, "description": {fitParagraphs(res.Description, validate.MaxDescriptionRunes)}}
 	_, errs := parseConcert(v)
 	for name := range errs {
 		v.Del(name)

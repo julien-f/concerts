@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	neturl "net/url"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -200,6 +201,30 @@ func TestSync(t *testing.T) {
 	}
 	if got := env.concerts(t, g1); !slices.Equal(got, want1) {
 		t.Errorf("g1 after the second run = %q, want %q", got, want1)
+	}
+}
+
+// TestSyncGenreStable: a real listing read twice imports genres once, then updates nothing.
+func TestSyncGenreStable(t *testing.T) {
+	t.Parallel()
+	body, err := os.ReadFile("testdata/belle-electrique-2.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := newSyncEnv(t, map[string]string{"/fr/programmation": string(body)})
+	g := env.group("g", "belle-electrique")
+	v := *venue(t, "belle-electrique")
+	v.Site = append(v.Site[:0:0], "www.example.com")
+	v.Listings, v.MaxPages = []string{"https://www.example.com/fr/programmation"}, 1
+	for run, want := range []string{"inserted=3 updated=0", "inserted=0 updated=0"} {
+		logs, err := env.sync([]Venue{v})
+		if err != nil || !strings.Contains(logs, want) {
+			t.Errorf("run %d: %v, logs lack %q:\n%s", run+1, err, want, logs)
+		}
+	}
+	cs, err := env.st.Concerts(context.Background(), g)
+	if err != nil || len(cs) != 3 || cs[1].Genre != "Techno, Soirées Electro" {
+		t.Errorf("concerts = %+v, %v", cs, err)
 	}
 }
 
