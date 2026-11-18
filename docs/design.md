@@ -10,6 +10,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 
 - A web app opened through one secret link per group: `/g/<secret>`.
 - No account: on the first visit, a member picks their first name, which the app remembers (cookie).
+- A daily job imports the agendas of the venues a group follows, shown « À l'affiche » until someone answers (slice 12).
 - Anyone holding the link belongs to the group; if the link leaks, the secret is rotated.
 - Go, single binary under systemd on a shared personal server, run by a dedicated user from its home, behind Caddy over a Unix socket ([ADR 0008](decisions/0008-deployment-under-a-home-user.md)).
 - Local repository, no CI: the pre-commit hook is the safeguard (what it runs: [CLAUDE.md](../CLAUDE.md#commands)). `make deploy` runs govulncheck first, so a vulnerability published since, or newly reached by a code change, still blocks a deploy.
@@ -37,6 +38,9 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 - **CSRF**: every state change is a POST behind `http.CrossOriginProtection` (lets GET through; trusts `Sec-Fetch-Site`, else compares `Origin` with `Host`, so the proxy must keep `Host`). The prefill GET triggers an outbound fetch but needs the secret and is rate-limited.
 - **Abuse with a leaked link**: per-group caps (see Data model) bound what it can store. At the row cap a create purges old concerts, so a leaked link can flush the undo history and the past, as deleting everything then creating and deleting already could; likewise 20 edits flush a concert's edit history. Backups are the remedy. Server read, write and idle timeouts; request bodies capped at 64 kB.
 - **SSRF** (prefill): the resolved IP of every connection, redirects included, must be public unicast (IPv6 within `2000::/3`, special-purpose ranges excluded) on port 80 or 443; no proxy, no keep-alive, 3 redirects, 8 s, 1 MB of `text/html` or XHTML; visible text is kept only for a host with a site rule (exact match on the final host, after redirects), at most 5,000 nodes; fetch errors are logged with the host only (a pasted group link must not reach the logs); one fetch in flight and 10 a minute per group, 2 in flight overall.
+- **Venue agenda import** (slice 12): once a day, 1 to 8 listing pages per followed venue plus at most 40 event pages a run (times), only to hosts compiled into the binary, carrying no group data. Same dial checks as prefill; https only, redirects (3) and pagination links only to the venue's site hosts; 30 s, 4 MB refused rather than cut, the venue's media type; no cookie or `Referer`; at least 3 s between requests to one host (more where robots.txt asks), a 429 or 503 stops the venue for the run.
+  - A hostile or compromised venue site can plant plausible concerts « À l'affiche »: validated as the form, at most 200 per venue and run and 400 upcoming per group; a ticket link only to the venue's site or a ticketing site listed for it, else the event page. Members see « annoncé par <Source> » and must answer before it reaches the list.
+  - A group's followed venues say a little about it: only the operator sets them, from the CLI; members see them in « À l'affiche », nothing outside the group does.
 - **Accepted risks**: anyone with the link can join and act as any first name; members are friends, so impersonation is social, not technical. Link previews in other messengers hand the link to the messaging provider (Telegram, Discord, Slack fetch it from their servers): for the group link, the picker and its first names, fixed by rotating the secret; for a concert link, only the public card. Anyone given a concert link sees the card for as long as the concert exists.
 
 ## User journeys
@@ -244,8 +248,11 @@ concerts (id PK, token UNIQUE, group_id → groups ON DELETE CASCADE,
           address NULL, ticket_url NULL, on_sale_date 'YYYY-MM-DD' NULL,
           price NULL, description NULL,
           created_by → members ON DELETE SET NULL, created_at,
-          deleted_at NULL)
+          deleted_at NULL, source NULL, source_id NULL)  -- import: venue key, its event id
           INDEX (group_id, date)
+          UNIQUE (group_id, source, source_id) WHERE source IS NOT NULL
+group_venues  (group_id → groups ON DELETE CASCADE, venue, PRIMARY KEY (group_id, venue)) WITHOUT ROWID
+event_details (source, source_id, date, time NULL, PRIMARY KEY (source, source_id)) WITHOUT ROWID
 statuses (concert_id → concerts ON DELETE CASCADE,
           member_id → members ON DELETE CASCADE,
           status CHECK IN ('interested','going'),
@@ -312,10 +319,11 @@ All under `/g/{secret}` (written `…`) but the first two and the last two; unkn
 - **Edit history**: going back to a revision is an ordinary edit with its values, so it is recorded and can be undone; they go through today's validation first (a value accepted then but refused now → 422, nothing written). Concurrent edits: last write wins, each recorded. A deleted member's edits stay, as « Ancien membre ». The history page is readable without identity (like the concert page), its buttons are not.
 - **Double submit**: status writes are idempotent (the form sends the target state, not a toggle); a second create asks first, as for any duplicate concert.
 - **Duplicate concert** (add only): a live concert of the group with the same date and artist (case ignored, as first names) re-renders the form with 422, fields kept: « <artist>, <date>, est déjà dans la liste (<venue>, ajouté par X). Voir ce concert », focus on that link; « Ajouter quand même » (`anyway=1`) comes after « Enregistrer », which stays the button Enter submits. Against an import nobody answered: « <artist>, <date>, est à l'affiche (annoncé par <Source>), pas encore dans la liste. Réponds-y pour l'ajouter. », without « Ajouter quand même ». A warning, not a constraint: an artist may play twice a day, and two concurrent adds both pass. An edit is not checked.
+- **Venue imports**: a deleted import stays a tombstone and never comes back; a member's edit (even reverted) makes the row the members', no longer updated by the sync, whose own updates leave no revision (the history may say « Aucune modification. » while the venue moved the date). An event gone from a later listing (cancelled) stays until a member deletes it. Answering moves an import to « Tous »; clearing its last answer sends it back « À l'affiche »; editing does not. A past unanswered import shows nowhere. One concert spelled differently by two sources gives two rows, deleted by hand.
 
 ## Slices
 
-One slice per branch, merged with `--no-ff`. All shipped (v1).
+One slice per branch, merged with `--no-ff`. 0–11 shipped as v1.
 
 0. Skeleton: groups, `new-group`, `/g/<secret>`, `/healthz`.
 1. **Members and identity**: first names as « C'est moi » buttons plus a « Ton prénom » field; a taken name offers « C'est moi » or an initial; « Ce n'est pas moi » on every page; `list-groups`, `rotate-secret <group-id>` (prints the new link; everyone picks their name again), `delete-member <group-id> <first-name>`, `rename-member <group-id> <first-name> <new-first-name>`.
@@ -352,6 +360,15 @@ One slice per branch, merged with `--no-ff`. All shipped (v1).
    - Old concert URLs, the picker's `next` and post-edit redirects reach it through a 303. Cards, `og:url`, `<link rel="canonical">` (Chrome on Android shares it), « Prévenir le groupe » and the history page link to it directly; the `.ics` is served under it (`/c/<token>/agenda.ics`), and its old address under `/g/` is gone (404).
    - Out of scope: secret-free list and forms (their addresses still hold the secret), revoking one concert's link.
 11. **Lighter concert page**: one orange button (« Billetterie »); the date and title move into the patterned head; « Écouter » becomes one pill per artist, « Ajouter à mon agenda » a link among the facts, « Prévenir le groupe », here and in the « Concert ajouté » banner, a secondary « Partager » opening the share sheet ([ADR 0010](decisions/0010-share-sheet.md)).
+12. **Venue agenda import** ([ADR 0011](decisions/0011-venue-imports.md)): the daily `concerts sync` (systemd timer) copies the upcoming concerts of the venues a group follows into its concerts; screens, routes and threat model above.
+   - `internal/agenda`: the compiled-in venues (MC2, La Belle Électrique, L'ilyade, L'Ampérage, La Source, Retour de Scène: listing URLs, site and ticketing hosts, crawl delay, robots.txt noted), one parser per venue walking an `html.Parse` tree or MC2's JSON (fixtures in `testdata/`), the fetcher and `Sync`. Music events only (club nights count); every event needs the venue's stable id (`source_id`, ≤ 256 bytes).
+   - Cleaning: status prefixes and suffixes stripped from titles (« COMPLET • », « REPORTÉ • », « (COMPLET) », « \ COMPLET / »), « Complet » moved into the price (« 29 € · Complet »); a date without year is its next occurrence, skipped if more than 10 months ahead (a past item still listed); then `validate.Concert`, as the form.
+   - Sync: followed venues only, all read before any write, halls before promoters (Retour de Scène lists L'ilyade's concerts: the hall's copy wins); ≤ 200 events per venue and run; then `store.ApplyImports`, one transaction per group and venue (`created_by` NULL, `source` and `source_id` set).
+   - Per event: inserted unless the group has the same bill that day from elsewhere, live or deleted (artist key equal, or followed by ` + `, ` • `, ` / `, `, ` or ` & `, either way round); a row the import owns (live, never edited) updated in place; imports stop at 400 upcoming concerts, 100 kept for members.
+   - Times missing from a listing (La Source, Retour de Scène): each event's page read once ever through `prefill`, kept in `event_details`, pruned of past dates; ≤ 40 pages a run.
+   - Fails (non-zero exit) when a venue failed or listed no upcoming concert, its parser's breakage sign. Logs: venue key, host, group id, counts; never a URL or a concert.
+   - CLI: `list-venues`, `follow-venue`, `unfollow-venue` (deletes the venue's rows nobody answered or edited), `sync`.
+   - Out of scope: « Nouveau » badges, on-sale reminders, members choosing venues, following artists, aggregator APIs (ADR 0011), arenas behind bot protection (Summum, Zénith: prefill by hand), Drak-Art (Facebook only), detecting cancellations, a « mis à jour par la salle » history.
 
 Also in v1: `make install`, `make deploy`, `make rollback` ([operations.md](operations.md)).
 
@@ -364,5 +381,7 @@ Off-server backups and failure alerts, nothing set up yet. Leads:
 - A periodic restore test (`PRAGMA integrity_check`, `list-groups`) and an alert when the newest snapshot is over 36 h old.
 
 A « Je cherche un billet » status, if the group asks for it: it flags the exception (a sold-out concert, a resale), which members have a reason to set, unlike the dropped « J'ai mon billet ».
+
+A window on « À l'affiche » (the next months, then « Afficher la suite »), if the compact list proves too long.
 
 Carpooling, if the group asks for it: once « J'y vais » is set, an optional « Je propose / Je cherche un covoiturage » on the concert page only (`statuses.carpool CHECK IN ('offer','seek') NULL`), shown as a mark by the first name; no seats or departure city, the arranging stays on WhatsApp.

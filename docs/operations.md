@@ -13,7 +13,7 @@ make install ADMIN_HOST=admin@server PROXY_USER=caddy BASE_URL=https://concerts.
 - `ADMIN_HOST` is an account with sudo. The script runs from a fresh `mktemp -d` and is idempotent: rerun it to apply changed units, a new base URL or a new deploy key.
 - `PROXY_USER`, the user the proxy runs as, owns the socket (`0600`): no group to create or join.
 - It refuses a name already used by a user or unit it did not install, or a `/home/<name>` it did not create, so it never takes over an existing account, home or system unit; uninstall refuses the same way.
-- It creates the user and its home, installs the deploy key (with `restrict`: no forwarding, no pty), the units rendered from `deploy/` (`<name>.socket` and the backup timer enabled) and `/etc/sudoers.d/<name>` (only the `systemctl` and `journalctl` lines `bin/admin` runs).
+- It creates the user and its home, installs the deploy key (with `restrict`: no forwarding, no pty), the units rendered from `deploy/` (`<name>.socket`, the backup and sync timers enabled) and `/etc/sudoers.d/<name>` (only the `systemctl` and `journalctl` lines `bin/admin` runs).
 - It never touches the proxy: it prints the site block (`deploy/site.caddy`) to add by hand before the first deploy. No access log for that site: paths hold group secrets. With Caddy, check that no other `log` covers this host: `caddy adapt --config <Caddyfile> | jq '.apps.http.servers[].logs'`. Keep the original `Host` header (Caddy does by default): cross-origin protection compares it with `Origin`.
 - If sshd has `AllowUsers`/`AllowGroups`, add the user (install warns).
 - SELinux: install labels `bin/` `bin_t` (systemd refuses to run home content). Not tested with a confined proxy: if `/healthz` fails, look for denials with `sudo ausearch -m avc -ts recent`.
@@ -50,13 +50,14 @@ make rollback DEPLOY_HOST=concerts@server   # previous binary and pre-deploy dat
 
 - `deploy` keeps the previous binary (`bin/concerts.prev`) and a pre-deploy snapshot (`backups/pre-deploy.db`), taken by the old binary so the new one cannot migrate the live database first. Deploying again after a failed deploy (`/healthz` never passed, and still failing) keeps that pair, so `rollback` still reaches the last good version.
 - Requests arriving during a deploy's restart wait in the socket. `/healthz` is checked through the proxy on loopback (port 443, or the base URL's); on failure, the service status and journal tail are printed.
-- `rollback` stops everything that could open the database (socket, service, backup), moves the current database and its `-wal`/`-shm` aside (`data/concerts.db.pre-rollback-<time>`: writes made since the deploy are there), restores both, restarts and checks `/healthz`.
+- First deploy of the venue import: `make install` first. Until then `bin/admin` refuses (« concerts-sync.timer missing: rerun make install »), as its sudoers grants name the sync units. A timer run between install and deploy (old binary, no `sync`) fails; `deploy` clears it.
+- `rollback` stops everything that could open the database (socket, service, backup, sync), moves the current database and its `-wal`/`-shm` aside (`data/concerts.db.pre-rollback-<time>`: writes made since the deploy are there), restores both, restarts and checks `/healthz`.
 
 ## Admin commands
 
 ```sh
 ssh concerts@server 'bin/admin list-groups'   # any concerts subcommand, with the service's configuration
-ssh concerts@server bin/admin logs            # last 200 lines, backup runs included; logs -f follows
+ssh concerts@server bin/admin logs            # last 200 lines, backup and sync runs included; logs -f follows
 ```
 
 - The outer quotes matter: ssh joins its arguments, so a quoted name would otherwise be split.
@@ -71,7 +72,24 @@ Nothing alerts on failure (automation: [design.md, Later](design.md#later)). Che
 curl -fsS https://concerts.example.com/healthz
 ssh concerts@server 'ls -t backups | head -3'   # newest nightly snapshot should be under a day old
 ssh concerts@server bin/admin logs              # errors, failed backups
+ssh concerts@server systemctl --failed          # a failed concerts-sync.service: see Venue agendas
 ```
+
+## Venue agendas
+
+`concerts-sync.timer` runs `concerts sync` daily around 06:00 (up to 1 h random delay, caught up after downtime): it imports the upcoming concerts of each followed venue into the groups following it ([design.md, slice 12](design.md#slices), [ADR 0011](decisions/0011-venue-imports.md)). Venues are compiled in; groups follow them only through these commands:
+
+```sh
+ssh concerts@server 'bin/admin list-venues'                     # keys, names, ids of the groups following each
+ssh concerts@server 'bin/admin follow-venue <group-id> mc2'     # imported from the next sync
+ssh concerts@server 'bin/admin unfollow-venue <group-id> mc2'   # deletes its imports nobody answered or edited
+ssh concerts@server 'bin/admin sync'                            # run now, without waiting for the timer
+```
+
+- A manual `sync` may overlap the timer's: harmless (unique index, immediate transactions). A run takes minutes (crawl delays); the unit stops it after 15.
+- Failed unit, logged as `venue failed` with the venue key and host: the site was down, answered 429/503, or its page changed. The other venues were still imported. One failure is usually transient: the next run retries.
+- `no upcoming concert` (0 events) means the venue's parser broke, since a venue always lists some. Fix: save the current listing (trimmed to a few items) over `internal/agenda/testdata/<key>.*`, adjust the venue's parser in `internal/agenda/parsers.go` until `go test ./internal/agenda` passes, then deploy. Until then that venue's imports just stop; nothing is deleted.
+- Logs never hold URLs or concerts: per venue and group, counts (`inserted`, `updated`, `duplicate`, `kept`, `full`…). `full` above 0: the group has 400 upcoming concerts, imports wait.
 
 ## Leaked link
 

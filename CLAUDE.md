@@ -12,11 +12,13 @@ Design, threat model and later work: [docs/design.md](docs/design.md). Operation
 
 ## Structure
 
-- `cmd/concerts/`: subcommands (`serve`, `new-group`, `backup`, `demo`…).
+- `cmd/concerts/`: subcommands (`serve`, `new-group`, `backup`, `sync`, `demo`…).
 - `internal/store/`: SQLite, migrations (`migrations/NNNN_*.sql`, applied at startup), hand-written SQL.
 - `internal/web/`: handlers, templates (parsed at startup), static files.
 - `internal/prefill/`: ticketing-page parser (fixtures in `testdata/`) and SSRF-safe client.
-- `deploy/`: templates of the systemd units and Caddy site (`@NAME@`, `@PROXY_USER@`, `@HOST@`: nothing server-specific), `install.sh`/`uninstall.sh` (root) with `lib.sh`, and `admin` (run on the server as the service user). `docs/`: design, operations and ADRs. `scripts/`: dev tooling (`verify-ui` and `measure-scroll`, sharing `ui-lib.sh`; `measure`, `og-image` for the preview PNGs).
+- `internal/agenda/`: compiled-in venue list, one parser per venue (fixtures in `testdata/`), polite fetcher and `Sync` (`concerts sync`).
+- `internal/validate/`: concert validation shared by the form and the sync; Paris `Today`.
+- `deploy/`: templates of the systemd units (app, backup and sync) and Caddy site (`@NAME@`, `@PROXY_USER@`, `@HOST@`: nothing server-specific), `install.sh`/`uninstall.sh` (root) with `lib.sh`, and `admin` (run on the server as the service user). `docs/`: design, operations and ADRs. `scripts/`: dev tooling (`verify-ui` and `measure-scroll`, sharing `ui-lib.sh`; `measure`, `og-image` for the preview PNGs).
 - No interface without a second implementation, no speculative layers.
 
 ## Conventions
