@@ -248,8 +248,8 @@ func TestDemo(t *testing.T) {
 		t.Fatalf("groups = %+v, %v; want the demo group", gs, err)
 	}
 	cs, err := st.Concerts(ctx, gs[0].ID)
-	if err != nil || len(cs) != 34 {
-		t.Errorf("concerts = %d, %v; want 34", len(cs), err)
+	if err != nil || len(cs) != 39 {
+		t.Errorf("concerts = %d, %v; want 39", len(cs), err)
 	}
 }
 

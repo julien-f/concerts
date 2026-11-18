@@ -34,6 +34,7 @@ type concertForm struct {
 	BadLink      bool           // the prefill link itself is invalid: focus goes there
 	RefreshFocus bool           // nothing filled by « Relire la billetterie »: focus stays on it
 	Duplicate    *store.Concert // live concert with the same artist and date (add form only)
+	OnAffiche    bool           // Duplicate is an import nobody answered: answering it adds it, not « Ajouter quand même »
 }
 
 func newConcertForm(gr *groupRequest, c store.Concert, errs map[string]string) *concertForm {
@@ -146,10 +147,17 @@ func (s *server) createConcert(w http.ResponseWriter, r *http.Request, gr *group
 	}
 	if r.PostForm.Get("anyway") == "" {
 		d, err := s.store.SameConcert(r.Context(), gr.Group.ID, c.Artist, c.Date)
+		var ss []store.Status
+		if err == nil {
+			ss, err = s.store.Statuses(r.Context(), gr.Group.ID, d.ID)
+		}
 		switch {
 		case err == nil:
 			f := newConcertForm(gr, c, nil)
 			f.Duplicate, f.Notice = &d, "Déjà dans la liste"
+			if !visible(d, ss) {
+				f.OnAffiche, f.Notice = true, "Déjà à l'affiche"
+			}
 			s.render(w, r, http.StatusUnprocessableEntity, "form", f)
 			return
 		case !errors.Is(err, store.ErrNotFound):
@@ -166,6 +174,7 @@ type concertPage struct {
 	concertFacts
 	Statuses statusBlock
 	Share    shareLink
+	Affiche  bool  // an upcoming import nobody answered: back to « À l'affiche », not the list
 	Saved    bool  // banner after an edit
 	Reverted bool  // banner after going back to a revision
 	UndoRev  int64 // revision the banner offers to go back to, 0 for none
@@ -282,7 +291,7 @@ func (s *server) showConcertPage(w http.ResponseWriter, r *http.Request, gr *gro
 		return
 	}
 	p := &concertPage{groupRequest: gr, concertFacts: s.facts(c), Statuses: newStatusBlock(gr, c, ss, "concert", s.upcoming(c)),
-		Share: s.shareLink(c)}
+		Share: s.shareLink(c), Affiche: !visible(c, ss) && s.upcoming(c)}
 	q := r.URL.Query()
 	var rev string
 	switch {
@@ -384,10 +393,24 @@ func (s *server) deleteConcert(w http.ResponseWriter, r *http.Request, gr *group
 }
 
 func (s *server) restoreConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
-	if id, ok := s.pathID(w, r, gr); ok {
-		err := s.store.RestoreConcert(r.Context(), gr.Group.ID, id, s.today())
-		s.done(w, r, gr, err, fmt.Sprintf("%s?restored=%d#c%d", gr.Base, id, id))
+	id, ok := s.pathID(w, r, gr)
+	if !ok {
+		return
 	}
+	err := s.store.RestoreConcert(r.Context(), gr.Group.ID, id, s.today())
+	target := fmt.Sprintf("%s?restored=%d#c%d", gr.Base, id, id)
+	if err == nil {
+		// An import nobody answered is back in « À l'affiche », not in the list: the banner goes with its card.
+		var c store.Concert
+		var ss []store.Status
+		if c, err = s.store.Concert(r.Context(), gr.Group.ID, id); err == nil {
+			ss, err = s.store.Statuses(r.Context(), gr.Group.ID, id)
+		}
+		if err == nil && !visible(c, ss) && s.upcoming(c) {
+			target = fmt.Sprintf("%s?affiche=1&restored=%d#c%d", gr.Base, id, id)
+		}
+	}
+	s.done(w, r, gr, err, target)
 }
 
 // pageURL is the absolute public link of a concert page, safe to hand outside the group.

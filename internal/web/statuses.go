@@ -33,16 +33,32 @@ type statusBlock struct {
 	Buttons   []statusButton
 }
 
+// interestToggle is the one answer of a row of « À l'affiche », « Ça m'intéresse »; htmx swaps
+// it alone, and the status region out of band.
+type interestToggle struct {
+	Base      string
+	ConcertID int64
+	Artist    string
+	Pressed   bool
+	Said      string // status region text after an answer, "" on the page
+}
+
+// statusOf is memberID's answer among statuses, "" if none.
+func statusOf(statuses []store.Status, memberID int64) string {
+	for _, st := range statuses {
+		if st.Member.ID == memberID {
+			return st.Status
+		}
+	}
+	return ""
+}
+
 // newStatusBlock builds the block; buttons only for an identified member and an upcoming concert.
 func newStatusBlock(gr *groupRequest, c store.Concert, statuses []store.Status, back string, upcoming bool) statusBlock {
 	b := statusBlock{Base: gr.Base, ConcertID: c.ID, Artist: c.Artist, Back: back}
 	names := map[string][]string{}
-	mine := ""
 	for _, st := range statuses {
 		names[st.Status] = append(names[st.Status], st.Member.Name)
-		if gr.Me != nil && st.Member.ID == gr.Me.ID {
-			mine = st.Status
-		}
 	}
 	for i := len(statusLabels) - 1; i >= 0; i-- {
 		l := statusLabels[i]
@@ -55,6 +71,7 @@ func newStatusBlock(gr *groupRequest, c store.Concert, statuses []store.Status, 
 		}
 	}
 	if gr.Me != nil && upcoming {
+		mine := statusOf(statuses, gr.Me.ID)
 		for _, l := range statusLabels {
 			b.Buttons = append(b.Buttons, statusButton{l.Status, l.Button, l.Status == mine})
 		}
@@ -74,7 +91,8 @@ func validStatus(v string) bool {
 	return false
 }
 
-// setStatus records my answer; htmx gets the new status block, a browser without JS a 303 back.
+// setStatus records my answer; htmx gets the new status block (the toggle under « À l'affiche »),
+// a browser without JS a 303 back.
 func (s *server) setStatus(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
 	c, ok := s.concert(w, r, gr)
 	if !ok || !parseForm(w, r) {
@@ -91,11 +109,15 @@ func (s *server) setStatus(w http.ResponseWriter, r *http.Request, gr *groupRequ
 		back, target = "concert", fmt.Sprintf("%s/concerts/%d", gr.Base, c.ID) // sets the group cookie on its way to /c
 	case "mine":
 		back, target = "mine", fmt.Sprintf("%s?mine=1#c%d", gr.Base, c.ID)
+	case "affiche":
+		back, target = "affiche", afficheURL(gr, c.ID)
 	}
 	// Past concerts show no buttons, but a late answer (a tab left open past midnight)
 	// is harmless, so the server still takes it.
 	err := s.store.SetStatus(r.Context(), gr.Group.ID, c.ID, gr.Me.ID, status)
-	if err != nil || !isHTMX(r) {
+	// Without JS, clearing an import's answer in the list may send it back to « À l'affiche ».
+	leaving := c.Source != "" && status == "" && (back == "list" || back == "mine")
+	if err != nil || (!isHTMX(r) && !leaving) {
 		s.done(w, r, gr, err, target)
 		return
 	}
@@ -104,7 +126,27 @@ func (s *server) setStatus(w http.ResponseWriter, r *http.Request, gr *groupRequ
 		s.fail(w, r, err)
 		return
 	}
-	s.fragment(w, r, "statuses", newStatusBlock(gr, c, ss, back, s.upcoming(c)))
+	switch {
+	case !isHTMX(r):
+		if !visible(c, ss) && s.upcoming(c) {
+			target = afficheURL(gr, c.ID) // its card left the list: follow it
+		}
+		seeOther(w, r, target)
+	case back == "affiche":
+		t := interestToggle{Base: gr.Base, ConcertID: c.ID, Artist: c.Artist,
+			Pressed: statusOf(ss, gr.Me.ID) == store.Interested, Said: "Retiré de la liste du groupe"}
+		if len(ss) > 0 {
+			t.Said = "Ajouté à la liste du groupe"
+		}
+		s.fragment(w, r, "toggle", t)
+	default:
+		s.fragment(w, r, "statuses", newStatusBlock(gr, c, ss, back, s.upcoming(c)))
+	}
+}
+
+// afficheURL is « À l'affiche » at concert id.
+func afficheURL(gr *groupRequest, id int64) string {
+	return fmt.Sprintf("%s?affiche=1#c%d", gr.Base, id)
 }
 
 // fragment renders one shared template (from partials.html) for htmx to swap in.

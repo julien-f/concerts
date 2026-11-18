@@ -9,7 +9,9 @@
 <p><a class="back" href="{{.Base}}{{with .ID}}/concerts/{{.}}{{end}}">← Annuler</a></p>
 <h1>{{if .ID}}Modifier le concert{{else}}Ajouter un concert{{end}}</h1>
 {{with .FormError}}<p class="error">{{.}}</p>
-{{- else with .Duplicate}}<p id="duplicate" class="error">{{.Artist}}, {{when .}}, est déjà dans la liste ({{.Venue}}{{with .AddedBy}}, ajouté par {{.}}{{end}}).
+{{- else with .Duplicate}}<p id="duplicate" class="error">
+{{- if $.OnAffiche}}{{.Artist}}, {{when .}}, est à l'affiche (annoncé par {{venue .Source}}), pas encore dans la liste. Réponds-y pour l'ajouter.
+{{- else}}{{.Artist}}, {{when .}}, est déjà dans la liste ({{.Venue}}{{with .AddedBy}}, ajouté par {{.}}{{end}}).{{end}}
 {{/* Focus on the link, not on « Ajouter quand même »: a stray Enter must not add the duplicate. */ -}}
 <a href="{{$.Base}}/concerts/{{.ID}}" aria-describedby="duplicate" autofocus>Voir ce concert</a></p>
 {{- else}}{{if .Notice}}<p class="error">Corrige les champs signalés.</p>{{end}}{{end}}
@@ -42,7 +44,7 @@
 <div class="submit">
 <button class="big">Enregistrer</button>
 {{- /* After « Enregistrer », which stays the default button: Enter warns again. */}}
-{{if .Duplicate}}<button class="button secondary" name="anyway" value="1" aria-describedby="duplicate">Ajouter quand même</button>{{end}}
+{{if and .Duplicate (not .OnAffiche)}}<button class="button secondary" name="anyway" value="1" aria-describedby="duplicate">Ajouter quand même</button>{{end}}
 </div>
 {{if .ID}}
 {{- /* After « Enregistrer », so Enter saves; posts the fields as they are, so nothing typed is lost. */}}

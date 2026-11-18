@@ -61,6 +61,66 @@ const screens = [
     },
   },
   { name: "mine", go: (p) => p.goto(`${groupURL}?mine=1`) },
+  // « À l'affiche »: the demo's imports nobody answered, a long artist and venue among them.
+  {
+    name: "affiche",
+    go: (p) => p.goto(`${groupURL}?affiche=1`),
+    check: async (p) => {
+      const small = await p.$$eval(".toggle button", (bs) =>
+        bs.filter((b) => b.getBoundingClientRect().width < 44 || b.getBoundingClientRect().height < 44).length,
+      );
+      return small ? `${small} toggle(s) smaller than 44 px at 390 px` : null;
+    },
+  },
+  { name: "affiche-venue", go: (p) => submit(p, ".venues a:nth-of-type(2)") },
+  {
+    name: "import-concert",
+    go: async (p) => {
+      await p.goto(`${groupURL}?affiche=1`);
+      return submit(p, ".row .title");
+    },
+    check: async (p) =>
+      (await p.textContent(".back")).includes("À l'affiche") ? null : "the back link does not lead to « À l'affiche »",
+  },
+  {
+    // An import nobody answered, added by hand: pointed to it, no « Ajouter quand même ».
+    name: "add-duplicate-import",
+    go: async (p) => {
+      await p.goto(`${groupURL}?affiche=1`);
+      const artist = await p.textContent(".row .title");
+      const date = (await p.getAttribute(".row time", "datetime")).slice(0, 10);
+      await p.goto(`${groupURL}/concerts/new`);
+      await p.fill("#artist", artist);
+      await p.fill("#date", date);
+      await p.fill("#venue", "Ailleurs");
+      return Promise.all([p.waitForNavigation(), p.press("#venue", "Enter")]).then(([r]) => r);
+    },
+    check: async (p) => {
+      if (!(await p.textContent("#duplicate")).includes("est à l'affiche")) return "not the « À l'affiche » warning";
+      if (await p.$('button:has-text("Ajouter quand même")')) return "« Ajouter quand même » is offered";
+      return (await p.evaluate(() => document.activeElement?.textContent)) === "Voir ce concert"
+        ? null
+        : "focus is not on « Voir ce concert »";
+    },
+  },
+  {
+    // Last of « À l'affiche »: the answer moves that import to the list.
+    name: "affiche-toggle",
+    go: async (p) => {
+      await p.goto(`${groupURL}?affiche=1`);
+      const id = await p.getAttribute(".toggle button", "id");
+      await p.focus(`#${id}`);
+      await p.keyboard.press("Enter");
+      await p.waitForSelector(`#${id}[aria-pressed="true"]`);
+      return null;
+    },
+    check: async (p) => {
+      const focused = await p.evaluate(() => document.activeElement?.matches(".toggle button[aria-pressed=true]"));
+      if (!focused) return "focus left the toggle after the swap";
+      const said = await p.textContent("#affiche-status[role=status]");
+      return said === "Ajouté à la liste du groupe" ? null : `status region says « ${said} »`;
+    },
+  },
   { name: "concert", go: (p) => p.goto(`${groupURL}/concerts/1`) },
   {
     // axe skips the content of a closed <details>.

@@ -9,10 +9,11 @@ import (
 	"concerts/internal/store"
 )
 
-// card is a concert in the list with its status block.
+// card is a concert in the list with its status block, or in « À l'affiche » with its toggle.
 type card struct {
 	store.Concert
 	Statuses statusBlock
+	Toggle   interestToggle
 }
 
 type month struct {
@@ -20,14 +21,20 @@ type month struct {
 	Cards []card
 }
 
+// venueLink is a followed venue in the « Annoncé par » nav.
+type venueLink struct{ Key, Name string }
+
 // pastShown bounds the past cards rendered by default: a group's history grows without end.
 const pastShown = 30
 
 type homePage struct {
 	*groupRequest
-	Mine      bool    // « Mes concerts »: only concerts I answered
-	Months    []month // upcoming, chronological
-	Past      []card  // newest first, in a collapsed section; the pastShown newest unless PastOpen
+	Mine      bool        // « Mes concerts »: only concerts I answered
+	Affiche   bool        // « À l'affiche »: upcoming imports nobody answered, as compact rows
+	Salle     string      // under Affiche, the venue key the rows are limited to, or ""
+	Venues    []venueLink // followed venues: the « À l'affiche » filter shows only if any
+	Months    []month     // upcoming, chronological
+	Past      []card      // newest first, in a collapsed section; the pastShown newest unless PastOpen
 	PastTotal int
 	PastMore  int64          // first past concert not rendered (link to all of them), 0 if none
 	PastOpen  bool           // ?past=all, or a banner targets a past concert: all of them, section open
@@ -35,6 +42,12 @@ type homePage struct {
 	Share     shareLink
 	Restored  *store.Concert // banner « Concert rétabli »
 	Deleted   *store.Concert // banner « Concert supprimé » with « Annuler la suppression »
+}
+
+// visible reports whether a concert is in the list (« Tous », « Mes concerts », « Passés »):
+// added by a member, or imported from a venue and answered by someone.
+func visible(c store.Concert, statuses []store.Status) bool {
+	return c.Source == "" || len(statuses) > 0
 }
 
 // home is the picker without identity, else the concert list.
@@ -54,27 +67,53 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 		s.fail(w, r, err)
 		return
 	}
+	followed, err := s.store.Followed(r.Context(), gr.Group.ID)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	statuses := map[int64][]store.Status{} // by concert id
 	for _, st := range ss {
 		statuses[st.ConcertID] = append(statuses[st.ConcertID], st)
 	}
-	p := &homePage{groupRequest: gr, Mine: q.Get("mine") == "1"}
+	p := &homePage{groupRequest: gr, Affiche: q.Get("affiche") == "1"}
+	p.Mine = !p.Affiche && q.Get("mine") == "1"
+	if p.Affiche {
+		p.Salle = q.Get("salle")
+	}
+	for _, v := range followed {
+		p.Venues = append(p.Venues, venueLink{v, s.venue(v)})
+	}
 	back := "list"
 	if p.Mine {
 		back = "mine"
 	}
 	today := s.today() // once, so every card of the page agrees
-	lastMonth := ""
-	var past []store.Concert
+	var upcoming, past []store.Concert
 	for _, c := range cs {
-		if p.Mine && !answered(statuses[c.ID], gr.Me.ID) {
+		st := statuses[c.ID]
+		switch {
+		case p.Affiche:
+			// Past imports nobody answered show nowhere.
+			if visible(c, st) || c.Date < today || (p.Salle != "" && c.Source != p.Salle) {
+				continue
+			}
+		case !visible(c, st), p.Mine && statusOf(st, gr.Me.ID) == "":
 			continue
-		}
-		if c.Date < today {
+		case c.Date < today:
 			past = append(past, c)
 			continue
 		}
-		cd := card{c, newStatusBlock(gr, c, statuses[c.ID], back, true)}
+		upcoming = append(upcoming, c)
+	}
+	lastMonth := ""
+	for _, c := range upcoming {
+		cd := card{Concert: c}
+		if p.Affiche {
+			cd.Toggle = interestToggle{Base: gr.Base, ConcertID: c.ID, Artist: c.Artist}
+		} else {
+			cd.Statuses = newStatusBlock(gr, c, statuses[c.ID], back, true)
+		}
 		if c.Date[:7] == lastMonth {
 			p.Months[len(p.Months)-1].Cards = append(p.Months[len(p.Months)-1].Cards, cd)
 		} else {
@@ -85,15 +124,17 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 	slices.Reverse(past) // newest first
 
 	// Banners come from the URL, so each is shown only while still true: added and
-	// restored concerts must be in the live list just loaded, a deleted one still deleted.
+	// restored concerts must have their card in this view, a deleted one be still deleted.
 	find := func(param string) *store.Concert {
 		id, err := strconv.ParseInt(q.Get(param), 10, 64)
 		if err != nil {
 			return nil
 		}
-		for i := range cs {
-			if cs[i].ID == id {
-				return &cs[i]
+		for _, l := range [][]store.Concert{upcoming, past} {
+			for i := range l {
+				if l[i].ID == id {
+					return &l[i]
+				}
 			}
 		}
 		return nil
@@ -115,7 +156,7 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 		p.PastMore, past = past[pastShown].ID, past[:pastShown]
 	}
 	for _, c := range past {
-		p.Past = append(p.Past, card{c, newStatusBlock(gr, c, statuses[c.ID], back, false)})
+		p.Past = append(p.Past, card{Concert: c, Statuses: newStatusBlock(gr, c, statuses[c.ID], back, false)})
 	}
 	if id, err := strconv.ParseInt(q.Get("deleted"), 10, 64); err == nil {
 		c, err := s.store.Concert(r.Context(), gr.Group.ID, id)
@@ -128,13 +169,4 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 		}
 	}
 	s.render(w, r, http.StatusOK, "group", p)
-}
-
-func answered(statuses []store.Status, memberID int64) bool {
-	for _, st := range statuses {
-		if st.Member.ID == memberID {
-			return true
-		}
-	}
-	return false
 }

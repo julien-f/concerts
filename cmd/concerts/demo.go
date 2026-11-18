@@ -1,7 +1,10 @@
 package main
 
 import (
+	"cmp"
 	"context"
+	"errors"
+	"strings"
 	"time"
 
 	"concerts/internal/store"
@@ -78,5 +81,41 @@ func demo(ctx context.Context, st *store.Store, baseURL string, now time.Time) e
 			return err
 		}
 	}
-	return nil
+	return demoImports(ctx, st, g.ID, marc, day)
+}
+
+// demoImports follows two venues and imports their agenda, created last (verify-ui relies on the
+// ids above): « À l'affiche » with a sold-out row, one without time and a long artist and venue,
+// and one import answered, so in the list.
+func demoImports(ctx context.Context, st *store.Store, groupID, marc int64, day func(int) string) error {
+	agendas := map[string][]store.Concert{
+		"belle-electrique": {
+			{Artist: "Bagarre", Date: day(12), Time: "20:00", Venue: "La Belle Électrique", Price: "22 € · Complet"},
+			{Artist: "Orchestre National de Barbès + Les Ogres de Barback & invités", Date: day(33), Time: "19:30",
+				Venue: "La Belle Électrique, grande salle (debout)", Price: "25–28 €"},
+			{Artist: "Lysistrata", Date: day(40), Time: "20:30", Venue: "La Belle Électrique"},
+		},
+		"la-source": {
+			{Artist: "Pomme", Date: day(18), Venue: "La Source"},
+			{Artist: "Kompromat", Date: day(45), Time: "21:00", Venue: "La Source"},
+		},
+	}
+	for _, venue := range []string{"belle-electrique", "la-source"} {
+		if err := st.Follow(ctx, groupID, venue); err != nil {
+			return err
+		}
+		var events []store.Event
+		for _, c := range agendas[venue] {
+			c.TicketURL = "https://example.com/" + venue + "/" + strings.ToLower(strings.Fields(c.Artist)[0])
+			events = append(events, store.Event{SourceID: c.TicketURL, Concert: c})
+		}
+		if _, err := st.ApplyImports(ctx, groupID, venue, events, day(0)); err != nil {
+			return err
+		}
+	}
+	cs, err := st.ConcertsOn(ctx, groupID, day(45))
+	if err != nil || len(cs) == 0 {
+		return cmp.Or(err, errors.New("demo: Kompromat not imported"))
+	}
+	return st.SetStatus(ctx, groupID, cs[0].ID, marc, store.Interested)
 }

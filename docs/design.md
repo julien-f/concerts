@@ -48,7 +48,8 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 5. **Fix**: open a concert → « Modifier » (banner with « Annuler ») or « Supprimer » (banner « Concert supprimé » with « Annuler la suppression »). A bad edit noticed later: « Voir l'historique » → « Revenir avant cette modification ».
 6. **Shared phone**: « Ce n'est pas moi » in every page header → picker again.
 7. **Invite a friend to one concert**: copy the concert page's address (or share it) → the friend sees the public card: the concert, « Billetterie », « Ajouter à mon agenda » and how many members go, nothing of the group. A member whose browser never opened the group link sees the same card, with a hint to open it once.
-8. **Operator**: [operations.md](operations.md).
+8. **Spot**: filter « À l'affiche » (concerts announced by the venues the group follows) → « Ça m'intéresse » on a row, or open it and « J'y vais » → it joins « Tous » for everyone.
+9. **Operator**: [operations.md](operations.md).
 
 ## Screens
 
@@ -87,7 +88,7 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 │ du concert          pas moi  │
 │ ✓ Concert ajouté [Partager]  │  banner after add / delete
 │ or [Annuler la suppression]  │
-│ (Tous) ( Mes concerts )      │  filter links, aria-current
+│ (Tous) (Mes concerts) (À l'… │  filter links, aria-current
 │ MARS 2027                    │  h2 per month (h1 = group)
 │ ┌────┬─────────────────────┐ │
 │ │sam.┆ Fontaines D.C.      │ │  h3 linking to the concert;
@@ -107,11 +108,34 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 ```
 
 - Status lines: « Y va : » / « Y vont : », « Intérêt : » (no gender, count-aware).
+- An import (from a venue's agenda) is in the list (« Tous », « Mes concerts », « Passés ») only while someone answered it, computed in Go from the statuses already loaded; the « À l'affiche » filter shows only for a group following a venue.
 - « Mes concerts » = concerts where I have a status, computed in Go from the statuses already loaded; « Passés » is filtered too; clearing a status under the filter keeps the card until reload.
 - Past cards show names only, no buttons, newest first, under an `h2` « Passés (N) » followed by a `<details>` (« Afficher les concerts passés »). Only the 30 newest are rendered (cards are built for those only), then « Afficher les N concerts passés » (`?past=all`, keeping `mine=1`) lands on the first card not shown so far. N is the total. All are rendered, `open`, with `?past=all` or when an added or restored concert is past. A late answer posted to a past concert is still accepted.
 - Empty filter with only past answers: « Aucun concert à venir parmi les tiens. »
 - Empty list: « Aucun concert pour l'instant. Ajoute le premier ! »; empty filter: « Tu n'as encore réagi à aucun concert. »
-- Banners come from the URL but show only while true: `?added=<id>` and `?restored=<id>` if that concert is in the list, `?deleted=<id>` (« Annuler la suppression ») if it is still deleted. An edit returns to the concert page with `?saved=<rev>`, going back to a revision with `?reverted=<rev>` (no `=<rev>` when nothing changed); their « Annuler » shows only while `<rev>` is the concert's newest revision.
+- Banners come from the URL but show only while true: `?added=<id>` and `?restored=<id>` if that concert's card is in the current view, `?deleted=<id>` (« Annuler la suppression ») if it is still deleted. An edit returns to the concert page with `?saved=<rev>`, going back to a revision with `?reverted=<rev>` (no `=<rev>` when nothing changed); their « Annuler » shows only while `<rev>` is the concert's newest revision.
+
+### À l'affiche (`/g/<secret>?affiche=1`)
+
+```
+┌──────────────────────────────┐
+│ (Tous) (Mes concerts) (À l'… │  « À l'affiche » aria-current
+│ Concerts annoncés par les    │  explanation, after a visually
+│ salles suivies. Réponds…     │  hidden h2 « À l'affiche »
+│ Annoncé par (MC2) (La Source)│  nav, &salle=<key>, aria-current
+│ DÉCEMBRE 2026                │  h2 per month
+│ ┌──────────────────────────┐ │  one paper strip, dashed rows;
+│ │DIM.  Pomme   [★ Ça m'inté│ │  the link covers the row;
+│ │ 6    La Source   resse]  │ │  toggle 44 px, aria-pressed,
+│ │DÉC.  20 h · … COMPLET    │ │  named with the artist;
+│ └──────────────────────────┘ │  « Complet » if the price says so
+└──────────────────────────────┘
+```
+
+- Upcoming imports nobody answered (`affiche=1` wins over `mine=1`), as compact rows rather than tickets (≈ 250 items); « J'y vais » from the concert page. No past section: a past unanswered import shows nowhere.
+- `<title>` « À l'affiche · … »; empty: « Rien à l'affiche pour l'instant. », or « Rien à l'affiche pour <Source>. » under a venue.
+- The toggle posts `back=affiche`; htmx swaps the toggle alone (stable id `c<id>-interested`, so focus stays) and, out of band, writes « Ajouté à la liste du groupe » or « Retiré de la liste du groupe » into a visually hidden `role=status` region present before the swap. The row stays until reload, as under « Mes concerts ».
+- Venue names come from `web.Config.VenueName` (the compiled-in list); a key no longer listed shows as is.
 
 ### Concert (`/c/<token>`, with the group cookie)
 
@@ -142,6 +166,8 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 │ [Modifier]   [Supprimer]     │
 └──────────────────────────────┘
 ```
+
+An import shows « annoncé par <Source> » where « ajouté par » goes; while upcoming and unanswered, its back link is « ← À l'affiche » (`…?affiche=1#c<id>`).
 
 Without identity: statuses shown, buttons and edit/delete replaced by « Choisis ton prénom pour répondre » (picker with `next`, accepted only as `/concerts/<id>`), then the page's filled accent button.
 
@@ -233,7 +259,7 @@ concert_revisions (id PK, concert_id → concerts ON DELETE CASCADE,
 ```
 
 - `name` is stored with spaces trimmed and collapsed; `name_key` = `strings.ToLower(name)`, the one rule for "same name" and for sorting (byte order: « Élodie » sorts after « Zoé », accepted). No accent folding or Unicode normalisation (would need `x/text`): « Elodie » and « Élodie » are two names.
-- Main page = 2 queries per group (live concerts with creator name; their statuses with member names), assembled in Go: no N+1.
+- Main page = 3 queries per group (live concerts with creator name and source; their statuses with member names; the followed venues), assembled in Go: no N+1.
 - The identity cookie holds the member id; `inGroup` (web) resolves the secret, sets `Cache-Control` and ignores a cookie naming a member of another group or a deleted one (no identity).
 - One accessor `Concert(groupID, id)` filters `group_id` and returns a deleted concert flagged `Deleted`: every route answers 404 for it but restore, which updates only a deleted row of the group, and the deleted banner. Status writes also check the member belongs to the group.
 - Required: artist, date, venue. Optional: time, address, ticket link, on-sale date (a link is often not known yet), price, description. At most 100 members and 500 upcoming concerts per group (422 beyond; edits and restores included; past ones never lock a group) and 1000 rows with past and deleted ones, so the disk cannot fill: at 1000 rows, a create purges, oldest first and with its statuses and revisions: a past row that is deleted or an unanswered import; another deleted row, except an upcoming import's; a past row; last, an upcoming import's tombstone (only abuse gets there; that import may then come back). Never a live upcoming row. At most 20 revisions per concert, older ones pruned on each edit: worst case ≈ 1000 × 20 × 11 kB (a 2000-rune description is up to 8 kB) ≈ 220 MB per group, bounded since only the operator creates groups. « Today » (Paris) is passed to the store by web.
@@ -250,7 +276,7 @@ All under `/g/{secret}` (written `…`) but the first two and the last two; unkn
 |---|---|---|---|
 | GET | `/healthz` | DB ping | text |
 | GET | `/static/{name}` | hashed static file | file |
-| GET | `…` | picker (no identity, optional `next`; the group link's preview) or main list; `?mine=1` filter, `?past=all` every past concert, `?added=<id>` / `?restored=<id>` / `?deleted=<id>` banner | page |
+| GET | `…` | picker (no identity, optional `next`; the group link's preview) or main list; `?mine=1` filter, `?affiche=1` (`&salle=<key>`) unanswered imports, `?past=all` every past concert, `?added=<id>` / `?restored=<id>` / `?deleted=<id>` banner | page |
 | POST | `…/me` | pick `member_id` or create `name`; sets cookie | 303 `next` (a concert path) or `…`; 422 picker |
 | POST | `…/logout` | « Ce n'est pas moi »: clears cookie | 303 `…` |
 | GET | `…/concerts/new` | add form; `?url=` pre-fills from the ticket page | page; htmx swaps the form (`hx-select`) |
@@ -262,8 +288,8 @@ All under `/g/{secret}` (written `…`) but the first two and the last two; unkn
 | GET | `…/concerts/{id}/history` | edits, newest first, with the fields each changed | page |
 | POST | `…/concerts/{id}/revisions/{rev}/revert` | go back to before that edit (an edit itself) | 303 `…/concerts/{id}?reverted=<rev>`; 422 if a value is no longer valid or the group is full |
 | POST | `…/concerts/{id}/delete` | soft delete | 303 `…?deleted=<id>` |
-| POST | `…/concerts/{id}/restore` | undo delete | 303 `…?restored=<id>#c<id>`; 422 if the group is full |
-| POST | `…/concerts/{id}/status` | set `status` (empty clears); `back` = `list`, `mine` or `concert` | htmx: status block fragment; else 303 to `…#c<id>`, `…?mine=1#c<id>` or the concert page |
+| POST | `…/concerts/{id}/restore` | undo delete | 303 `…?restored=<id>#c<id>` (`…?affiche=1&restored=<id>#c<id>` for an upcoming import nobody answered); 422 if the group is full |
+| POST | `…/concerts/{id}/status` | set `status` (empty clears); `back` = `list`, `mine`, `concert` or `affiche` | htmx: status block fragment (`affiche`: the toggle and the status region); else 303 to `…#c<id>`, `…?mine=1#c<id>`, `…?affiche=1#c<id>` (also on clearing the last answer of an upcoming import from the list) or the concert page |
 | GET | `/c/{token}` | concert page with the group cookie (`?saved`, `?reverted` banners), else public card | page; 404 plain |
 | GET | `/c/{token}/agenda.ics` | one-event calendar, public | `text/calendar` |
 
@@ -285,7 +311,7 @@ All under `/g/{secret}` (written `…`) but the first two and the last two; unkn
 - **Ticket URL**: only `http`/`https`; rendered with `rel="noopener noreferrer"`.
 - **Edit history**: going back to a revision is an ordinary edit with its values, so it is recorded and can be undone; they go through today's validation first (a value accepted then but refused now → 422, nothing written). Concurrent edits: last write wins, each recorded. A deleted member's edits stay, as « Ancien membre ». The history page is readable without identity (like the concert page), its buttons are not.
 - **Double submit**: status writes are idempotent (the form sends the target state, not a toggle); a second create asks first, as for any duplicate concert.
-- **Duplicate concert** (add only): a live concert of the group with the same date and artist (case ignored, as first names) re-renders the form with 422, fields kept: « <artist>, <date>, est déjà dans la liste (<venue>, ajouté par X). Voir ce concert », focus on that link; « Ajouter quand même » (`anyway=1`) comes after « Enregistrer », which stays the button Enter submits. A warning, not a constraint: an artist may play twice a day, and two concurrent adds both pass. An edit is not checked.
+- **Duplicate concert** (add only): a live concert of the group with the same date and artist (case ignored, as first names) re-renders the form with 422, fields kept: « <artist>, <date>, est déjà dans la liste (<venue>, ajouté par X). Voir ce concert », focus on that link; « Ajouter quand même » (`anyway=1`) comes after « Enregistrer », which stays the button Enter submits. Against an import nobody answered: « <artist>, <date>, est à l'affiche (annoncé par <Source>), pas encore dans la liste. Réponds-y pour l'ajouter. », without « Ajouter quand même ». A warning, not a constraint: an artist may play twice a day, and two concurrent adds both pass. An edit is not checked.
 
 ## Slices
 
