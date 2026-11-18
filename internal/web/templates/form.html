@@ -18,7 +18,7 @@
 <form method="get" action="{{.Base}}/concerts/new" class="prefill"
  data-hx-get="{{.Base}}/concerts/new" data-hx-target="main" data-hx-select="main" data-hx-swap="outerHTML"
  data-hx-push-url="true" data-hx-sync="this:drop" data-hx-indicator="find .wait">
-<label for="url">Lien de la billetterie <span class="hint">(facultatif, à coller en premier pour pré-remplir)</span></label>
+<label for="url">Lien de la billetterie <span class="hint">(facultatif : colle d'abord la page d'achat pour pré-remplir)</span></label>
 <div class="row">
 <input id="url" name="url" type="url" value="{{.PrefillURL}}" maxlength="2000" inputmode="url"
 {{- if .BadLink}} aria-invalid="true" aria-describedby="prefill-msg" autofocus{{end}}>
