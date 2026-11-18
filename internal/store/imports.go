@@ -37,6 +37,8 @@ type ImportCounts struct {
 	Kept      int // a member deleted or edited its row
 	Full      int // over the imports' share of MaxConcerts
 	BadID     int // source id refused by CleanSourceID
+	// Unfollowed: every event, when the group stopped following the source after the sync read its followers.
+	Unfollowed int
 }
 
 // CleanSourceID collapses whitespace runs in id; it reports false unless the result is
@@ -60,7 +62,8 @@ func sameBill(a, b string) bool {
 	return ok && (rest == "" || slices.ContainsFunc(artistSeparators, func(sep string) bool { return strings.HasPrefix(rest, sep) }))
 }
 
-// ApplyImports applies a venue's events to the group in one transaction: a new event is
+// ApplyImports applies a venue's events to the group in one transaction, none if the group no
+// longer follows the venue (Unfollowed): a new event is
 // inserted unless the group has the same bill that day from elsewhere; a row the import owns
 // (live, never edited) is updated in place without a revision; a deleted or edited row is left
 // as is. Inserts and moves into the future stop at MaxConcerts-memberReserve upcoming concerts.
@@ -74,6 +77,15 @@ func (s *Store) ApplyImports(ctx context.Context, groupID int64, source string, 
 		return n, err
 	}
 	defer func() { _ = tx.Rollback() }()
+	var following bool
+	if err := tx.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM group_venues WHERE group_id = ? AND venue = ?)",
+		groupID, source).Scan(&following); err != nil {
+		return n, err
+	}
+	if !following {
+		n.Unfollowed = len(events)
+		return n, nil
+	}
 	var upcoming int
 	if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM concerts WHERE group_id = ? AND deleted_at IS NULL AND date >= ?",
 		groupID, today).Scan(&upcoming); err != nil {

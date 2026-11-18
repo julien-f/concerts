@@ -75,8 +75,8 @@ func TestUnfollow(t *testing.T) {
 	if id("venue2", "x") == 0 || importedID(t, s, other.ID, "src", "a") == 0 {
 		t.Error("another venue's or group's row deleted")
 	}
-	if vs, _ := s.Followed(ctx, g.ID); len(vs) != 0 {
-		t.Errorf("still following %v", vs)
+	if vs, _ := s.Followed(ctx, g.ID); fmt.Sprint(vs) != "[venue2]" {
+		t.Errorf("following %v, want [venue2]", vs)
 	}
 	if ids, _ := s.Followers(ctx, "src"); fmt.Sprint(ids) != fmt.Sprint([]int64{other.ID}) {
 		t.Errorf("Followers = %v", ids)

@@ -3,6 +3,7 @@ package agenda
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -39,23 +40,27 @@ func pipeParser(page *neturl.URL, body []byte, _ string) ([]listed, []*neturl.UR
 // syncSite serves test listings and event pages, counting the requests to event pages.
 type syncSite struct {
 	mu       sync.Mutex
-	pages    map[string]string // path → body
-	listings map[string]int    // requests per listing path
-	events   int               // requests to /e/…
+	pages    map[string]string   // path → body
+	listings map[string]int      // requests per listing path
+	events   int                 // requests to /e/…, found or not
+	before   func(*http.Request) // if set, called first, without the lock
 }
 
 func (s *syncSite) handle(w http.ResponseWriter, r *http.Request) {
+	if s.before != nil {
+		s.before(r)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	body, ok := s.pages[r.URL.Path]
-	switch {
-	case !ok:
+	if strings.HasPrefix(r.URL.Path, "/e/") {
+		s.events++
+	} else {
+		s.listings[r.URL.Path]++
+	}
+	if !ok {
 		http.NotFound(w, r)
 		return
-	case strings.HasPrefix(r.URL.Path, "/e/"):
-		s.events++
-	default:
-		s.listings[r.URL.Path]++
 	}
 	w.Header().Set("Content-Type", "text/html")
 	_, _ = w.Write([]byte(body))
@@ -77,6 +82,7 @@ type syncEnv struct {
 	st    *store.Store
 	site  *syncSite
 	sync  func(venues []Venue) (string, error) // returns the logs
+	run   func(ctx context.Context, venues []Venue) (string, error)
 	group func(name string, follows ...string) int64
 }
 
@@ -91,13 +97,14 @@ func newSyncEnv(t *testing.T, pages map[string]string) *syncEnv {
 	t.Cleanup(func() { _ = st.Close() })
 	site := &syncSite{pages: pages, listings: map[string]int{}}
 	client := testSite(t, site.handle)
+	run := func(ctx context.Context, venues []Venue) (string, error) {
+		var logs bytes.Buffer
+		err := Sync(ctx, st, client, venues, now, (&sleeps{}).sleep, slog.New(slog.NewTextHandler(&logs, nil)))
+		return logs.String(), err
+	}
 	return &syncEnv{
-		st: st, site: site,
-		sync: func(venues []Venue) (string, error) {
-			var logs bytes.Buffer
-			err := Sync(ctx, st, client, venues, now, (&sleeps{}).sleep, slog.New(slog.NewTextHandler(&logs, nil)))
-			return logs.String(), err
-		},
+		st: st, site: site, run: run,
+		sync: func(venues []Venue) (string, error) { return run(ctx, venues) },
 		group: func(name string, follows ...string) int64 {
 			g, err := st.CreateGroup(ctx, name, "secret-"+name)
 			if err != nil {
@@ -243,15 +250,75 @@ func TestSyncDetailBudget(t *testing.T) {
 	}
 }
 
+// TestSyncCancelled: a cancel mid-run keeps what the venues read before it applied.
 func TestSyncCancelled(t *testing.T) {
 	t.Parallel()
-	env := newSyncEnv(t, map[string]string{"/a": "a|A|2026-12-01|20:00|/e/a\n"})
-	env.group("g", "a")
+	env := newSyncEnv(t, map[string]string{"/a": "a|A|2026-12-01|20:00|/e/a\n", "/b": "b|B|2026-12-02|20:00|/e/b\n"})
+	g := env.group("g", "a", "b")
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	err := Sync(ctx, env.st, &http.Client{}, []Venue{syncVenue("a", "/a", false, false)},
-		func() time.Time { return time.Date(2026, 11, 18, 9, 0, 0, 0, time.UTC) }, Sleep, slog.New(slog.DiscardHandler))
-	if err == nil {
-		t.Error("Sync with a cancelled context succeeded")
+	defer cancel()
+	env.site.before = func(r *http.Request) {
+		if r.URL.Path == "/b" {
+			cancel()
+		}
+	}
+	logs, err := env.run(ctx, []Venue{syncVenue("a", "/a", false, false), syncVenue("b", "/b", false, false)})
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("Sync = %v, want context.Canceled\n%s", err, logs)
+	}
+	if got := env.concerts(t, g); !slices.Equal(got, []string{"a:A 2026-12-01 20:00"}) {
+		t.Errorf("concerts = %q, want a's only", got)
+	}
+}
+
+// TestSyncVenueTimeout: a venue that hangs fails alone once its deadline passes.
+func TestSyncVenueTimeout(t *testing.T) {
+	t.Parallel()
+	env := newSyncEnv(t, map[string]string{"/slow": "s|S|2026-12-01|20:00|/e/s\n", "/b": "b|B|2026-12-02|20:00|/e/b\n"})
+	g := env.group("g", "slow", "b")
+	env.site.before = func(r *http.Request) {
+		if r.URL.Path == "/slow" {
+			<-r.Context().Done()
+		}
+	}
+	slow := syncVenue("slow", "/slow", false, false)
+	slow.timeout = time.Millisecond
+	logs, err := env.sync([]Venue{slow, syncVenue("b", "/b", false, false)})
+	if err == nil || !strings.Contains(err.Error(), "slow") {
+		t.Errorf("Sync = %v, want slow failed\n%s", err, logs)
+	}
+	if got := env.concerts(t, g); !slices.Equal(got, []string{"b:B 2026-12-02 20:00"}) {
+		t.Errorf("concerts = %q, want b's", got)
+	}
+}
+
+// TestSyncDetailFailures: an event page without a date is read again next run, and the venue
+// fails when none of its pages had one; a page gone (404) is not read again.
+func TestSyncDetailFailures(t *testing.T) {
+	t.Parallel()
+	env := newSyncEnv(t, map[string]string{
+		"/l":   "a|A|2026-12-01||/e/a\nb|B|2026-12-02||/e/b\n", // /e/b: 404
+		"/e/a": "<html><p>Bientôt</p></html>",
+	})
+	g := env.group("g", "l")
+	v := []Venue{syncVenue("l", "/l", true, false)}
+	logs, err := env.sync(v)
+	if err == nil || err.Error() != "venues failed: l" {
+		t.Errorf("Sync = %v, want l failed: no event page had a date\n%s", err, logs)
+	}
+	if !strings.Contains(logs, "undated=1") {
+		t.Errorf("logs lack undated=1:\n%s", logs)
+	}
+	if got := env.concerts(t, g); !slices.Equal(got, []string{"l:A 2026-12-01", "l:B 2026-12-02"}) {
+		t.Errorf("concerts = %q", got)
+	}
+	env.site.mu.Lock()
+	env.site.pages["/e/a"] = eventPage("2026-12-01T20:00:00+01:00")
+	env.site.mu.Unlock()
+	if logs, err := env.sync(v); err != nil || env.site.events != 3 {
+		t.Errorf("second Sync: %v, %d event page requests in all, want 3 (a again, b gone)\n%s", err, env.site.events, logs)
+	}
+	if got := env.concerts(t, g); !slices.Equal(got, []string{"l:A 2026-12-01 20:00", "l:B 2026-12-02"}) {
+		t.Errorf("concerts after the second run = %q", got)
 	}
 }

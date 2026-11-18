@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	maxBody = 4 << 20
+	maxBody = 2 << 20 // listings are 250 KB at most; x/net/html keeps ~35× a page of tags live
 	// minDelay is the least wait between two requests to one host, whatever robots.txt says.
 	minDelay = 3 * time.Second
 	// maxRedirects a request follows, to the venue's site hosts only.
@@ -26,6 +26,9 @@ const (
 
 // errBusy is a 429 or 503: the site asks to slow down, so the venue is left for this run.
 var errBusy = errors.New("site busy")
+
+// errGone is a 404 or 410: the page will not come back.
+var errGone = errors.New("page gone")
 
 // NewClient returns the HTTP client for venue sites: prefill's dial checks (public addresses,
 // ports 80 and 443), with timeouts for a daily job rather than a form waiting on it.
@@ -87,16 +90,15 @@ func (f *fetcher) get(ctx context.Context, v *Venue, u *neturl.URL, mediaType st
 		return nil
 	}
 	resp, err := c.Do(req)
-	if ue := (*neturl.Error)(nil); errors.As(err, &ue) {
-		err = ue.Err // its message holds the URL
-	}
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, withoutURL(err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	switch {
 	case resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusServiceUnavailable:
 		return nil, nil, fmt.Errorf("%w: status %d", errBusy, resp.StatusCode)
+	case resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone:
+		return nil, nil, fmt.Errorf("%w: status %d", errGone, resp.StatusCode)
 	case resp.StatusCode != http.StatusOK:
 		return nil, nil, fmt.Errorf("status %d", resp.StatusCode)
 	}
@@ -112,6 +114,14 @@ func (f *fetcher) get(ctx context.Context, v *Venue, u *neturl.URL, mediaType st
 		return nil, nil, fmt.Errorf("body over %d bytes", maxBody)
 	}
 	return body, resp.Request.URL, nil
+}
+
+// withoutURL unwraps a *url.Error, whose message holds the URL: logs name no URL.
+func withoutURL(err error) error {
+	if ue := (*neturl.Error)(nil); errors.As(err, &ue) {
+		return ue.Err
+	}
+	return err
 }
 
 // hostname is u's host, lower case, without port or trailing dot.

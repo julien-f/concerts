@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -239,6 +241,9 @@ func TestListingDate(t *testing.T) {
 			t.Errorf("listingDate(%q) = %q, want %q", in, got, want)
 		}
 	}
+	if got := listingDate("29 février", "2027-11-18"); got != "2028-02-29" { // no 29th in 2027: the next leap year
+		t.Errorf("listingDate(29 février) in 2027 = %q, want 2028-02-29", got)
+	}
 }
 
 func TestEvent(t *testing.T) {
@@ -294,6 +299,11 @@ func TestMC2Next(t *testing.T) {
 	if err != nil || len(next) != 1 || next[0].Query().Get("page") != "2" {
 		t.Errorf("next = %v, %v", next, err)
 	}
+	// A bad next link fails the listing, without the venue-supplied URL in the error.
+	_, _, err = mc2(page, []byte(`{"events":[],"next_rest_url":"https://www.mc2grenoble.fr/private\u0001"}`), fixtureToday)
+	if err == nil || strings.Contains(err.Error(), "mc2grenoble") || strings.Contains(err.Error(), "private") {
+		t.Errorf("bad next link: err = %v, want one without the URL", err)
+	}
 }
 
 // TestVenues: the compiled-in list is usable as is.
@@ -315,6 +325,17 @@ func TestVenues(t *testing.T) {
 			t.Errorf("venue %q listed after a promoter", v.Key)
 		}
 		promoter = promoter || v.Promoter
+	}
+	unit, err := os.ReadFile("../../deploy/concerts-sync.service")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := regexp.MustCompile(`(?m)^TimeoutStartSec=(\d+)min$`).FindSubmatch(unit)
+	if m == nil {
+		t.Fatal("no TimeoutStartSec=<n>min in the sync unit")
+	}
+	if limit, _ := strconv.Atoi(string(m[1])); time.Duration(len(Venues))*venueTimeout > time.Duration(limit)*time.Minute*9/10 {
+		t.Errorf("%d venues × %v leave no margin in the sync unit's TimeoutStartSec", len(Venues), venueTimeout)
 	}
 	if got := Name("belle-electrique"); got != "La Belle Électrique" {
 		t.Errorf("Name(belle-electrique) = %q", got)

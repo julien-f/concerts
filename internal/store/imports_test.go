@@ -16,6 +16,9 @@ func ev(id, artist, date string) Event {
 
 func mustApply(t *testing.T, s *Store, groupID int64, source, today string, events ...Event) ImportCounts {
 	t.Helper()
+	if err := s.Follow(context.Background(), groupID, source); err != nil {
+		t.Fatal(err)
+	}
 	n, err := s.ApplyImports(context.Background(), groupID, source, events, today)
 	if err != nil {
 		t.Fatal(err)
@@ -140,6 +143,27 @@ func TestApplyImportsRefusesNoSource(t *testing.T) {
 	g := mustGroup(t, s, "g", "s")
 	if _, err := s.ApplyImports(context.Background(), g.ID, "", []Event{ev("a", "A", later)}, testToday); err == nil {
 		t.Fatal("import without a source: want an error")
+	}
+}
+
+// TestApplyImportsUnfollowed: a sync that read its followers before an unfollow inserts nothing.
+func TestApplyImportsUnfollowed(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s := openTest(t)
+	g := mustGroup(t, s, "g", "s")
+	if err := s.Follow(ctx, g.ID, "src"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Unfollow(ctx, g.ID, "src"); err != nil {
+		t.Fatal(err)
+	}
+	n, err := s.ApplyImports(ctx, g.ID, "src", []Event{ev("a", "A", later), ev("b", "B", later)}, testToday)
+	if err != nil || n != (ImportCounts{Unfollowed: 2}) {
+		t.Errorf("ApplyImports = %+v, %v; want 2 unfollowed", n, err)
+	}
+	if importedID(t, s, g.ID, "src", "a") != 0 {
+		t.Error("event imported into a group that no longer follows the venue")
 	}
 }
 

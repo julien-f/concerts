@@ -60,7 +60,7 @@ func mc2(page *neturl.URL, body []byte, _ string) ([]listed, []*neturl.URL, erro
 	if p.Next != "" {
 		u, err := page.Parse(p.Next)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, withoutURL(err)
 		}
 		next = append(next, u)
 	}

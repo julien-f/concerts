@@ -2,12 +2,14 @@ package agenda
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	neturl "net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -19,10 +21,12 @@ import (
 const (
 	maxEvents  = 200 // per venue and run
 	maxDetails = 40  // event pages per run: about 30 on the first, then one or two a day
+	// venueTimeout bounds a venue's reading: len(Venues) of them stay under the sync unit's TimeoutStartSec (TestVenues).
+	venueTimeout = 2 * time.Minute
 )
 
-// Sync imports the upcoming concerts of the followed venues into the groups following them:
-// every venue is read first, in list order (promoters last), then applied group by group.
+// Sync imports the upcoming concerts of the followed venues into the groups following them,
+// venue by venue in list order (promoters last), each read within venueTimeout.
 // It returns an error when a venue failed or listed no upcoming concert (its parser broke),
 // after applying whatever the others gave. Logs name venue keys, hosts and group ids, never
 // a URL or a concert.
@@ -31,12 +35,6 @@ func Sync(ctx context.Context, st *store.Store, client *http.Client, venues []Ve
 ) error {
 	today := validate.Today(now())
 	f := &fetcher{client: client, sleep: sleep, seen: map[string]bool{}}
-	type venueRead struct {
-		v      *Venue
-		groups []int64
-		events []store.Event
-	}
-	var reads []venueRead
 	var failed []string
 	details := maxDetails
 	for i := range venues {
@@ -48,7 +46,9 @@ func Sync(ctx context.Context, st *store.Store, client *http.Client, venues []Ve
 		if len(groups) == 0 {
 			continue
 		}
-		events, err := f.read(ctx, st, v, today, now, &details, log)
+		vctx, cancel := context.WithTimeout(ctx, cmp.Or(v.timeout, venueTimeout))
+		events, err := f.read(vctx, st, v, today, now, &details, log)
+		cancel()
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
@@ -59,21 +59,21 @@ func Sync(ctx context.Context, st *store.Store, client *http.Client, venues []Ve
 			log.ErrorContext(ctx, "venue failed", "venue", v.Key, "host", v.host(), "err", err)
 			failed = append(failed, v.Key)
 		}
-		reads = append(reads, venueRead{v, groups, events})
-	}
-	for _, r := range reads {
-		for _, g := range r.groups {
-			n, err := st.ApplyImports(ctx, g, r.v.Key, r.events, today)
+		for _, g := range groups {
+			n, err := st.ApplyImports(ctx, g, v.Key, events, today)
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
 			if err != nil {
-				log.ErrorContext(ctx, "import failed", "venue", r.v.Key, "group", g, "err", err)
-				failed = append(failed, r.v.Key)
+				log.ErrorContext(ctx, "import failed", "venue", v.Key, "group", g, "err", err)
+				if !slices.Contains(failed, v.Key) {
+					failed = append(failed, v.Key)
+				}
 				continue
 			}
-			log.InfoContext(ctx, "imported", "venue", r.v.Key, "group", g, "inserted", n.Inserted, "updated", n.Updated,
-				"moved", n.Moved, "duplicate", n.Duplicate, "kept", n.Kept, "full", n.Full, "past", n.Past, "bad_id", n.BadID)
+			log.InfoContext(ctx, "imported", "venue", v.Key, "group", g, "inserted", n.Inserted, "updated", n.Updated,
+				"moved", n.Moved, "duplicate", n.Duplicate, "kept", n.Kept, "full", n.Full, "past", n.Past, "bad_id", n.BadID,
+				"unfollowed", n.Unfollowed)
 		}
 	}
 	if _, err := st.PruneEventDetails(ctx, today); err != nil {
@@ -108,10 +108,10 @@ func (f *fetcher) read(ctx context.Context, st *store.Store, v *Venue, today str
 	}
 	past := len(items) - len(upcoming)
 	upcoming = upcoming[:min(len(upcoming), maxEvents)]
-	fetched := 0
+	fetched, undated := 0, 0
 	if v.Details && !errors.Is(err, errBusy) && ctx.Err() == nil {
 		var derr error
-		fetched, derr = f.details(ctx, st, v, upcoming, now, budget, log)
+		fetched, undated, derr = f.details(ctx, st, v, upcoming, now, budget, log)
 		err = errors.Join(err, derr)
 	}
 	var events []store.Event
@@ -121,16 +121,18 @@ func (f *fetcher) read(ctx context.Context, st *store.Store, v *Venue, today str
 		}
 	}
 	log.InfoContext(ctx, "venue read", "venue", v.Key, "host", v.host(), "pages", pages, "listed", len(items),
-		"past", past, "over_cap", len(items)-past-len(upcoming), "invalid", len(upcoming)-len(events), "event_pages", fetched)
+		"past", past, "over_cap", len(items)-past-len(upcoming), "invalid", len(upcoming)-len(events), "event_pages", fetched, "undated", undated)
 	return events, err
 }
 
 // details sets the time of the events without one from what their page gave, reading the
-// pages never read for that date while the budget lasts. It stops at a 429 or 503.
+// pages never read for that date while the budget lasts; it returns how many pages it read
+// and how many of them had no date. A page without a date, or unread, is read again next
+// run, but one gone (404, 410) is kept without time. It stops at a 429 or 503, and fails
+// when it read pages and none had a date: prefill no longer reads them.
 func (f *fetcher) details(ctx context.Context, st *store.Store, v *Venue, events []listed, now func() time.Time,
 	budget *int, log *slog.Logger,
-) (int, error) {
-	fetched := 0
+) (fetched, undated int, err error) {
 	for i := range events {
 		l := &events[i]
 		if l.time != "" || l.date == "" {
@@ -144,7 +146,7 @@ func (f *fetcher) details(ctx context.Context, st *store.Store, v *Venue, events
 		case errors.Is(err, store.ErrSourceID):
 			continue // event() refuses it too
 		case err != nil && !errors.Is(err, store.ErrNotFound):
-			return fetched, err
+			return fetched, undated, err
 		case *budget == 0:
 			continue // read on a later run
 		}
@@ -154,21 +156,34 @@ func (f *fetcher) details(ctx context.Context, st *store.Store, v *Venue, events
 		}
 		*budget--
 		body, final, err := f.get(ctx, v, u, "text/html")
-		if errors.Is(err, errBusy) || ctx.Err() != nil {
-			return fetched, err
-		}
-		if err != nil {
+		switch {
+		case errors.Is(err, errBusy) || ctx.Err() != nil:
+			return fetched, undated, err
+		case errors.Is(err, errGone):
+			if err := st.PutEventDetail(ctx, v.Key, l.id, store.EventDetail{Date: l.date}); err != nil {
+				return fetched, undated, err
+			}
+			continue
+		case err != nil:
 			log.WarnContext(ctx, "event page unread", "venue", v.Key, "host", hostname(u), "err", err)
-			continue // read again next run
+			continue
 		}
 		fetched++
 		res := prefill.Parse(bytes.NewReader(body), hostname(final), now().In(validate.Paris))
+		if res.Date == "" {
+			undated++
+			log.WarnContext(ctx, "event page without date", "venue", v.Key, "host", hostname(final))
+			continue
+		}
 		if res.Date == l.date { // a time read beside another date is not this event's
 			l.time = res.Time
 		}
 		if err := st.PutEventDetail(ctx, v.Key, l.id, store.EventDetail{Date: l.date, Time: l.time}); err != nil {
-			return fetched, err
+			return fetched, undated, err
 		}
 	}
-	return fetched, nil
+	if fetched > 0 && undated == fetched {
+		return fetched, undated, errors.New("no date on any event page: has the page changed?")
+	}
+	return fetched, undated, nil
 }

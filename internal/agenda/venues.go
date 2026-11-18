@@ -19,6 +19,7 @@ type Venue struct {
 	Details   bool // the listing has no times: each event's page is read once, with prefill
 	Promoter  bool // lists other halls' concerts, so syncs after them: their copy wins the dedup
 	parse     parser
+	timeout   time.Duration // 0: venueTimeout; tests shorten it
 }
 
 // Name is the display name of the venue key, or "" if none is compiled in.

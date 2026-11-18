@@ -158,9 +158,7 @@ func listingDate(s, today string) string {
 	for _, y := range []int{t.Year(), t.Year() + 1} {
 		d := prefill.FrenchDate(s + " " + strconv.Itoa(y))
 		switch {
-		case d == "":
-			return ""
-		case d < today:
+		case d == "" || d < today: // no such day that year (29 February), or past
 			continue
 		case d > t.AddDate(0, 10, 0).Format(time.DateOnly):
 			return prefill.FrenchDate(s + " " + strconv.Itoa(y-1))
