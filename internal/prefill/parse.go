@@ -483,6 +483,9 @@ func onSale(offers any, now time.Time) string {
 // titleSeparators end the artist part of a page title, e.g. "Artist - Venue | Site".
 var titleSeparators = []string{" | ", "｜", " - ", " – ", " @ ", " Tickets", " Billets"}
 
+// titleStatus is an event status before the artist: « COMPLET • Pomme », « REPORTÉ · X ».
+var titleStatus = regexp.MustCompile(`(?i)^(?:complet|annulé|reporté) [•·] `)
+
 // titleArtist guesses the artist from og:title, twitter:title or <title>. Never a date:
 // title formats differ too much ("27 Nov", "mer., 28/10/2026").
 func titleArtist(p page) string {
@@ -491,6 +494,7 @@ func titleArtist(p page) string {
 		if s == "" || s == "null" {
 			continue
 		}
+		s = titleStatus.ReplaceAllString(s, "")
 		cut := len(s)
 		for _, sep := range titleSeparators {
 			if i := strings.Index(s, sep); i > 0 && i < cut {

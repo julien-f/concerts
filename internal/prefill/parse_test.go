@@ -327,6 +327,10 @@ func TestParseEdgeCases(t *testing.T) {
 		{"title fallback, cut at the first separator", `<title>Artiste &amp; Co - Salle | Site</title>`, Result{Artist: "Artiste & Co"}},
 		{"an icon's svg title is not the page's", `<svg><title>Icône</title></svg><title>Artiste - Salle</title>`, Result{Artist: "Artiste"}},
 		{"og:title 'null' skipped", `<meta property="og:title" content="null"><meta name="twitter:title" content="Tw @ Venue">`, Result{Artist: "Tw"}},
+		// La Belle Électrique prefixes sold-out and postponed events' titles.
+		{"status prefix dropped", `<meta property="og:title" content="COMPLET • Luiza + Nagä">`, Result{Artist: "Luiza + Nagä"}},
+		{"status prefix dropped, other dot and case", `<title>Reporté · La Fièvre - Salle</title>`, Result{Artist: "La Fièvre"}},
+		{"a word without separator is the artist's", `<title>Complet Ensemble</title>`, Result{Artist: "Complet Ensemble"}},
 		{"address as a string", `<script type="application/ld+json">{"@type":"MusicEvent","name":"A","location":{"name":"S","address":" 1 rue X, Lyon "}}</script>`,
 			Result{Artist: "A", Venue: "S", Address: "1 rue X, Lyon"}},
 		{"address array, no venue name", `<script type="application/ld+json">{"@type":"MusicEvent","name":"A","location":{"address":[{"streetAddress":"1 rue X","postalCode":"69001"}]}}</script>`,
