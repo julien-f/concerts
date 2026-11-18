@@ -37,10 +37,11 @@ demo: build
 verify-ui:
 	scripts/verify-ui.sh
 
-# Scroll smoothness of style.css at REF vs the working tree's, on a phone on the same network.
+# Scroll smoothness of style.css at REF vs the working tree's, on a phone on the same network; PAGE=list or affiche.
 REF ?= main
+PAGE ?= list
 measure-scroll:
-	scripts/measure-scroll.sh $(REF)
+	scripts/measure-scroll.sh $(REF) $(PAGE)
 
 # Go lines, binary size and `make check` duration, for a merge commit's body.
 measure:

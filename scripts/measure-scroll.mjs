@@ -1,8 +1,8 @@
 // Driven by measure-scroll.sh. Compares scroll smoothness of ref.css and work.css on a phone.
 //
-// snapshot <tools> <groupURL> <dir>: saves the demo's group page as <dir>/page.html, past concerts open and
-//   cards cloned ×5 (long enough for a run), without scripts or icons; the server fills in the CSS and
-//   the benchmark (measure-scroll-page.js).
+// snapshot <tools> <groupURL> <dir> <query>: saves the demo's group page at <query> ("" for « Tous ») as
+//   <dir>/page.html, past concerts open and cards cloned to at least 170 (long enough for a run; « Tous »
+//   ×5), without scripts or icons; the server fills in the CSS and the benchmark (measure-scroll-page.js).
 // serve <dir> <lan-ip> <iface> <ref>: serves it on <lan-ip>:8765 and drives the series: runs in ABBA BAAB
 //   order (ref/work, against thermal drift), each page posting its frame intervals; prints the table.
 //
@@ -23,21 +23,22 @@ if (cmd === "snapshot") await snapshot(...args);
 else if (cmd === "serve") serve(...args);
 else throw new Error(`unknown command ${cmd}`);
 
-async function snapshot(tools, groupURL, dir) {
+async function snapshot(tools, groupURL, dir, query) {
   const require = createRequire(`${tools}/node_modules/`);
   const { chromium } = require("playwright-core");
   const browser = await chromium.launch();
   const page = await browser.newPage();
   await page.goto(groupURL);
   await Promise.all([page.waitForNavigation(), page.click('button:has-text("Léa")')]);
+  if (query) await page.goto(groupURL + query);
   const html = await page.evaluate(() => {
     document.querySelectorAll('script, link[rel="icon"], link[rel="apple-touch-icon"]').forEach((e) => e.remove());
     document.querySelector('link[rel="stylesheet"]').setAttribute("href", "/__CSS__.css");
     document.head.append(document.createComment("BENCH"));
     document.querySelectorAll("details").forEach((d) => (d.open = true));
-    for (const ul of document.querySelectorAll(".concerts")) {
-      const items = [...ul.children];
-      for (let i = 0; i < 4; i++) items.forEach((li) => ul.append(li.cloneNode(true)));
+    const lists = [...document.querySelectorAll(".concerts")].map((ul) => [ul, [...ul.children]]);
+    while (document.querySelectorAll(".card").length < 170) {
+      for (const [ul, items] of lists) items.forEach((li) => ul.append(li.cloneNode(true)));
     }
     return "<!doctype html>" + document.documentElement.outerHTML;
   });

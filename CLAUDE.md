@@ -36,7 +36,7 @@ Design, threat model and later work: [docs/design.md](docs/design.md). Operation
 
 - `make fmt` after editing Go files. `make run`, `make test` (`go test -race ./...`), `make lint`, `make vuln` (needs network), `make check` (lint + vuln + test; the pre-commit hook runs it when `go.mod`/`go.sum` are staged, else lint + test; `make deploy` runs vuln), `make build`.
 - Single test: `go test -race -run TestName ./internal/web`.
-- `make demo`: fresh `demo.db` with sample data, then serves it. `make verify-ui`: axe-core and vnu on every demo screen, plus the group page's weight; run before merging a UI change ([ADR 0006](docs/decisions/0006-scripted-ui-verification.md)). `make measure-scroll [REF=main]`: scroll fps of `style.css` at `REF` vs the working tree, on a phone on the same network; for CSS that may be costly to paint (masks, shadows, filters). `make measure`: Go lines, binary size and `make check` duration, for a merge commit's body.
+- `make demo`: fresh `demo.db` with sample data, then serves it. `make verify-ui`: axe-core and vnu on every demo screen, plus the group page's weight; run before merging a UI change ([ADR 0006](docs/decisions/0006-scripted-ui-verification.md)). `make measure-scroll [REF=main] [PAGE=affiche]`: scroll fps of `style.css` at `REF` vs the working tree, on « Tous » or « À l'affiche », on a phone on the same network; for CSS that may be costly to paint (masks, shadows, filters). `make measure`: Go lines, binary size and `make check` duration, for a merge commit's body.
 
 ## Pitfalls
 
