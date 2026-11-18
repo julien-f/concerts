@@ -19,6 +19,7 @@ Members add a concert only after seeing it elsewhere: concerts announced at the 
 - A venue's site change breaks its parser: the sync fails until a fixture and the parser are updated and deployed (operations.md). Each venue is read within its own deadline and applied at once, so one broken or slow site costs the others nothing.
 - Adding a venue means a release; members ask the operator.
 - The sync's updates leave no history, and a cancelled concert stays until a member deletes it.
+- An edited import no longer follows its venue, so the sync also keeps what each venue last said of an event once for every group (`venue_events`); « Relire la billetterie » on an import shows what differs from it, field by field, for the member to take or leave.
 
 ## Rejected
 

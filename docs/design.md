@@ -220,8 +220,19 @@ Without identity: statuses shown, buttons and edit/delete replaced by « Choisis
 └──────────────────────────────┘
 ```
 
+After « Relire la billetterie », a differing field (edit form):
+
+```
+│ 2 champs diffèrent : Heure,  │  summary above the form
+│ Complet. Rien n'est enregis… │
+│ Heure         [21:00       ] │  autofocus on the first, described
+│ La billetterie indique :     │  by the summary and its line
+│ 20 h 30 [Utiliser]           │  posts use=time, swaps <main>
+```
+
 - The ticket link field of the main form carries the prefilled URL, so Enter in any field saves instead of prefilling.
 - Errors: listed above the form and tied to each field (`aria-describedby`, `aria-invalid`); the first invalid field gets `autofocus`; fields come back as typed, rejected characters included.
+- « Utiliser » buttons come before « Enregistrer » in the form, so a visually hidden « Enregistrer » (`tabindex=-1`, `aria-hidden`) opens the form while one is shown: Enter still saves.
 
 ## Visual direction
 
@@ -256,6 +267,9 @@ concerts (id PK, token UNIQUE, group_id → groups ON DELETE CASCADE,
           UNIQUE (group_id, source, source_id) WHERE source IS NOT NULL
 group_venues  (group_id → groups ON DELETE CASCADE, venue, PRIMARY KEY (group_id, venue)) WITHOUT ROWID
 event_details (source, source_id, date, time NULL, PRIMARY KEY (source, source_id)) WITHOUT ROWID
+venue_events  (source, source_id, artist, date, time NULL, venue, address NULL,
+          ticket_url NULL, price NULL, sold_out, seen_at,
+          PRIMARY KEY (source, source_id)) WITHOUT ROWID  -- what the agenda last said
 statuses (concert_id → concerts ON DELETE CASCADE,
           member_id → members ON DELETE CASCADE,
           status CHECK IN ('interested','going'),
@@ -293,7 +307,7 @@ All under `/g/{secret}` (written `…`) but the first two and the last two; unkn
 | POST | `…/concerts` | create; `anyway=1` skips the duplicate check | 303 `…?added=<id>`; 422 form (invalid or duplicate); 422 if the group is full |
 | GET | `…/concerts/{id}` | old and internal concert URL; sets the group cookie | 303 `/c/<token>`, query kept |
 | GET | `…/concerts/{id}/edit` | edit form | page |
-| POST | `…/concerts/{id}/refresh` | « Relire la billetterie »: fills the posted form's empty fields from its ticket link, saves nothing | form page (200, as htmx swaps no 4xx) |
+| POST | `…/concerts/{id}/refresh` | « Relire la billetterie »: fills the posted form's empty fields and offers the differing ones from the venue's agenda (an import) or the ticket link; `use=<field>` takes the offered value posted back as `source_<field>`, reading nothing; saves nothing | form page (200, as htmx swaps no 4xx) |
 | POST | `…/concerts/{id}` | update, recording a revision | 303 `…/concerts/{id}?saved=<rev>`; 422 form; 422 if the group is full |
 | GET | `…/concerts/{id}/history` | edits, newest first, with the fields each changed | page |
 | POST | `…/concerts/{id}/revisions/{rev}/revert` | go back to before that edit (an edit itself) | 303 `…/concerts/{id}?reverted=<rev>`; 422 if a value is no longer valid or the group is full |
@@ -346,7 +360,9 @@ One slice per branch, merged with `--no-ff`. 0–11 shipped as v1.
      - Artist from the title as served, all caps included (Retour de Scène): converting would mangle acronyms.
    - Client and limits: see the threat model (SSRF). Fetched values lose invisible characters (other blanks become spaces), then go through the form's validation; invalid ones are dropped. The user sees one generic message, never the error.
    - `GET …/concerts/new?url=`: a separate GET form above the main one (Enter in the main form saves); htmx swaps `<main>` and pushes the URL. The outcome is tied to the focused field (`aria-describedby`); « Lecture de la page… » sits in a live region present before the request.
-   - « Relire la billetterie » (edit form): a button inside the main form, after « Enregistrer » so Enter saves; it posts the fields as typed (`formaction`, `formnovalidate`) and fills only the empty ones from the ticket link, nothing saved until « Enregistrer ». Only the link is checked then; focus goes to the first filled field, else stays on the button.
+   - « Relire la billetterie » (edit form): a button inside the main form, after « Enregistrer » so Enter saves; it posts the fields as typed (`formaction`, `formnovalidate`) and fills only the empty ones, nothing saved until « Enregistrer ». Only the link is checked then; focus goes to the first filled field, else stays on the button (« Rien de nouveau sur la billetterie. »).
+     - Since slice 12 it also offers, under each filled field the source gives another value for, « La billetterie indique : <value> » and « Utiliser » (a submit button posting `use=<field>` to the same route, the form's values and the offered ones as `source_<field>` hidden fields: nothing is read again). Never the description, never an empty value (a field is never cleared), « complet / pas complet » for the checkbox only when the source tells. A summary above the form (« N champs diffèrent : … Rien n'est enregistré avant « Enregistrer ». ») takes the focus's description: autofocus on the first differing field, described by the summary and its line; after « Utiliser », on the replaced field.
+     - Source: for an import whose venue event the sync kept (`venue_events`), that row, so no network and venues whose event pages prefill can't read work too; else the ticket link's page, as before (limiter, errors).
 6. **« Ajouter à mon agenda »**: one concert's `.ics`, no feed, so the secret never reaches a calendar provider.
    - Hand-written RFC 5545: no METHOD (Outlook would see an invitation); UID `concert-<group>-<id>` (no host, RFC 7986); timed concerts in UTC with a 3 h end (no VTIMEZONE), date-only ones `VALUE=DATE` with an exclusive next-day end; SUMMARY, LOCATION (« venue, address »), DESCRIPTION « Billets : <link> » only.
    - TEXT escaping (a field cannot start a property line), folding at 75 octets on rune boundaries, CRLF; golden files. `attachment; filename="concert.ics"`, `private, no-store`. An edited concert re-imported on iOS is not updated (known limit).
@@ -366,7 +382,7 @@ One slice per branch, merged with `--no-ff`. 0–11 shipped as v1.
 12. **Venue agenda import** ([ADR 0011](decisions/0011-venue-imports.md)): the daily `concerts sync` (systemd timer) copies the upcoming concerts of the venues a group follows into its concerts; screens, routes and threat model above.
    - `internal/agenda`: the compiled-in venues (MC2, La Belle Électrique, L'ilyade, L'Ampérage, La Source, Retour de Scène: listing URLs, site and ticketing hosts, crawl delay, robots.txt noted), one parser per venue walking an `html.Parse` tree or MC2's JSON (fixtures in `testdata/`), the fetcher and `Sync`. Music events only (club nights count); every event needs the venue's stable id (`source_id`, ≤ 256 bytes).
    - Cleaning: status prefixes and suffixes stripped from titles (« COMPLET • », « REPORTÉ • », « (COMPLET) », « \ COMPLET / »), « Complet » sets `sold_out`, the price left as listed; a date without year is its next occurrence, skipped if more than 10 months ahead (a past item still listed); then `validate.Concert`, as the form.
-   - Sync: followed venues only, halls before promoters (Retour de Scène lists L'ilyade's concerts: the hall's copy wins), each read within 2 min (6 × 2 min stay under the unit's 15 min) then applied at once, so a slow or failing venue costs the others nothing; ≤ 200 events per venue and run; `store.ApplyImports`, one transaction per group and venue (`created_by` NULL, `source` and `source_id` set), applies nothing if the group stopped following the venue since the run began.
+   - Sync: followed venues only, halls before promoters (Retour de Scène lists L'ilyade's concerts: the hall's copy wins), each read within 2 min (6 × 2 min stay under the unit's 15 min) then applied at once, so a slow or failing venue costs the others nothing; ≤ 200 events per venue and run; `store.ApplyImports`, one transaction per group and venue (`created_by` NULL, `source` and `source_id` set), applies nothing if the group stopped following the venue since the run began. Before that, each venue's events read (validated, as imported) are kept once for every group in `venue_events`, one transaction a run, pruned once past or unseen for 30 days (not on missing one run): what « Relire la billetterie » compares an edited import with. Not `event_details`, whose date is a cache key.
    - Per event: inserted unless the group has the same bill that day from elsewhere, live or deleted (artist key equal, or followed by ` + `, ` • `, ` / `, `, ` or ` & `, either way round); a row the import owns (live, never edited) updated in place; imports stop at 400 upcoming concerts, 100 kept for members.
    - Times missing from a listing (La Source, Retour de Scène): each event's page read once ever through `prefill`, kept in `event_details`, pruned of past dates; ≤ 40 pages a run. A page gone (404, 410) is kept without time; one unread or where `prefill` finds no date is read again next run, and the venue fails when none of the pages it read had a date.
    - Fails (non-zero exit) when a venue failed or listed no upcoming concert, its parser's breakage sign. Logs: venue key, host, group id, counts; never a URL or a concert.

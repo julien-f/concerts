@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 )
 
 // Follow makes the group import venue's agenda; following it again changes nothing.
@@ -101,6 +102,62 @@ func (s *Store) PutEventDetail(ctx context.Context, source, sourceID string, d E
 // PruneEventDetails deletes what was kept of events dated before today; it returns how many.
 func (s *Store) PruneEventDetails(ctx context.Context, today string) (int64, error) {
 	res, err := s.db.ExecContext(ctx, "DELETE FROM event_details WHERE date < ?", today)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// venueEventsKept is how long a venue event no run has seen stays: a listing missing it once
+// (a page cut short) must not drop it.
+const venueEventsKept = 30 * 24 * time.Hour
+
+// PutVenueEvents keeps what source's agenda says of events, in one transaction, replacing what
+// was kept of each; events whose id CleanSourceID refuses are skipped.
+func (s *Store) PutVenueEvents(ctx context.Context, source string, events []Event) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	for _, e := range events {
+		id, ok := CleanSourceID(e.SourceID)
+		if !ok {
+			continue
+		}
+		c := e.Concert
+		if _, err := tx.ExecContext(ctx, `INSERT INTO venue_events
+			(source, source_id, artist, date, time, venue, address, ticket_url, price, sold_out, seen_at)
+			VALUES (?, ?, ?, ?, nullif(?, ''), ?, nullif(?, ''), nullif(?, ''), nullif(?, ''), ?, ?)
+			ON CONFLICT DO UPDATE SET artist = excluded.artist, date = excluded.date, time = excluded.time,
+				venue = excluded.venue, address = excluded.address, ticket_url = excluded.ticket_url,
+				price = excluded.price, sold_out = excluded.sold_out, seen_at = excluded.seen_at`,
+			source, id, c.Artist, c.Date, c.Time, c.Venue, c.Address, c.TicketURL, c.Price, c.SoldOut, s.timestamp()); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// SourceEvent returns what the venue last said of the group's imported concert id (the fields
+// an agenda gives), or ErrNotFound if it was added by hand or its venue event is not kept.
+func (s *Store) SourceEvent(ctx context.Context, groupID, id int64) (Concert, error) {
+	var c Concert
+	err := s.db.QueryRowContext(ctx, `SELECT v.artist, v.date, coalesce(v.time, ''), v.venue, coalesce(v.address, ''),
+		coalesce(v.ticket_url, ''), coalesce(v.price, ''), v.sold_out
+		FROM concerts c JOIN venue_events v ON v.source = c.source AND v.source_id = c.source_id
+		WHERE c.id = ? AND c.group_id = ?`, id, groupID).Scan(
+		&c.Artist, &c.Date, &c.Time, &c.Venue, &c.Address, &c.TicketURL, &c.Price, &c.SoldOut)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Concert{}, ErrNotFound
+	}
+	return c, err
+}
+
+// PruneVenueEvents deletes the venue events dated before today or unseen for venueEventsKept; it returns how many.
+func (s *Store) PruneVenueEvents(ctx context.Context, today string) (int64, error) {
+	res, err := s.db.ExecContext(ctx, "DELETE FROM venue_events WHERE date < ? OR seen_at < ?",
+		today, s.now().Add(-venueEventsKept).UTC().Format(time.RFC3339))
 	if err != nil {
 		return 0, err
 	}

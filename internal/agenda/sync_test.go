@@ -169,6 +169,14 @@ func TestSync(t *testing.T) {
 	if got := env.concerts(t, g2); !slices.Equal(got, want1[:1]) {
 		t.Errorf("g2 = %q, want %q", got, want1[:1])
 	}
+	// Each event read is kept once for every group, as imported: « Relire la billetterie » reads it.
+	cs, err := env.st.Concerts(context.Background(), g2)
+	if err != nil || len(cs) != 1 {
+		t.Fatalf("g2: %d concerts, %v", len(cs), err)
+	}
+	if c, err := env.st.SourceEvent(context.Background(), g2, cs[0].ID); err != nil || c.Artist != "Les Hiboux" || !c.SoldOut || c.Time != "20:00" {
+		t.Errorf("venue event kept = %+v, %v", c, err)
+	}
 	// p1 is the hall's concert: its page is read anyway (before the dedup), p2 and p3 too.
 	if env.site.events != 3 || env.site.listings["/other"] != 0 || env.site.listings["/hall"] != 1 {
 		t.Errorf("requests: %d event pages, listings %v", env.site.events, env.site.listings)

@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestFollow(t *testing.T) {
@@ -126,5 +128,61 @@ func TestEventDetails(t *testing.T) {
 	}
 	if _, err := s.EventDetail(ctx, "other", "a"); err != nil {
 		t.Errorf("detail dated today pruned: %v", err)
+	}
+}
+
+// TestVenueEvents: what a venue last said of an event, kept once for every group, read through an import.
+func TestVenueEvents(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	now := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
+	s, err := Open(ctx, filepath.Join(t.TempDir(), "test.db"), func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	g := mustGroup(t, s, "g", "s1")
+	m := mustMember(t, s, g.ID, "Léa")
+	a := Event{SourceID: "a", Concert: Concert{Artist: "A", Date: later, Time: "20:00", Venue: "V", Price: "20 €", SoldOut: true}}
+	mustApply(t, s, g.ID, "src", testToday, a)
+	id := importedID(t, s, g.ID, "src", "a")
+	byHand := mustConcert(t, s, g.ID, m.ID, a.Concert, testToday)
+
+	if _, err := s.SourceEvent(ctx, g.ID, id); !errors.Is(err, ErrNotFound) {
+		t.Errorf("before any sync kept it: %v", err)
+	}
+	moved := a
+	moved.Date, moved.Time, moved.SoldOut = "2026-07-02", "", false
+	for _, es := range [][]Event{{a, ev(" ", "Bad id", later)}, {moved}} {
+		if err := s.PutVenueEvents(ctx, "src", es); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if c, err := s.SourceEvent(ctx, g.ID, id); err != nil || c != moved.Concert {
+		t.Errorf("SourceEvent = %+v, %v; want the last values read %+v", c, err, moved.Concert)
+	}
+	for name, ids := range map[string][2]int64{"added by hand": {g.ID, byHand}, "another group": {mustGroup(t, s, "o", "s2").ID, id}} {
+		if _, err := s.SourceEvent(ctx, ids[0], ids[1]); !errors.Is(err, ErrNotFound) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+
+	// Pruned once past, or unseen for 30 days; an event missing from one run stays.
+	if err := s.PutVenueEvents(ctx, "src", []Event{ev("past", "P", "2026-05-31"), ev("b", "B", later)}); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(29 * 24 * time.Hour)
+	if err := s.PutVenueEvents(ctx, "src", []Event{ev("b", "B", later)}); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := s.PruneVenueEvents(ctx, testToday); err != nil || n != 1 {
+		t.Errorf("PruneVenueEvents = %d, %v; want the past one", n, err)
+	}
+	now = now.Add(2 * 24 * time.Hour) // a unseen for 31 days, b for 2
+	if n, err := s.PruneVenueEvents(ctx, testToday); err != nil || n != 1 {
+		t.Errorf("PruneVenueEvents = %d, %v; want the one unseen for 31 days", n, err)
+	}
+	if _, err := s.SourceEvent(ctx, g.ID, id); !errors.Is(err, ErrNotFound) {
+		t.Errorf("unseen for 31 days, still kept: %v", err)
 	}
 }

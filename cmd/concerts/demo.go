@@ -86,7 +86,7 @@ func demo(ctx context.Context, st *store.Store, baseURL string, now time.Time) e
 
 // demoImports follows two venues and imports their agenda, created last (verify-ui relies on the
 // ids above): « À l'affiche » with a sold-out row, one without time and a long artist and venue,
-// and one import answered, so in the list.
+// one import answered, so in the list, and one edited that its venue changed since.
 func demoImports(ctx context.Context, st *store.Store, groupID, marc int64, day func(int) string) error {
 	agendas := map[string][]store.Concert{
 		"belle-electrique": {
@@ -109,6 +109,9 @@ func demoImports(ctx context.Context, st *store.Store, groupID, marc int64, day 
 			c.TicketURL = "https://example.com/" + venue + "/" + strings.ToLower(strings.Fields(c.Artist)[0])
 			events = append(events, store.Event{SourceID: c.TicketURL, Concert: c})
 		}
+		if err := st.PutVenueEvents(ctx, venue, events); err != nil {
+			return err
+		}
 		if _, err := st.ApplyImports(ctx, groupID, venue, events, day(0)); err != nil {
 			return err
 		}
@@ -117,5 +120,19 @@ func demoImports(ctx context.Context, st *store.Store, groupID, marc int64, day 
 	if err != nil || len(cs) == 0 {
 		return cmp.Or(err, errors.New("demo: Kompromat not imported"))
 	}
-	return st.SetStatus(ctx, groupID, cs[0].ID, marc, store.Interested)
+	if err := st.SetStatus(ctx, groupID, cs[0].ID, marc, store.Interested); err != nil {
+		return err
+	}
+	// Lysistrata, moved by Marc, then sold out at the venue: « Relire la billetterie » offers Heure and Complet.
+	if cs, err = st.ConcertsOn(ctx, groupID, day(40)); err != nil || len(cs) == 0 {
+		return cmp.Or(err, errors.New("demo: Lysistrata not imported"))
+	}
+	moved := cs[0]
+	moved.Time = "21:00"
+	if _, err := st.UpdateConcert(ctx, groupID, marc, moved.ID, moved, day(0)); err != nil {
+		return err
+	}
+	sold := cs[0]
+	sold.SoldOut = true
+	return st.PutVenueEvents(ctx, "belle-electrique", []store.Event{{SourceID: sold.TicketURL, Concert: sold}})
 }

@@ -1,6 +1,8 @@
 package web
 
 import (
+	"context"
+	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -8,6 +10,8 @@ import (
 	"testing"
 	"time"
 	"unicode/utf8"
+
+	"concerts/internal/store"
 )
 
 // ticketSite serves the prefill fixtures, plus a blocked page and a hostile one.
@@ -94,28 +98,57 @@ func TestRefreshConcert(t *testing.T) {
 
 	full := concertValues("Mine", "2027-01-25", "21:00", "V", zenith, "2026-12-01")
 	full.Set("address", "Ici")
+	same := concertValues("Nova Test", "2027-01-24", "20:00", "Arène Exemple", zenith, "2026-12-01")
+	same.Set("address", "12, esplanade Exemple, 38000 GRENOBLE")
+	// « Utiliser » takes the value the form carries, without reading the page again (/blocked would fail).
+	use := concertValues("Mine", "2027-01-25", "21:00", "V", site.URL+"/blocked", "")
+	use.Set("use", "date")
+	use.Set("source_date", "2027-01-24")
+	use.Set("source_artist", "Nova Test")
 	tests := []struct {
 		name string
 		form url.Values
 		want []string
+		lack []string
 	}{
-		{"empty fields filled, typed ones kept", concertValues("Mine", "", "", "Ma salle", zenith, ""), []string{
+		{"empty fields filled, typed ones kept", concertValues("Nova Test", "", "", "Arène Exemple", zenith, ""), []string{
 			"Complété depuis la billetterie : Date, Heure, Adresse. Vérifie puis enregistre.",
-			`value="Mine"`, `value="Ma salle"`, `id="time" name="time" type="time" value="20:00">`,
+			`id="time" name="time" type="time" value="20:00">`,
 			`id="date" name="date" type="date" value="2027-01-24" required aria-describedby="prefill-msg" autofocus`,
-			`value="12, esplanade Exemple, 38000 GRENOBLE"`}},
+			`value="12, esplanade Exemple, 38000 GRENOBLE"`}, []string{"refresh-summary", "La billetterie indique"}},
+		{"filled values differing: offered under the field", full, []string{
+			`<p id="refresh-summary" class="prefill-msg">5 champs diffèrent : Artiste, Date, Heure, Salle, Adresse. Rien n&#39;est enregistré avant « Enregistrer ».</p>`,
+			`id="artist" name="artist" type="text" value="Mine" required maxlength="100" aria-describedby="refresh-summary artist-source" autofocus>`,
+			`id="venue" name="venue" type="text" value="V" required maxlength="100" aria-describedby="venue-source">`,
+			`<input type="hidden" name="source_artist" value="Nova Test">`,
+			`<p id="artist-source" class="source">La billetterie indique : Nova Test`,
+			`<p id="date-source" class="source">La billetterie indique : dim. 24 janv. 2027`,
+			`<button class="button secondary" name="use" value="date" formaction="` + g + `/concerts/1/refresh" formnovalidate`,
+			`Utiliser<span class="visually-hidden"> pour Date</span></button>`,
+			// Enter saves: the first submit button of the form is « Enregistrer », not « Utiliser ».
+			`<button class="visually-hidden" tabindex="-1" aria-hidden="true">Enregistrer</button>`},
+			[]string{"sold_out-source", "on_sale_date-source", "Complété"}},
+		{"filled and differing", concertValues("Mine", "", "", "Arène Exemple", zenith, ""), []string{
+			"Complété depuis la billetterie : Date, Heure, Adresse. 1 champ diffère : Artiste. Rien n&#39;est"}, nil},
+		{"use one", use, []string{
+			`<p id="refresh-summary" class="prefill-msg">Date : valeur de la billetterie reprise. 1 champ diffère : Artiste.`,
+			`id="date" name="date" type="date" value="2027-01-24" required aria-describedby="refresh-summary" autofocus>`,
+			`id="artist" name="artist" type="text" value="Mine" required maxlength="100" aria-describedby="artist-source">`,
+			`<input type="hidden" name="source_artist" value="Nova Test">`},
+			[]string{"date-source", "Impossible"}},
 		{"price and description filled", concertValues("Mine", "2027-01-25", "21:00", "V", site.URL+"/belle-electrique.html", ""), []string{
 			"Complété depuis la billetterie\u202f: Adresse, Prix, Description.", `value="26–29 €"`,
-			">Une soirée, cinq figures du collectif."}},
+			">Une soirée, cinq figures du collectif."}, nil},
 		// The page's artist (Nova Test) does not replace one typed but invalid.
 		{"invalid field kept", concertValues("Mi\u200bne", "2027-01-25", "21:00", "V", zenith, ""), []string{
-			`id="artist" name="artist" type="text" value="Mi` + "\u200b" + `ne"`}},
-		{"nothing to fill", full, []string{
-			"Rien de plus sur la billetterie.", `aria-describedby="prefill-msg" autofocus>Relire la billetterie`}},
+			`id="artist" name="artist" type="text" value="Mi` + "\u200b" + `ne"`}, nil},
+		{"nothing new", same, []string{
+			"Rien de nouveau sur la billetterie.", `aria-describedby="prefill-msg" autofocus>Relire la billetterie`},
+			[]string{"refresh-summary"}},
 		{"unreadable page", concertValues("Mine", "2027-01-25", "", "V", site.URL+"/blocked", ""), []string{
-			"Impossible de lire cette page : essaie le lien de la salle", `aria-describedby="prefill-msg" autofocus>Relire la billetterie`}},
+			"Impossible de lire cette page : essaie le lien de la salle", `aria-describedby="prefill-msg" autofocus>Relire la billetterie`}, nil},
 		{"no ticket link", concertValues("", "", "", "V", "", ""), []string{
-			`id="ticket_url-error" class="error">Indique d&#39;abord le lien de billetterie.`}},
+			`id="ticket_url-error" class="error">Indique d&#39;abord le lien de billetterie.`}, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -124,6 +157,7 @@ func TestRefreshConcert(t *testing.T) {
 				t.Fatalf("status = %d", resp.StatusCode)
 			}
 			assertContains(t, body, tt.want...)
+			assertLacks(t, body, tt.lack...)
 			if strings.Contains(body, `id="artist-error"`) {
 				t.Errorf("other fields' errors shown before « Enregistrer »")
 			}
@@ -143,6 +177,79 @@ func TestRefreshConcert(t *testing.T) {
 	}
 	if resp, _ := ts.browser(t).post(t, g+"/concerts/1/refresh", validConcert()); resp.StatusCode != http.StatusSeeOther {
 		t.Errorf("anonymous refresh: status = %d, want 303 to the picker", resp.StatusCode)
+	}
+}
+
+// TestRefreshFromVenue: an import compares with what its venue's agenda last said, without reading any page.
+func TestRefreshFromVenue(t *testing.T) {
+	t.Parallel()
+	ts := newTestServer(t)
+	b, secret := ts.member(t, "Léa")
+	g := "/g/" + secret
+	ts.importInto(t, secret, "salle-a", store.Concert{Artist: "Importé A", Date: "2026-07-02", Time: "20:00", Venue: "Salle A", Price: "20 €"})
+	edited := concertValues("Importé A", "2026-07-02", "21:00", "Salle A", "", "")
+	edited.Set("price", "18 €")
+	b.postRedirect(t, g+"/concerts/1", edited)
+	// Since then the venue moved it a day, sold out, and no longer gives a price.
+	if err := ts.store.PutVenueEvents(context.Background(), "salle-a", []store.Event{{SourceID: "salle-a/Importé A",
+		Concert: store.Concert{Artist: "Importé A", Date: "2026-07-03", Time: "20:00", Venue: "Salle A", SoldOut: true}}}); err != nil {
+		t.Fatal(err)
+	}
+	with := func(kv ...string) url.Values {
+		v := url.Values{}
+		for k, vs := range edited {
+			v[k] = vs
+		}
+		for i := 0; i < len(kv); i += 2 {
+			v.Set(kv[i], kv[i+1])
+		}
+		return v
+	}
+	for _, tc := range []struct {
+		name       string
+		form       url.Values
+		want, lack []string
+	}{
+		{"differences, no link needed", edited, []string{
+			"3 champs diffèrent : Date, Heure, Complet.",
+			`id="date" name="date" type="date" value="2026-07-02" required aria-describedby="refresh-summary date-source" autofocus>`,
+			"La billetterie indique : ven. 3 juil.", "La billetterie indique : 20 h",
+			`<p id="sold_out-source" class="source">La billetterie indique : complet`,
+			`<input type="hidden" name="source_sold_out" value="1">`,
+			`id="sold_out" name="sold_out" type="checkbox" value="1" aria-describedby="sold_out-source">`},
+			// A price the venue no longer gives is never offered to clear.
+			[]string{"price-source", "Indique d&#39;abord", "Rien de nouveau"}},
+		{"use complet", with("use", "sold_out", "source_sold_out", "1", "source_date", "2026-07-03"), []string{
+			`id="sold_out" name="sold_out" type="checkbox" value="1" checked aria-describedby="refresh-summary" autofocus>`,
+			"Complet : valeur de la billetterie reprise. 1 champ diffère : Date."}, []string{"sold_out-source"}},
+		{"use pas complet", with("sold_out", "1", "use", "sold_out", "source_sold_out", ""), []string{
+			`id="sold_out" name="sold_out" type="checkbox" value="1" aria-describedby="refresh-summary" autofocus>`}, nil},
+		{"« pas complet » still offered after another use", with("sold_out", "1", "use", "date", "source_date", "2026-07-03", "source_sold_out", ""), []string{
+			"La billetterie indique : pas complet", `<input type="hidden" name="source_sold_out" value="">`}, nil},
+	} {
+		resp, body := b.post(t, g+"/concerts/1/refresh", tc.form)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("%s: status = %d", tc.name, resp.StatusCode)
+		}
+		assertContains(t, body, tc.want...)
+		assertLacks(t, body, tc.lack...)
+	}
+	// The same values: nothing new.
+	_, body := b.post(t, g+"/concerts/1/refresh", with("date", "2026-07-03", "time", "20:00", "sold_out", "1"))
+	assertContains(t, body, "Rien de nouveau sur la billetterie.")
+}
+
+// TestFieldAttrs: an invalid field also described by a message gets one aria-describedby naming both.
+func TestFieldAttrs(t *testing.T) {
+	t.Parallel()
+	tpl := template.Must(template.New("").Funcs(template.FuncMap{"when": func(any) string { return "" }, "venue": func(string) string { return "" }}).
+		ParseFS(templatesFS, "templates/form.html"))
+	var buf strings.Builder
+	if err := tpl.ExecuteTemplate(&buf, "fieldAttrs", field{Name: "date", Error: "Date invalide.", DescribedBy: "refresh-summary date-source"}); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := buf.String(), ` required aria-invalid="true" aria-describedby="date-error refresh-summary date-source"`; got != want {
+		t.Errorf("fieldAttrs = %q, want %q", got, want)
 	}
 }
 

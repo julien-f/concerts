@@ -26,7 +26,8 @@ const (
 )
 
 // Sync imports the upcoming concerts of the followed venues into the groups following them,
-// venue by venue in list order (promoters last), each read within venueTimeout.
+// venue by venue in list order (promoters last), each read within venueTimeout, and keeps what
+// each venue said once for every group (store.PutVenueEvents).
 // It returns an error when a venue failed or listed no upcoming concert (its parser broke),
 // after applying whatever the others gave. Logs name venue keys, hosts and group ids, never
 // a URL or a concert.
@@ -55,6 +56,10 @@ func Sync(ctx context.Context, st *store.Store, client *http.Client, venues []Ve
 		if err == nil && len(events) == 0 {
 			err = errors.New("no upcoming concert: has the page changed?")
 		}
+		// Once for every group, before they apply: what « Relire la billetterie » compares an import with.
+		if perr := st.PutVenueEvents(ctx, v.Key, events); perr != nil {
+			err = errors.Join(err, perr)
+		}
 		if err != nil {
 			log.ErrorContext(ctx, "venue failed", "venue", v.Key, "host", v.host(), "err", err)
 			failed = append(failed, v.Key)
@@ -77,6 +82,9 @@ func Sync(ctx context.Context, st *store.Store, client *http.Client, venues []Ve
 		}
 	}
 	if _, err := st.PruneEventDetails(ctx, today); err != nil {
+		return err
+	}
+	if _, err := st.PruneVenueEvents(ctx, today); err != nil {
 		return err
 	}
 	if len(failed) > 0 {

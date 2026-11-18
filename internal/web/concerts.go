@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -21,7 +22,10 @@ type field struct {
 	Optional                 bool
 	Error                    string
 	Autofocus                bool   // first invalid field, or the artist after a prefill
-	DescribedBy              string // id of an extra description (the prefill outcome)
+	DescribedBy              string // ids of extra descriptions (the prefill outcome, the source's value)
+	// After « Relire la billetterie »: the source's value, differing from Value, offered with « Utiliser ».
+	Offered            bool
+	Source, SourceText string // as the form posts it, as the page shows it
 }
 
 // concertForm is the add (ID 0) and edit page.
@@ -34,8 +38,14 @@ type concertForm struct {
 	PrefillMsg   string         // outcome of that read, or of « Relire la billetterie » (edit form)
 	BadLink      bool           // the prefill link itself is invalid: focus goes there
 	RefreshFocus bool           // nothing filled by « Relire la billetterie »: focus stays on it
+	Summary      string         // above the form, once « Relire la billetterie » offered values
 	Duplicate    *store.Concert // live concert with the same artist and date (add form only)
 	OnAffiche    bool           // Duplicate is an import nobody answered: answering it adds it, not « Ajouter quand même »
+}
+
+// Offers reports whether a field offers the source's value.
+func (f *concertForm) Offers() bool {
+	return slices.ContainsFunc(f.Fields, func(fd field) bool { return fd.Offered })
 }
 
 func newConcertForm(gr *groupRequest, c store.Concert, errs map[string]string) *concertForm {
@@ -352,8 +362,11 @@ func revisedURL(gr *groupRequest, id int64, banner string, rev int64) string {
 	return u
 }
 
-// refreshConcert is « Relire la billetterie »: it fills the empty fields of the edit form,
-// as posted, from its ticket link, and shows the form again without saving.
+// refreshConcert is « Relire la billetterie »: it fills the empty fields of the edit form, as
+// posted, from what the ticketing source says, offers its other differing values under their
+// field, and shows the form again without saving. The source is the venue's agenda for an
+// import the sync kept it of, else the ticket link's page. With use=<field>, « Utiliser »
+// takes that field's offered value, posted back with the form, and reads nothing.
 func (s *server) refreshConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
 	saved, ok := s.concert(w, r, gr)
 	if !ok || !parseForm(w, r) {
@@ -361,39 +374,120 @@ func (s *server) refreshConcert(w http.ResponseWriter, r *http.Request, gr *grou
 	}
 	c, errs := parseConcert(r.PostForm)
 	c.ID = saved.ID
-	if errs["ticket_url"] == "" && c.TicketURL == "" {
-		errs["ticket_url"] = "Indique d'abord le lien de billetterie."
-	}
-	// Other errors wait for « Enregistrer »; 200 like the add form's prefill, as htmx swaps no 4xx.
-	if errs["ticket_url"] != "" {
-		s.render(w, r, http.StatusOK, "form", newConcertForm(gr, c, map[string]string{"ticket_url": errs["ticket_url"]}))
-		return
-	}
-	page, problem, _ := s.prefill(r, gr, c.TicketURL)
-	f := newConcertForm(gr, c, nil)
-	var labels []string
-	if problem == "" {
-		fromPage := newConcertForm(nil, page, nil).Fields // same fields, same order
-		for i := range f.Fields {
-			if fd := &f.Fields[i]; fd.Value == "" && fromPage[i].Value != "" {
-				fd.Value = fromPage[i].Value
-				if labels == nil {
-					fd.Autofocus, fd.DescribedBy = true, "prefill-msg"
-				}
-				labels = append(labels, fd.Label)
+	if use := r.PostForm.Get("use"); use != "" {
+		f := newConcertForm(gr, c, nil)
+		src := map[string]string{}
+		for _, fd := range f.Fields {
+			if k := "source_" + fd.Name; r.PostForm.Has(k) {
+				src[fd.Name] = r.PostForm.Get(k)
 			}
 		}
+		used := ""
+		for i := range f.Fields {
+			if fd := &f.Fields[i]; fd.Name == use && r.PostForm.Has("source_"+use) && src[use] != fd.Value {
+				fd.Value, fd.Autofocus, fd.DescribedBy, used = src[use], true, "refresh-summary", fd.Label
+			}
+		}
+		diffs := s.offer(f, src, used == "")
+		if used != "" {
+			f.Summary = used + " : valeur de la billetterie reprise. "
+		}
+		f.Summary += differ(diffs)
+		s.render(w, r, http.StatusOK, "form", f)
+		return
 	}
+	src, err := s.store.SourceEvent(r.Context(), gr.Group.ID, saved.ID)
+	soldOutKnown := err == nil
 	switch {
-	case problem != "":
-		f.PrefillMsg = problem
-	case labels == nil:
-		f.PrefillMsg = "Rien de plus sur la billetterie."
-	default:
-		f.PrefillMsg = "Complété depuis la billetterie : " + strings.Join(labels, ", ") + ". Vérifie puis enregistre."
+	case errors.Is(err, store.ErrNotFound):
+		if errs["ticket_url"] == "" && c.TicketURL == "" {
+			errs["ticket_url"] = "Indique d'abord le lien de billetterie."
+		}
+		// Other errors wait for « Enregistrer »; 200 like the add form's prefill, as htmx swaps no 4xx.
+		if errs["ticket_url"] != "" {
+			s.render(w, r, http.StatusOK, "form", newConcertForm(gr, c, map[string]string{"ticket_url": errs["ticket_url"]}))
+			return
+		}
+		var problem string
+		if src, problem, _ = s.prefill(r, gr, c.TicketURL); problem != "" {
+			f := newConcertForm(gr, c, nil)
+			f.PrefillMsg, f.RefreshFocus = problem, true
+			s.render(w, r, http.StatusOK, "form", f)
+			return
+		}
+	case err != nil:
+		s.fail(w, r, err)
+		return
 	}
-	f.RefreshFocus = labels == nil
+	f := newConcertForm(gr, c, nil)
+	values := map[string]string{} // by field name; sold_out only when the source tells
+	for _, fd := range newConcertForm(nil, src, nil).Fields {
+		if fd.Type != "checkbox" || soldOutKnown {
+			values[fd.Name] = fd.Value
+		}
+	}
+	var filled []string
+	firstFilled := 0
+	for i := range f.Fields {
+		if fd := &f.Fields[i]; fd.Type != "checkbox" && fd.Value == "" && values[fd.Name] != "" {
+			fd.Value = values[fd.Name]
+			if filled == nil {
+				firstFilled = i
+			}
+			filled = append(filled, fd.Label)
+		}
+	}
+	diffs := s.offer(f, values, true) // focus on the first difference, if any
+	switch {
+	case diffs != nil:
+		if filled != nil {
+			f.Summary = "Complété depuis la billetterie : " + strings.Join(filled, ", ") + ". "
+		}
+		f.Summary += differ(diffs)
+	case filled == nil:
+		f.PrefillMsg, f.RefreshFocus = "Rien de nouveau sur la billetterie.", true
+	default:
+		f.PrefillMsg = "Complété depuis la billetterie : " + strings.Join(filled, ", ") + ". Vérifie puis enregistre."
+		f.Fields[firstFilled].Autofocus, f.Fields[firstFilled].DescribedBy = true, "prefill-msg"
+	}
 	s.render(w, r, http.StatusOK, "form", f)
+}
+
+// offer marks the fields whose source value differs from the form's, and returns their labels.
+// The description is never compared, and an empty source value is offered only for the
+// checkbox: a value the source leaves out is never cleared. With focus, the first one gets it.
+func (s *server) offer(f *concertForm, src map[string]string, focus bool) (labels []string) {
+	for i := range f.Fields {
+		fd := &f.Fields[i]
+		v, ok := src[fd.Name]
+		if !ok || v == fd.Value || fd.Name == "description" || (v == "" && fd.Type != "checkbox") {
+			continue
+		}
+		fd.Offered, fd.Source, fd.SourceText = true, v, s.fieldText(fd.Name, v)
+		if fd.Name == "sold_out" {
+			fd.SourceText = map[string]string{"": "pas complet", "1": "complet"}[v]
+		}
+		fd.DescribedBy = fd.Name + "-source"
+		if focus && labels == nil {
+			fd.Autofocus, fd.DescribedBy = true, "refresh-summary "+fd.DescribedBy
+		}
+		labels = append(labels, fd.Label)
+	}
+	return labels
+}
+
+// differ is the summary's sentence on the differing fields, then the reminder that nothing is saved.
+func differ(labels []string) string {
+	var b strings.Builder
+	switch len(labels) {
+	case 0:
+	case 1:
+		b.WriteString("1 champ diffère : " + labels[0] + ". ")
+	default:
+		fmt.Fprintf(&b, "%d champs diffèrent : %s. ", len(labels), strings.Join(labels, ", "))
+	}
+	b.WriteString("Rien n'est enregistré avant « Enregistrer ».")
+	return b.String()
 }
 
 func (s *server) deleteConcert(w http.ResponseWriter, r *http.Request, gr *groupRequest) {
