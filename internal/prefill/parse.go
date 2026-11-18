@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"golang.org/x/net/html"
 )
@@ -22,8 +23,9 @@ import (
 // Result is what a ticketing page tells about a concert; fields are "" when unknown.
 // Date, Time and OnSaleDate are Europe/Paris wall clock (YYYY-MM-DD, HH:MM).
 // Price is for display (« 29–32 € »); Description keeps line feeds, at any length (the caller caps it).
+// TicketURL is the ticketing page a venue page links to, read in its place (see Fetch).
 type Result struct {
-	Artist, Date, Time, Venue, Address, OnSaleDate, Price, Description, Genre string
+	Artist, Date, Time, Venue, Address, OnSaleDate, Price, Description, Genre, TicketURL string
 }
 
 // page holds the raw metadata found in a document.
@@ -31,7 +33,8 @@ type page struct {
 	meta   map[string]string // og:title, twitter:title… (first value wins)
 	title  string
 	ldJSON [][]byte
-	texts  []text // visible text, only for hosts with a site rule
+	texts  []text   // visible text, only for hosts with a site rule
+	links  []string // a[href] values, only for hosts with a site rule
 }
 
 // text is a visible text node; class is the innermost open element's, cleared by any end tag.
@@ -43,13 +46,13 @@ type text struct {
 
 var blockTags = []string{"p", "br", "div", "li", "h1", "h2", "h3", "h4", "h5", "h6"}
 
-// maxTexts bounds the memory a page of tiny text nodes can take.
+// maxTexts bounds the memory a page of tiny text nodes (or links) can take.
 const maxTexts = 5000
 
 // voidTags never get an end tag, so they must not replace the open element's class.
 var voidTags = []string{"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
 
-// scan collects meta tags, <title>, JSON-LD blocks and, withTexts, visible text, with the tokenizer: no tree, no scripts run.
+// scan collects meta tags, <title>, JSON-LD blocks and, withTexts, visible text and links, with the tokenizer: no tree, no scripts run.
 func scan(r io.Reader, withTexts bool) page {
 	p := page{meta: map[string]string{}}
 	z := html.NewTokenizer(r)
@@ -99,6 +102,12 @@ func scan(r io.Reader, withTexts bool) page {
 				}
 			}
 			switch t.Data {
+			case "a":
+				for _, a := range t.Attr {
+					if a.Key == "href" && withTexts && len(p.links) < maxTexts {
+						p.links = append(p.links, a.Val)
+					}
+				}
 			case "meta":
 				var key, content string
 				for _, a := range t.Attr {
@@ -145,10 +154,11 @@ func Parse(r io.Reader, host string, now time.Time) Result {
 	}
 	// A date from JSON-LD means an event was found: do not mix in another source.
 	if rule != nil && res.Date == "" {
-		site := rule(p.texts)
+		site := rule(p)
 		res.Date, res.Time = site.Date, site.Time // JSON-LD sets a time only with a date
 		res.Venue, res.Address = cmp.Or(res.Venue, site.Venue), cmp.Or(res.Address, site.Address)
 		res.Price, res.Description = cmp.Or(res.Price, site.Price), cmp.Or(res.Description, site.Description)
+		res.TicketURL = site.TicketURL
 	}
 	return res
 }
@@ -373,7 +383,7 @@ func address(v any) string {
 		return clean(str(v))
 	}
 	street := clean(str(m["streetAddress"]))
-	postal, city := clean(str(m["postalCode"])), clean(str(m["addressLocality"]))
+	postal, city := clean(str(m["postalCode"])), cityCase(clean(str(m["addressLocality"])))
 	// Some sites put the whole address in streetAddress: do not repeat the city.
 	if lower := strings.ToLower(street); (postal != "" && strings.Contains(lower, strings.ToLower(postal))) ||
 		(city != "" && strings.Contains(lower, strings.ToLower(city))) {
@@ -386,6 +396,28 @@ func address(v any) string {
 		}
 	}
 	return strings.Join(parts, ", ")
+}
+
+var (
+	// cityParticles stay lower case after a city's first word: « Aix-en-Provence », « Saint-Martin-d'Hères ».
+	cityParticles = []string{"à", "au", "aux", "d", "de", "des", "du", "en", "et", "l", "la", "le", "les", "lès", "lez", "sous", "sur"}
+	cityWord      = regexp.MustCompile(`[\pL\pN]+`)
+)
+
+// cityCase writes an all-caps city as a name (« GRENOBLE » → « Grenoble »); others are left as served.
+func cityCase(s string) string {
+	if strings.ToUpper(s) != s || strings.ToLower(s) == s {
+		return s
+	}
+	s = strings.ToLower(s)
+	i := 0
+	return cityWord.ReplaceAllStringFunc(s, func(w string) string {
+		if i++; i > 1 && slices.Contains(cityParticles, w) {
+			return w
+		}
+		r, n := utf8.DecodeRuneInString(w)
+		return string(unicode.ToUpper(r)) + w[n:]
+	})
 }
 
 // first returns v, or its first element if it is an array.
@@ -490,6 +522,9 @@ func onSale(offers any, now time.Time) string {
 // titleSeparators end the artist part of a page title, e.g. "Artist - Venue | Site".
 var titleSeparators = []string{" | ", "｜", " - ", " – ", " @ ", " Tickets", " Billets"}
 
+// titleStatus is an event status before the artist: « COMPLET • Pomme », « REPORTÉ · X ».
+var titleStatus = regexp.MustCompile(`(?i)^(?:complet|annulé|reporté) [•·] `)
+
 // titleArtist guesses the artist from og:title, twitter:title or <title>. Never a date:
 // title formats differ too much ("27 Nov", "mer., 28/10/2026").
 func titleArtist(p page) string {
@@ -498,6 +533,7 @@ func titleArtist(p page) string {
 		if s == "" || s == "null" {
 			continue
 		}
+		s = titleStatus.ReplaceAllString(s, "")
 		cut := len(s)
 		for _, sep := range titleSeparators {
 			if i := strings.Index(s, sep); i > 0 && i < cut {

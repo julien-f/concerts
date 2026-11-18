@@ -141,7 +141,11 @@ func (s *server) newConcert(w http.ResponseWriter, r *http.Request, gr *groupReq
 		return
 	}
 	c, msg, bad := s.prefill(r, gr, u)
-	if msg == "" {
+	switch {
+	case msg != "":
+	case c.TicketURL != u:
+		msg = "Lien de billetterie trouvé sur la page de la salle. Vérifie les champs pré-remplis avant d'enregistrer."
+	default:
 		msg = "Vérifie les champs pré-remplis avant d'enregistrer."
 	}
 	f := newConcertForm(gr, c, nil)
@@ -364,7 +368,7 @@ func revisedURL(gr *groupRequest, id int64, banner string, rev int64) string {
 }
 
 // refreshConcert is « Relire la billetterie »: it fills the empty fields of the edit form, as
-// posted, from what the ticketing source says, offers its other differing values under their
+// posted, from what the ticketing source says (and replaces a venue page's ticket link by the billetterie it names), offers its other differing values under their
 // field, and shows the form again without saving. The source is the venue's agenda for an
 // import the sync kept it of, else the ticket link's page. With use=<field>, « Utiliser »
 // takes that field's offered value, posted back with the form, and reads nothing.
@@ -399,6 +403,7 @@ func (s *server) refreshConcert(w http.ResponseWriter, r *http.Request, gr *grou
 	}
 	src, err := s.store.SourceEvent(r.Context(), gr.Group.ID, saved.ID)
 	soldOutKnown := err == nil
+	hopped := false // the ticket link was a venue page's, replaced by the billetterie it names
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		if errs["ticket_url"] == "" && c.TicketURL == "" {
@@ -416,6 +421,7 @@ func (s *server) refreshConcert(w http.ResponseWriter, r *http.Request, gr *grou
 			s.render(w, r, http.StatusOK, "form", f)
 			return
 		}
+		hopped = src.TicketURL != c.TicketURL
 	case err != nil:
 		s.fail(w, r, err)
 		return
@@ -430,7 +436,8 @@ func (s *server) refreshConcert(w http.ResponseWriter, r *http.Request, gr *grou
 	var filled []string
 	firstFilled := 0
 	for i := range f.Fields {
-		if fd := &f.Fields[i]; fd.Type != "checkbox" && fd.Value == "" && values[fd.Name] != "" {
+		fd := &f.Fields[i]
+		if fd.Type != "checkbox" && values[fd.Name] != "" && (fd.Value == "" || hopped && fd.Name == "ticket_url") {
 			fd.Value = values[fd.Name]
 			if filled == nil {
 				firstFilled = i

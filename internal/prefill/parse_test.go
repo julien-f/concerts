@@ -44,7 +44,7 @@ func TestParseFixtures(t *testing.T) {
 		{"olympia.html", "www.olympiahall.com", Result{Artist: "Jeanne Exemple", Date: "2026-12-08", Time: "20:00", Venue: "L'Exemple", Price: "39,90 €",
 			Genre: "Chanson, Pop"}},
 		// Minutes only, date-only endDate ignored, full PostalAddress (country dropped).
-		{"zenith.html", "www.zenith-grenoble.fr", Result{Artist: "Nova Test", Date: "2027-01-24", Time: "20:00", Venue: "Arène Exemple", Address: "12, esplanade Exemple, 38000 GRENOBLE"}},
+		{"zenith.html", "www.zenith-grenoble.fr", Result{Artist: "Nova Test", Date: "2027-01-24", Time: "20:00", Venue: "Arène Exemple", Address: "12, esplanade Exemple, 38000 Grenoble"}},
 		// ComedyEvent, EventVenue, milliseconds; past validFrom skipped, nested future one kept; broken block skipped;
 		// AggregateOffer without currency (euros), and the nested offer counted in the price range.
 		{"fnac.html", "www.fnacspectacles.com", Result{Artist: "Marc Essai", Date: "2027-11-04", Time: "20:00", Venue: "Théâtre Exemple", OnSaleDate: "2027-02-14", Price: "55–64 €"}},
@@ -53,8 +53,12 @@ func TestParseFixtures(t *testing.T) {
 		// Top-level array, local time without offset, validFrom null, performer object; description with
 		// CR LF, an HTML entity and a soft hyphen.
 		{"belle-electrique.html", "billetterie.la-belle-electrique.com", Result{Artist: "Collectif Exemple : Soirée Test", Date: "2027-04-23", Time: "20:00",
-			Venue: "La Salle Électrique Exemple", Address: "12, esplanade Exemple, 38000 GRENOBLE", Price: "26–29 €",
+			Venue: "La Salle Électrique Exemple", Address: "12, esplanade Exemple, 38000 Grenoble", Price: "26–29 €",
 			Description: "Une soirée, cinq figures du collectif.\nL'une d’elles chante."}},
+		// Venue page: no Event, its billetterie link rebuilt as an agenda one; a look-alike host's skipped.
+		{"belle-electrique-site.html", "www.la-belle-electrique.com", Result{Artist: "Les Hiboux + Nova Test",
+			TicketURL: "https://billetterie.la-belle-electrique.com/agenda/747-Les-Hiboux?session=747"}},
+		{"belle-electrique-site.html", "example.com", Result{Artist: "Les Hiboux + Nova Test"}},
 		// No Event in JSON-LD: visible info list; the svg, noscript and script dates, and the related event, are not taken.
 		{"lilyade.html", "www.lilyade.fr", Result{Artist: "Les Hiboux + Nova Test", Date: "2026-12-05", Time: "20:00", Venue: "L'Exemple", Address: "Villefictive"}},
 		{"lilyade.html", "example.com", Result{Artist: "Les Hiboux + Nova Test"}},
@@ -229,6 +233,41 @@ func TestParseSiteRules(t *testing.T) {
 		{"rule of another host not applied", "www.retourdescene.net",
 			func(t *testing.T) string { return fixture(t, "lilyade.html") },
 			Result{Artist: "Les Hiboux + Nova Test"}},
+		{"a JSON-LD date: no billetterie link either", "www.la-belle-electrique.com",
+			func(*testing.T) string {
+				return ld + `<a href="https://billetterie.la-belle-electrique.com/share/event/7-A">B</a>`
+			},
+			Result{Artist: "Ld", Date: "2027-01-09", Time: "21:00"}},
+	}
+	// La Belle Électrique: the venue page's billetterie link, rebuilt from its id and slug only.
+	const belle = "https://billetterie.la-belle-electrique.com"
+	for _, tt := range []struct{ name, hrefs, want string }{
+		{"share link", belle + "/share/event/747-Les-Hiboux", belle + "/agenda/747-Les-Hiboux?session=747"},
+		{"agenda link, repeated", belle + "/agenda/699-X?session=699 " + belle + "/share/event/699-X", belle + "/agenda/699-X?session=699"},
+		{"entities decoded before matching", belle + "/share/event/7-A&amp;B", belle + "/agenda/7-A?session=7"},
+		{"query, fragment and accents dropped", belle + "/share/event/7-Caf%C3%A9?session=1&x=y#z", belle + "/agenda/7-Caf?session=7"},
+		{"two ids: another concert's link may be among them", "https://reelax-tickets.example/e " + belle + "/share/event/7-A " + belle + "/share/event/8-B", ""},
+		{"resale site only", "https://reelax-tickets.com/e/n/x", ""},
+		{"no id", belle + "/share/event/X", ""},
+		{"id too long", belle + "/share/event/1234567890-X", ""},
+		{"http", "http://billetterie.la-belle-electrique.com/share/event/7-A", ""},
+		{"protocol-relative", "//billetterie.la-belle-electrique.com/share/event/7-A", ""},
+		{"look-alike host", "https://billetterie.la-belle-electrique.com.evil.example/share/event/7-A", ""},
+		{"userinfo", "https://billetterie.la-belle-electrique.com@evil.example/agenda/7-A", ""},
+		{"port", "https://billetterie.la-belle-electrique.com:8443/agenda/7-A", ""},
+		{"uppercase host", "https://BILLETTERIE.la-belle-electrique.com/agenda/7-A", ""},
+	} {
+		tests = append(tests, struct {
+			name, host string
+			html       func(t *testing.T) string
+			want       Result
+		}{"La Belle Électrique: " + tt.name, "www.la-belle-electrique.com", func(*testing.T) string {
+			var b strings.Builder
+			for h := range strings.FieldsSeq(tt.hrefs) {
+				b.WriteString(`<a href="` + h + `">Billetterie</a>`)
+			}
+			return b.String()
+		}, Result{TicketURL: tt.want}})
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -244,10 +283,24 @@ func TestSiteRule(t *testing.T) {
 	t.Parallel()
 	for host, ok := range map[string]bool{
 		"www.lilyade.fr": true, "lilyade.fr": true, "WWW.LILYADE.FR": true, "www.lilyade.fr.": true, "www.retourdescene.net": true, "lasource-fontaine.fr": true,
+		"www.la-belle-electrique.com": true, "billetterie.la-belle-electrique.com": false, // no rule there: one hop at most
 		"lilyade.fr.evil.com": false, "evil-lilyade.fr": false, "www.www.lilyade.fr": false, "lilyade.fr:443": false, "": false,
 	} {
 		if got := siteRule(host) != nil; got != ok {
 			t.Errorf("siteRule(%q) found = %v, want %v", host, got, ok)
+		}
+	}
+}
+
+func TestCityCase(t *testing.T) {
+	t.Parallel()
+	for in, want := range map[string]string{
+		"GRENOBLE": "Grenoble", "SAINT-MARTIN-D'HÈRES": "Saint-Martin-d'Hères", "AIX-EN-PROVENCE": "Aix-en-Provence",
+		"LE PONT-DE-CLAIX": "Le Pont-de-Claix", "L’ISLE-D’ABEAU": "L’Isle-d’Abeau", "PARIS 11E": "Paris 11e",
+		"ÉCHIROLLES": "Échirolles", "Grenoble": "Grenoble", "La Tronche": "La Tronche", "38": "38", "": "",
+	} {
+		if got := cityCase(in); got != want {
+			t.Errorf("cityCase(%q) = %q, want %q", in, got, want)
 		}
 	}
 }
@@ -308,6 +361,10 @@ func TestParseEdgeCases(t *testing.T) {
 		{"title fallback, cut at the first separator", `<title>Artiste &amp; Co - Salle | Site</title>`, Result{Artist: "Artiste & Co"}},
 		{"an icon's svg title is not the page's", `<svg><title>Icône</title></svg><title>Artiste - Salle</title>`, Result{Artist: "Artiste"}},
 		{"og:title 'null' skipped", `<meta property="og:title" content="null"><meta name="twitter:title" content="Tw @ Venue">`, Result{Artist: "Tw"}},
+		// La Belle Électrique prefixes sold-out and postponed events' titles.
+		{"status prefix dropped", `<meta property="og:title" content="COMPLET • Luiza + Nagä">`, Result{Artist: "Luiza + Nagä"}},
+		{"status prefix dropped, other dot and case", `<title>Reporté · La Fièvre - Salle</title>`, Result{Artist: "La Fièvre"}},
+		{"a word without separator is the artist's", `<title>Complet Ensemble</title>`, Result{Artist: "Complet Ensemble"}},
 		{"address as a string", `<script type="application/ld+json">{"@type":"MusicEvent","name":"A","location":{"name":"S","address":" 1 rue X, Lyon "}}</script>`,
 			Result{Artist: "A", Venue: "S", Address: "1 rue X, Lyon"}},
 		{"address array, no venue name", `<script type="application/ld+json">{"@type":"MusicEvent","name":"A","location":{"address":[{"streetAddress":"1 rue X","postalCode":"69001"}]}}</script>`,

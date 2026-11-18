@@ -97,41 +97,80 @@ func NewClient() *http.Client {
 	}
 }
 
-// Fetch reads a ticketing page with client and parses it. Errors are for logs and
-// name the host only: the URL may hold tokens, or even a group secret pasted by mistake.
-func Fetch(ctx context.Context, client *http.Client, url string, now time.Time) (Result, error) {
-	res, err := fetch(ctx, client, url, now)
+// readTimeout bounds a whole read, the hop to a venue's ticketing page included.
+const readTimeout = 10 * time.Second
+
+// Fetch reads a ticketing page with client and parses it. When the page is a venue's that names
+// its ticketing page (Result.TicketURL), it reads that one instead: one hop, on the host the site
+// rule pinned, kept only if it gives a date; else hopErr says why, and res is the first page's,
+// without TicketURL. Errors are for logs and name the host only: the URL may hold tokens,
+// or even a group secret pasted by mistake.
+func Fetch(ctx context.Context, client *http.Client, url string, now time.Time) (res Result, hopErr, err error) {
+	ctx, cancel := context.WithTimeout(ctx, readTimeout)
+	defer cancel()
+	res, _, err = fetch(ctx, client, url, now)
+	if err != nil {
+		return Result{}, nil, hostOnly(url, err)
+	}
+	if res.TicketURL == "" {
+		return res, nil, nil
+	}
+	ticket, host, err := fetch(ctx, client, res.TicketURL, now)
+	switch want := hostname(res.TicketURL); {
+	case err != nil:
+	case host != want: // a redirect away from the pinned host
+		err = fmt.Errorf("redirected to %s", host)
+	case ticket.Date == "":
+		err = errors.New("no event date")
+	}
+	if err != nil {
+		hopErr, res.TicketURL = hostOnly(res.TicketURL, err), ""
+		return res, hopErr, nil
+	}
+	ticket.TicketURL = res.TicketURL // the rebuilt https link, not where redirects led
+	return ticket, nil, nil
+}
+
+// hostOnly names the host of url in err, never its path or query.
+func hostOnly(url string, err error) error {
 	if ue := (*neturl.Error)(nil); errors.As(err, &ue) {
 		err = ue.Err
 	}
-	if err != nil {
-		host := "?"
-		if u, perr := neturl.Parse(url); perr == nil {
-			host = u.Host
-		}
-		err = fmt.Errorf("fetch from %s: %w", host, err)
+	host := "?"
+	if u, perr := neturl.Parse(url); perr == nil {
+		host = u.Host
 	}
-	return res, err
+	return fmt.Errorf("fetch from %s: %w", host, err)
 }
 
-func fetch(ctx context.Context, client *http.Client, url string, now time.Time) (Result, error) {
+func hostname(url string) string {
+	u, err := neturl.Parse(url)
+	if err != nil {
+		return ""
+	}
+	return u.Hostname()
+}
+
+// fetch reads and parses one page; host is the final one, after redirects.
+func fetch(ctx context.Context, client *http.Client, url string, now time.Time) (res Result, host string, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return Result{}, err
+		return Result{}, "", err
 	}
 	// Honest and cookie-less; no Referer either, since the request starts here.
 	req.Header.Set("User-Agent", "concerts (link preview)")
 	req.Header.Set("Accept", "text/html")
 	resp, err := client.Do(req)
 	if err != nil {
-		return Result{}, err
+		return Result{}, "", err
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return Result{}, fmt.Errorf("status %d", resp.StatusCode)
+		return Result{}, "", fmt.Errorf("status %d", resp.StatusCode)
 	}
 	if mt, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type")); mt != "text/html" && mt != "application/xhtml+xml" {
-		return Result{}, fmt.Errorf("content type %q", mt)
+		return Result{}, "", fmt.Errorf("content type %q", mt)
 	}
-	return Parse(io.LimitReader(resp.Body, maxPage), resp.Request.URL.Hostname(), now), nil
+	host = resp.Request.URL.Hostname()
+	return Parse(io.LimitReader(resp.Body, maxPage), host, now), host, nil
 }

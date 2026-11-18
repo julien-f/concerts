@@ -1,17 +1,24 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
 	"unicode/utf8"
 
 	"concerts/internal/store"
+)
+
+const (
+	belleVenue  = "https://www.la-belle-electrique.com/fr/agenda/les-hiboux"
+	belleAgenda = "https://billetterie.la-belle-electrique.com/agenda/747-Les-Hiboux?session=747"
 )
 
 // ticketSite serves the prefill fixtures, plus a blocked page and a hostile one.
@@ -41,6 +48,42 @@ func ticketSite(t *testing.T) *httptest.Server {
 	return srv
 }
 
+// belleSites serves La Belle Électrique's venue and billetterie hosts from the prefill fixtures,
+// other hosts as usual, so tests never reach the real sites. A venue path ending in « -gone »
+// links to a billetterie page that does not exist.
+type belleSites struct{}
+
+func (belleSites) RoundTrip(r *http.Request) (*http.Response, error) {
+	var file string
+	switch r.URL.Host {
+	case "www.la-belle-electrique.com":
+		file = "belle-electrique-site.html"
+	case "billetterie.la-belle-electrique.com":
+		if r.URL.Path == "/agenda/747-Les-Hiboux" {
+			file = "belle-electrique.html"
+		}
+	default:
+		return http.DefaultTransport.RoundTrip(r)
+	}
+	w := httptest.NewRecorder()
+	if file == "" {
+		http.NotFound(w, r)
+	} else {
+		b, err := os.ReadFile("../prefill/testdata/" + file)
+		if err != nil {
+			return nil, err
+		}
+		if strings.HasSuffix(r.URL.Path, "-gone") {
+			b = bytes.ReplaceAll(b, []byte("/747-"), []byte("/404-"))
+		}
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write(b)
+	}
+	resp := w.Result()
+	resp.Request = r
+	return resp, nil
+}
+
 func TestPrefill(t *testing.T) {
 	t.Parallel()
 	ts := newTestServer(t)
@@ -61,6 +104,10 @@ func TestPrefill(t *testing.T) {
 		// 70 sentences of 30 runes: cut after the 66th, so with « … » it stays within 2,000 runes.
 		{"long description cut at a sentence end", site.URL + "/long", []string{
 			`maxlength="2000">` + strings.Repeat("Une phrase de vingt-neuf car. ", 65) + "Une phrase de vingt-neuf car.…</textarea>"}},
+		{"venue page: its billetterie read and linked", belleVenue, []string{"Lien de billetterie trouvé sur la page de la salle.",
+			`value="2027-04-23"`, `id="ticket_url" name="ticket_url" type="url" value="` + belleAgenda + `"`}},
+		{"venue page, billetterie gone: the pasted link kept", belleVenue + "-gone", []string{"Vérifie les champs pré-remplis",
+			`value="Les Hiboux &#43; Nova Test"`, `id="ticket_url" name="ticket_url" type="url" value="` + belleVenue + `-gone"`}},
 		{"nothing found", site.URL + "/empty", []string{"Rien trouvé sur cette page\u202f: remplis", `aria-describedby="prefill-msg" autofocus`}},
 		{"nothing acceptable", site.URL + "/rejected", []string{"Rien trouvé sur cette page"}},
 		// Too long: dropped; an invisible character: stripped by prefill, the rest kept.
@@ -82,6 +129,12 @@ func TestPrefill(t *testing.T) {
 		})
 		ts.clock.Advance(10 * time.Second) // so the table never hits fetchesPerMinute
 	}
+	// The failed hop is logged, with the host only.
+	logs := ts.logs.String()
+	assertContains(t, logs, `msg="prefill hop failed" err="fetch from billetterie.la-belle-electrique.com: status 404"`)
+	if strings.Contains(logs, "session") {
+		t.Errorf("the log holds the billetterie URL:\n%s", logs)
+	}
 
 	if resp, _ := ts.browser(t).get(t, newURL+url.QueryEscape(site.URL+"/dice.html")); resp.StatusCode != http.StatusSeeOther {
 		t.Errorf("anonymous prefill: status = %d, want 303 to the picker", resp.StatusCode)
@@ -100,7 +153,7 @@ func TestRefreshConcert(t *testing.T) {
 	full := concertValues("Mine", "2027-01-25", "21:00", "V", zenith, "2026-12-01")
 	full.Set("address", "Ici")
 	same := concertValues("Nova Test", "2027-01-24", "20:00", "Arène Exemple", zenith, "2026-12-01")
-	same.Set("address", "12, esplanade Exemple, 38000 GRENOBLE")
+	same.Set("address", "12, esplanade Exemple, 38000 Grenoble")
 	// « Utiliser » takes the value the form carries, without reading the page again (/blocked would fail).
 	use := concertValues("Mine", "2027-01-25", "21:00", "V", site.URL+"/blocked", "")
 	use.Set("use", "date")
@@ -116,7 +169,7 @@ func TestRefreshConcert(t *testing.T) {
 			"Complété depuis la billetterie : Date, Heure, Adresse. Vérifie puis enregistre.",
 			`id="time" name="time" type="time" value="20:00">`,
 			`id="date" name="date" type="date" value="2027-01-24" required aria-describedby="prefill-msg" autofocus`,
-			`value="12, esplanade Exemple, 38000 GRENOBLE"`}, []string{"refresh-summary", "La billetterie indique"}},
+			`value="12, esplanade Exemple, 38000 Grenoble"`}, []string{"refresh-summary", "La billetterie indique"}},
 		{"filled values differing: offered under the field", full, []string{
 			`<p id="refresh-summary" class="prefill-msg">5 champs diffèrent : Artiste, Date, Heure, Salle, Adresse. Rien n&#39;est enregistré avant « Enregistrer ».</p>`,
 			`id="artist" name="artist" type="text" value="Mine" required maxlength="100" aria-describedby="refresh-summary artist-source" autofocus>`,
@@ -148,6 +201,9 @@ func TestRefreshConcert(t *testing.T) {
 			[]string{"refresh-summary"}},
 		{"unreadable page", concertValues("Mine", "2027-01-25", "", "V", site.URL+"/blocked", ""), []string{
 			"Impossible de lire cette page : essaie le lien de la salle", `aria-describedby="prefill-msg" autofocus>Relire la billetterie`}, nil},
+		// A venue page saved as the link: replaced by the billetterie it names, the one exception to empty fields only.
+		{"venue link replaced", concertValues("Mine", "2027-01-25", "21:00", "V", belleVenue, ""), []string{
+			"Adresse, Lien de billetterie, Prix, Description.", `id="ticket_url" name="ticket_url" type="url" value="` + belleAgenda + `"`}, nil},
 		{"no ticket link", concertValues("", "", "", "V", "", ""), []string{
 			`id="ticket_url-error" class="error">Indique d&#39;abord le lien de billetterie.`}, nil},
 	}
@@ -167,7 +223,7 @@ func TestRefreshConcert(t *testing.T) {
 	}
 
 	// Nothing is saved before « Enregistrer ».
-	if _, body := b.follow(t, g+"/concerts/1"); strings.Contains(body, "GRENOBLE") || !strings.Contains(body, "2027-01-25") {
+	if _, body := b.follow(t, g+"/concerts/1"); strings.Contains(body, "esplanade Exemple") || !strings.Contains(body, "2027-01-25") {
 		t.Errorf("refresh saved the concert:\n%s", body)
 	}
 	if _, body := b.get(t, g+"/concerts/new"); strings.Contains(body, "Relire") {
