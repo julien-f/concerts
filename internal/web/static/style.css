@@ -233,7 +233,7 @@ textarea { resize: vertical; }
 .venues a { min-height: 2.75rem; padding: 0 0.8rem; font-size: 0.9rem; }
 .rows { list-style: none; margin: 0; padding: 0 0.75rem; background: var(--paper); border-radius: 0.625rem; }
 .row {
-  position: relative; display: grid; grid-template-columns: 2.75rem minmax(0, 1fr) auto; gap: 0.75rem; align-items: center;
+  position: relative; display: grid; grid-template-columns: 2.75rem minmax(0, 1fr); gap: 0.75rem; align-items: center;
   padding: 0.5rem 0;
 }
 .row + .row { border-top: 1px dashed var(--line); }
@@ -243,7 +243,7 @@ textarea { resize: vertical; }
 }
 .day b { font-size: 1.2rem; color: var(--ink); }
 .row .title { font-weight: 700; color: var(--ink); text-decoration: none; overflow-wrap: anywhere; }
-/* As on the card, the link covers the row; the toggle sits above it. */
+/* As on the card, the link covers the row; the answers sit above it. */
 .row .title::after { content: ""; position: absolute; inset: 0; }
 .row .title:hover { text-decoration: underline; }
 .row .meta { font-size: 0.85rem; }
@@ -251,13 +251,8 @@ textarea { resize: vertical; }
   display: inline-block; padding: 0 0.35rem; border: 1px solid var(--error); border-radius: 0.25rem;
   color: var(--error); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
 }
-.toggle { position: relative; z-index: 1; margin: 0; }
-.toggle button {
-  display: inline-flex; align-items: center; gap: 0.25rem; min-height: 2.75rem; padding: 0 0.6rem;
-  border: 1px solid var(--muted); border-radius: 0.5rem; background: transparent; font-size: 0.875rem;
-}
-.toggle button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-.htmx-request.toggle button { opacity: 0.7; }
+.answers { margin-top: 0.35rem; }
+.answers button { flex: 0 1 auto; }
 
 .ticket { background: var(--paper); border-radius: 0.75rem; padding: 0 1rem 0.5rem; }
 /* « Écouter » pills, one per artist; the rest of their look is the filters'. */
@@ -280,7 +275,7 @@ textarea { resize: vertical; }
 
 /* Mouse only: smaller answer buttons; any touch input keeps 44 px targets. */
 @media not (any-pointer: coarse) {
-  .mine button { min-height: 2.25rem; }
+  .statuses .mine button { min-height: 2.25rem; }
 }
 
 /* Computers and tablets: wider column, compact tickets, two-column concert page and form. */

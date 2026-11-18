@@ -9,11 +9,11 @@ import (
 	"concerts/internal/store"
 )
 
-// card is a concert in the list with its status block, or in « À l'affiche » with its toggle.
+// card is a concert in the list with its status block, or in « À l'affiche » with its answers.
 type card struct {
 	store.Concert
 	Statuses statusBlock
-	Toggle   interestToggle
+	Answer   afficheAnswer
 }
 
 type month struct {
@@ -117,7 +117,7 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 	for _, c := range upcoming {
 		cd := card{Concert: c}
 		if p.Affiche {
-			cd.Toggle = interestToggle{Base: gr.Base, ConcertID: c.ID, Artist: c.Artist}
+			cd.Answer = afficheAnswer{Base: gr.Base, ConcertID: c.ID, Artist: c.Artist, Salle: p.Salle}
 		} else {
 			cd.Statuses = newStatusBlock(gr, c, statuses[c.ID], back, true)
 		}

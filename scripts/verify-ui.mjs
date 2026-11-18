@@ -68,11 +68,18 @@ const screens = [
   {
     name: "affiche",
     go: (p) => p.goto(`${groupURL}?affiche=1`),
+    // Both answers per row, ≥ 44 px; the demo's long artist and venue must not widen the page at 320 px either.
     check: async (p) => {
-      const small = await p.$$eval(".toggle button", (bs) =>
-        bs.filter((b) => b.getBoundingClientRect().width < 44 || b.getBoundingClientRect().height < 44).length,
+      const sizes = await p.$$eval(".row", (rows) =>
+        rows.map((r) => [...r.querySelectorAll(".answers button")].map((b) => b.getBoundingClientRect())),
       );
-      return small ? `${small} toggle(s) smaller than 44 px at 390 px` : null;
+      if (sizes.some((bs) => bs.length !== 2)) return "a row lacks one of its two answers";
+      const small = sizes.flat().filter((b) => b.width < 44 || b.height < 44).length;
+      if (small) return `${small} answer button(s) smaller than 44 px at 390 px`;
+      await p.setViewportSize({ width: 320, height: 844 });
+      const wide = await p.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+      await p.setViewportSize({ width: 390, height: 844 });
+      return wide ? "at 320 px the page scrolls horizontally" : null;
     },
   },
   { name: "affiche-venue", go: (p) => submit(p, ".venues a:nth-of-type(2)") },
@@ -108,20 +115,21 @@ const screens = [
   },
   {
     // Last of « À l'affiche »: the answer moves that import to the list.
-    name: "affiche-toggle",
+    name: "affiche-answer",
     go: async (p) => {
       await p.goto(`${groupURL}?affiche=1`);
-      const id = await p.getAttribute(".toggle button", "id");
-      await p.focus(`#${id}`);
+      const row = await p.getAttribute(".row", "id");
+      await p.focus(`#${row}-going`);
       await p.keyboard.press("Enter");
-      await p.waitForSelector(`#${id}[aria-pressed="true"]`);
+      await p.waitForSelector(`#${row}-going[aria-pressed="true"]`);
       return null;
     },
     check: async (p) => {
-      const focused = await p.evaluate(() => document.activeElement?.matches(".toggle button[aria-pressed=true]"));
-      if (!focused) return "focus left the toggle after the swap";
+      const row = await p.getAttribute(".row", "id");
+      if (!(await focusOn(p, `${row}-going`))) return "focus left « J'y vais » after the swap";
+      const artist = await p.textContent(`#${row} .title`);
       const said = await p.textContent("#affiche-status[role=status]");
-      return said === "Ajouté à la liste du groupe" ? null : `status region says « ${said} »`;
+      return said === `${artist} : J'y vais. Ajouté à la liste du groupe.` ? null : `status region says « ${said} »`;
     },
   },
   { name: "concert", go: (p) => p.goto(`${groupURL}/concerts/1`) },

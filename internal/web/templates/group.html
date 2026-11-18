@@ -26,7 +26,7 @@
 {{with .Venues}}<nav class="filters venues" aria-labelledby="venues-label"><span id="venues-label">Annoncé par</span>
 {{range .}}<a href="{{$.Base}}?affiche=1&amp;salle={{.Key}}"{{if eq .Key $.Salle}} aria-current="page"{{end}}>{{.Name}}</a>
 {{end}}</nav>{{end}}
-{{- /* Present before the first answer, so screen readers announce what the toggle's swap writes into it. */}}
+{{- /* Present before the first answer, so screen readers announce what an answer's swap writes into it. */}}
 <p id="affiche-status" class="visually-hidden" role="status"></p>
 {{range .Months}}
 <h2 class="month">{{.Label}}</h2>

@@ -53,23 +53,27 @@ readers get the full date. */}}
 </article></li>
 {{end}}
 
-{{- /* row is a card of « À l'affiche »: a compact line, about 250 of them, the stub's date in miniature. */}}
+{{- /* row is a card of « À l'affiche »: a compact line, about 250 of them, the stub's date in miniature;
+the answers on a second line, under the artist, who keeps the full width. */}}
 {{define "row"}}<li class="row" id="c{{.ID}}">
 {{with stub .Date}}<span class="day" aria-hidden="true"><span>{{.Weekday}}</span><b>{{.Day}}</b><span>{{.Month}}</span></span>{{end}}
 <div class="what">
 <a class="title" href="/c/{{.Token}}">{{.Artist}}</a>
 <p class="meta"><time datetime="{{datetime .Concert}}"><span class="visually-hidden">{{frdate .Date}} · </span>{{with .Time}}{{frtime .}}{{end}}</time>{{if .Time}} · {{end}}{{.Venue}}{{if .SoldOut}} <span class="sold">Complet</span>{{end}}</p>
+{{template "answers" .Answer}}
 </div>
-{{template "toggle" .Toggle}}
 </li>
 {{end}}
 
-{{- /* toggle is an interestToggle; htmx replaces the form, keeping the button's id (and so the focus),
-and fills the status region out of band. */}}
-{{define "toggle"}}<form method="post" action="{{.Base}}/concerts/{{.ConcertID}}/status" class="toggle"
+{{- /* answers is an afficheAnswer; htmx replaces the form, keeping the buttons' ids (and so the focus),
+and fills the status region out of band. The pressed button sends an empty status: tapping it again clears the answer. */}}
+{{define "answers"}}<form method="post" action="{{.Base}}/concerts/{{.ConcertID}}/status" class="mine answers"
  data-hx-post="{{.Base}}/concerts/{{.ConcertID}}/status" data-hx-target="this" data-hx-swap="outerHTML">
 <input type="hidden" name="back" value="affiche">
-<button id="c{{.ConcertID}}-interested" name="status" value="{{if not .Pressed}}interested{{end}}" aria-pressed="{{.Pressed}}"><svg class="icon" aria-hidden="true"><use href="#i-interested"/></svg>Ça m'intéresse<span class="visually-hidden"> : {{.Artist}}</span></button>
+<input type="hidden" name="salle" value="{{.Salle}}">
+<div role="group" aria-label="Ma réponse pour {{.Artist}}">
+{{range .Buttons}}<button id="c{{$.ConcertID}}-{{.Status}}" name="status" value="{{if not .Pressed}}{{.Status}}{{end}}" aria-pressed="{{.Pressed}}"><svg class="icon" aria-hidden="true"><use href="#i-{{.Status}}"/></svg>{{.Label}}</button>
+{{end}}</div>
 </form>
 {{- with .Said}}
 <p id="affiche-status" data-hx-swap-oob="innerHTML">{{.}}</p>{{end}}{{end}}

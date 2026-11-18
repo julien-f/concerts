@@ -73,12 +73,15 @@ func TestAfficheViews(t *testing.T) {
 			`<a href="` + g + `?affiche=1&amp;salle=salle-b">salle-b</a>`,
 			`<p id="affiche-status" class="visually-hidden" role="status"></p>`,
 			`<h2 class="month">juin 2026</h2>`, `<span class="sold">Complet</span>`, `datetime="2026-07-03T20:00"`,
-			`id="c2-interested" name="status" value="interested" aria-pressed="false"`,
-			`Ça m'intéresse<span class="visually-hidden">` + "\u202f" + `: Importé A</span>`,
-			`name="back" value="affiche"`}},
+			// Both answers, as on the cards, under the date and venue.
+			`<div role="group" aria-label="Ma réponse pour Importé A">`,
+			`id="c2-interested" name="status" value="interested" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-interested"/></svg>Ça m&#39;intéresse</button>`,
+			`id="c2-going" name="status" value="going" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-going"/></svg>J&#39;y vais</button>`,
+			`name="back" value="affiche"`, `<input type="hidden" name="salle" value="">`}},
 		{"affiche wins over mine", "?affiche=1&mine=1", "5,2,3,4", []string{`aria-current="page">À l'affiche</a>`}},
 		{"one venue", "?affiche=1&salle=salle-b", "4", []string{
-			`<a href="` + g + `?affiche=1&amp;salle=salle-b" aria-current="page">salle-b</a>`}},
+			`<a href="` + g + `?affiche=1&amp;salle=salle-b" aria-current="page">salle-b</a>`,
+			`<input type="hidden" name="salle" value="salle-b">`}},
 		{"venue not followed: ignored", "?affiche=1&salle=autre", "5,2,3,4", nil},
 	} {
 		_, body := b.get(t, g+tc.query)
@@ -91,9 +94,9 @@ func TestAfficheViews(t *testing.T) {
 			t.Errorf("%s: %d aria-current", tc.name, n)
 		}
 	}
-	// One answer per row: « J'y vais » is on the concert page; no past section.
+	// No past section.
 	_, body := b.get(t, g+"?affiche=1")
-	assertLacks(t, body, `value="going"`, "Passés")
+	assertLacks(t, body, "Passés")
 
 	// An answer moves the import to the list; once past, an unanswered one shows nowhere.
 	b.postRedirect(t, g+"/concerts/2/status", url.Values{"status": {"interested"}, "back": {"affiche"}})
@@ -173,33 +176,64 @@ func TestAfficheToggle(t *testing.T) {
 		req := who.postRequest(t, g+"/concerts/"+id+"/status", url.Values{"status": {status}, "back": {"affiche"}})
 		req.Header.Set("HX-Request", "true")
 		resp, body := who.do(t, req)
-		if resp.StatusCode != http.StatusOK || !strings.HasPrefix(body, `<form method="post" action="`+g+`/concerts/`+id+`/status" class="toggle"`) {
-			t.Fatalf("want the toggle fragment, got %d:\n%s", resp.StatusCode, body)
+		if resp.StatusCode != http.StatusOK || !strings.HasPrefix(body, `<form method="post" action="`+g+`/concerts/`+id+`/status" class="mine answers"`) {
+			t.Fatalf("want the answers fragment, got %d:\n%s", resp.StatusCode, body)
 		}
 		return body
 	}
+	said := func(s string) string { return `<p id="affiche-status" data-hx-swap-oob="innerHTML">` + s + `</p>` }
 	for _, tc := range []struct {
 		name, id, status string
 		who              *browser
 		want             []string
 	}{
-		{"add", "2", "interested", b, []string{`id="c2-interested" name="status" value="" aria-pressed="true"`,
-			`<p id="affiche-status" data-hx-swap-oob="innerHTML">Ajouté à la liste du groupe</p>`}},
-		{"remove", "2", "", b, []string{`id="c2-interested" name="status" value="interested" aria-pressed="false"`,
-			`<p id="affiche-status" data-hx-swap-oob="innerHTML">Retiré de la liste du groupe</p>`}},
+		{"interested", "2", "interested", b, []string{`id="c2-interested" name="status" value="" aria-pressed="true"`,
+			`id="c2-going" name="status" value="going" aria-pressed="false"`,
+			said("Importé A\u202f: Ça m&#39;intéresse. Ajouté à la liste du groupe.")}},
+		// Exclusive: « J'y vais » replaces « Ça m'intéresse ».
+		{"going", "2", "going", b, []string{`id="c2-interested" name="status" value="interested" aria-pressed="false"`,
+			`id="c2-going" name="status" value="" aria-pressed="true"`,
+			said("Importé A\u202f: J&#39;y vais. Ajouté à la liste du groupe.")}},
+		{"remove", "2", "", b, []string{`id="c2-going" name="status" value="going" aria-pressed="false"`,
+			said("Retiré de la liste du groupe.")}},
 		// Another member's answer keeps it in the list.
-		{"remove mine, not Marc's", "3", "", b, []string{`aria-pressed="false"`, ">Ajouté à la liste du groupe<"}},
+		{"remove mine, not Marc's", "3", "", b, []string{`aria-pressed="false"`,
+			said("Complet A\u202f: réponse retirée, toujours dans la liste du groupe.")}},
 	} {
 		if tc.id == "3" {
 			htmx(marc, "3", "going")
 		}
 		assertContains(t, htmx(tc.who, tc.id, tc.status), tc.want...)
 	}
+}
 
-	// Without JS: back to « À l'affiche » at the row.
-	resp, _ := b.post(t, g+"/concerts/4/status", url.Values{"status": {"interested"}, "back": {"affiche"}})
+// TestAfficheAnswerNoJS: without JS, the answered row leaves « À l'affiche »: back there, at the next row of the same view.
+func TestAfficheAnswerNoJS(t *testing.T) {
+	t.Parallel()
+	ts := newTestServer(t)
+	b, secret := afficheGroup(t, ts) // rows 5, 2, 3 (salle-a), 4 (salle-b)
+	g := "/g/" + secret
+	for _, tc := range []struct {
+		name, id, status, salle, want string
+	}{
+		{"next row", "2", "going", "", g + "?affiche=1#c3"},
+		{"next row of the venue", "5", "interested", "salle-a", g + "?affiche=1&salle=salle-a#c3"},
+		{"last row of the venue", "3", "going", "salle-a", g + "?affiche=1&salle=salle-a"},
+		{"last row", "4", "interested", "", g + "?affiche=1"},
+		{"venue not followed: ignored", "6", "going", "autre", g + "?affiche=1"},
+	} {
+		if tc.id == "6" {
+			ts.importInto(t, secret, "salle-b", store.Concert{Artist: "Dernier", Date: "2026-09-01", Venue: "Salle B"})
+		}
+		resp, _ := b.post(t, g+"/concerts/"+tc.id+"/status", url.Values{"status": {tc.status}, "back": {"affiche"}, "salle": {tc.salle}})
+		if loc := location(t, resp); loc != tc.want {
+			t.Errorf("%s: Location = %q, want %q", tc.name, loc, tc.want)
+		}
+	}
+	// Clearing it again from a stale page: the row is back, so is the anchor.
+	resp, _ := b.post(t, g+"/concerts/4/status", url.Values{"status": {""}, "back": {"affiche"}})
 	if loc := location(t, resp); loc != g+"?affiche=1#c4" {
-		t.Errorf("back=affiche: Location = %q", loc)
+		t.Errorf("cleared: Location = %q", loc)
 	}
 }
 
