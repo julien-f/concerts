@@ -184,8 +184,13 @@ type GroupSummary struct {
 	CreatedAt string
 }
 
+// querier is a *sql.DB or a *sql.Tx.
+type querier interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}
+
 // queryAll runs query and scans each row into a T through the pointers fields returns.
-func queryAll[T any](ctx context.Context, db *sql.DB, fields func(*T) []any, query string, args ...any) ([]T, error) {
+func queryAll[T any](ctx context.Context, db querier, fields func(*T) []any, query string, args ...any) ([]T, error) {
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
