@@ -23,9 +23,11 @@ N=$(id -un)
 eval "export $(systemctl show -P Environment $N.service)"
 : "${CONCERTS_BASE_URL:?missing from $N.service: rerun make install}"
 : "${CONCERTS_DB:?missing from $N.service}"
+# Else the sudoers grants below, which name the sync units, are refused midway through a rollback.
+systemctl cat $N-sync.timer >/dev/null 2>&1 || { echo "$N-sync.timer missing: rerun make install" >&2; exit 1; }
 
 logs() {
-	sudo -n /usr/bin/journalctl -u $N.service -u $N-backup.service -n 200 --no-pager
+	sudo -n /usr/bin/journalctl -u $N.service -u $N-backup.service -u $N-sync.service -n 200 --no-pager
 }
 
 # Through Caddy on loopback: the deployer cannot open the socket, and no hairpin NAT or DNS.
@@ -56,15 +58,15 @@ healthz() {
 }
 
 # Nothing may open the database while it is swapped: a request would start the service,
-# a backup would create an empty database or delete the new one's -wal on close.
+# a backup or sync would create an empty database or delete the new one's -wal on close.
 stop_all() {
-	trap 'echo "failed with the service stopped: fix the cause, then $SYSTEMCTL start $N.socket $N-backup.timer" >&2' EXIT
-	$SYSTEMCTL stop $N.socket $N.service $N-backup.timer $N-backup.service
+	trap 'echo "failed with the service stopped: fix the cause, then $SYSTEMCTL start $N.socket $N-backup.timer $N-sync.timer" >&2' EXIT
+	$SYSTEMCTL stop $N.socket $N.service $N-backup.timer $N-backup.service $N-sync.timer $N-sync.service
 }
 
 start_all() {
-	$SYSTEMCTL reset-failed $N.service $N.socket
-	$SYSTEMCTL start $N.socket $N-backup.timer
+	$SYSTEMCTL reset-failed $N.service $N.socket $N-sync.service
+	$SYSTEMCTL start $N.socket $N-backup.timer $N-sync.timer
 	trap - EXIT
 }
 
@@ -94,7 +96,8 @@ deploy)
 		touch "$FAILED"
 	fi
 	mv bin/concerts.new bin/concerts
-	$SYSTEMCTL reset-failed $N.service $N.socket
+	# The sync timer may have run the old binary, which has no sync, since the install.
+	$SYSTEMCTL reset-failed $N.service $N.socket $N-sync.service
 	$SYSTEMCTL restart $N.service
 	healthz
 	;;
@@ -126,7 +129,7 @@ restore)
 logs)
 	case ${2-} in
 	"") logs ;;
-	-f) exec sudo -n /usr/bin/journalctl -f -u $N.service -u $N-backup.service --no-pager ;;
+	-f) exec sudo -n /usr/bin/journalctl -f -u $N.service -u $N-backup.service -u $N-sync.service --no-pager ;;
 	*) echo "$usage" >&2; exit 2 ;;
 	esac
 	;;

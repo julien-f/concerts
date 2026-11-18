@@ -82,11 +82,11 @@ S=/usr/bin/systemctl
 cat >"/etc/sudoers.d/$NAME.new" <<EOF
 # Installed by concerts install.sh; used by $H/bin/admin.
 $NAME ALL=(root) NOPASSWD: $S restart $NAME.service, \\
-	$S stop $NAME.socket $NAME.service $NAME-backup.timer $NAME-backup.service, \\
-	$S start $NAME.socket $NAME-backup.timer, \\
-	$S reset-failed $NAME.service $NAME.socket, \\
-	/usr/bin/journalctl -u $NAME.service -u $NAME-backup.service -n 200 --no-pager, \\
-	/usr/bin/journalctl -f -u $NAME.service -u $NAME-backup.service --no-pager
+	$S stop $NAME.socket $NAME.service $NAME-backup.timer $NAME-backup.service $NAME-sync.timer $NAME-sync.service, \\
+	$S start $NAME.socket $NAME-backup.timer $NAME-sync.timer, \\
+	$S reset-failed $NAME.service $NAME.socket $NAME-sync.service, \\
+	/usr/bin/journalctl -u $NAME.service -u $NAME-backup.service -u $NAME-sync.service -n 200 --no-pager, \\
+	/usr/bin/journalctl -f -u $NAME.service -u $NAME-backup.service -u $NAME-sync.service --no-pager
 EOF
 chmod 0440 "/etc/sudoers.d/$NAME.new"
 visudo -cqf "/etc/sudoers.d/$NAME.new" || { rm -f "/etc/sudoers.d/$NAME.new"; die "sudoers check failed"; }
@@ -96,7 +96,7 @@ mv "/etc/sudoers.d/$NAME.new" "/etc/sudoers.d/$NAME"
 # (restarting the socket alone drops queued requests).
 systemctl stop "$NAME.socket" "$NAME.service"
 systemctl reset-failed "$NAME.service" "$NAME.socket" 2>/dev/null || true
-systemctl enable --now "$NAME.socket" "$NAME-backup.timer"
+systemctl enable --now "$NAME.socket" "$NAME-backup.timer" "$NAME-sync.timer"
 
 # The proxy's configuration is the operator's: print the site block, never edit it.
 cat <<EOF
