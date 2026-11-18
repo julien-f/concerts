@@ -316,4 +316,10 @@ func TestVenues(t *testing.T) {
 		}
 		promoter = promoter || v.Promoter
 	}
+	if got := Name("belle-electrique"); got != "La Belle Électrique" {
+		t.Errorf("Name(belle-electrique) = %q", got)
+	}
+	if got := Name("gone"); got != "" {
+		t.Errorf("Name(gone) = %q, want empty", got)
+	}
 }

@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -222,7 +221,7 @@ func followVenue(ctx context.Context, st *store.Store, groupID, key string) erro
 	if err != nil {
 		return err
 	}
-	if !slices.ContainsFunc(agenda.Venues, func(v agenda.Venue) bool { return v.Key == key }) {
+	if agenda.Name(key) == "" {
 		return fmt.Errorf("venue %q: unknown (see list-venues)", key)
 	}
 	if err := st.Follow(ctx, id, key); err != nil {
@@ -263,7 +262,7 @@ func listen(addr string) (net.Listener, error) {
 }
 
 func serve(ctx context.Context, log *slog.Logger, st *store.Store, addr, baseURL string) error {
-	h, err := web.New(st, log, web.Config{BaseURL: baseURL, Now: time.Now})
+	h, err := web.New(st, log, web.Config{BaseURL: baseURL, Now: time.Now, VenueName: agenda.Name})
 	if err != nil {
 		return err
 	}

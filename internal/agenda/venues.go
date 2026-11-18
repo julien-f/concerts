@@ -21,6 +21,16 @@ type Venue struct {
 	parse     parser
 }
 
+// Name is the display name of the venue key, or "" if none is compiled in.
+func Name(key string) string {
+	for _, v := range Venues {
+		if v.Key == key {
+			return v.Name
+		}
+	}
+	return ""
+}
+
 // Venues are the venues groups can follow, probed 2026-11-18: robots.txt checked by hand and
 // noted beside each, no bot challenge. A key is stored in imported rows: never rename one.
 var Venues = []Venue{
