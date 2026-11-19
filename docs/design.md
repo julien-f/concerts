@@ -12,6 +12,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 - No account: on the first visit, a member picks their first name, which the app remembers (cookie).
 - A daily job imports the agendas of the venues a group follows, shown « À l'affiche » until someone answers (slice 12).
 - Anyone holding the link belongs to the group; if the link leaks, the secret is rotated.
+- One can belong to several groups (a member per link); a browser that opened several links lists the others under the group name (slice 13).
 - Go, single binary under systemd on a shared personal server, run by a dedicated user from its home, behind Caddy over a Unix socket ([ADR 0008](decisions/0008-deployment-under-a-home-user.md)).
 - Local repository, no CI: the pre-commit hook is the safeguard (what it runs: [CLAUDE.md](../CLAUDE.md#commands)). `make deploy` runs govulncheck first, so a vulnerability published since, or newly reached by a code change, still blocks a deploy.
 - UI in French (`lang="fr"`); code, docs and commits in English.
@@ -33,8 +34,13 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 - **Public concert link** ([ADR 0009](decisions/0009-public-concert-link.md)): a concert page's address is `/c/<token>`, so what members copy or share (address bar, share sheet, « Partager ») never holds the secret.
   - Token: 12 random bytes in hex (96 bits), per concert, stored in clear (it must be rendered into links); a database leak exposes only public cards. It never rotates: deleting the concert is the only revocation.
   - Without a valid group cookie, the page is the public card: concert facts and a count of members going, no group name, first names or link into the group. Unknown and deleted tokens give the same plain 404, cookie or not; the response varies on `Cookie`.
-  - Group cookie `g<group id>`: `<secret>.<member id>`, `Path=/c`, other attributes as the identity cookie; refreshed by every GET under `/g/<secret>`. It is a bearer credential like the link; the proxy logs no cookies. On `/c` it is parsed strictly, resolved like the link and must name the concert's group, else the card. The member page it unlocks holds the secret in its links and forms, never in its address.
+  - Group cookie `g<group id>`: `<secret>.<member id>`, `Path=/` (slice 13; `/c` before), other attributes as the identity cookie; refreshed by every GET under `/g/<secret>`. It is a bearer credential like the link, sent with every request to the host (static files, `/healthz` included); neither the app nor the proxy logs cookies. On `/c` it is parsed strictly, resolved like the link and must name the concert's group, else the card. The member page it unlocks holds the secret in its links and forms, never in its address.
   - Links sent before this slice carry the secret: rotate once after deploying it.
+- **Other groups** (slice 13): the main page of group A lists the groups whose cookie the browser sends, with their name and link (secret).
+  - Only displayed, never an identity or an authorization in A. At most 10 cookies looked at per request (client-controlled), each a lookup by secret hash that must name the cookie's group.
+  - Nothing leaves the browser that holds both: the CSP (`default-src 'self'`, `frame-ancestors 'none'`), `Referrer-Policy: no-referrer` and `SameSite=Lax` ensure it; relaxing any of them must weigh this list. A hostile group page gets the visitor's other groups rendered in the visitor's browser only. A screenshot shows the names; a long-press « copy link » copies another group's secret.
+  - Shared phone: « Ce n'est pas moi » forgets the identity, not the groups: the next person reaches every group this browser opened in one tap (before, only through one of its concert links). Accepted, as impersonation below.
+  - No `__Host-` prefix (it would stop a sibling subdomain from planting cookies): it needs `Secure`, so development would use other names; the operator picks a host without untrusted siblings.
 - **CSRF**: every state change is a POST behind `http.CrossOriginProtection` (lets GET through; trusts `Sec-Fetch-Site`, else compares `Origin` with `Host`, so the proxy must keep `Host`). The prefill GET triggers an outbound fetch but needs the secret and is rate-limited.
 - **Abuse with a leaked link**: per-group caps (see Data model) bound what it can store. At the row cap a create purges old concerts, so a leaked link can flush the undo history and the past, as deleting everything then creating and deleting already could; likewise 20 edits flush a concert's edit history. Backups are the remedy. Server read, write and idle timeouts; request bodies capped at 64 kB.
 - **SSRF** (prefill): the resolved IP of every connection, redirects included, must be public unicast (IPv6 within `2000::/3`, special-purpose ranges excluded) on port 80 or 443; no proxy, no keep-alive, 3 redirects, 8 s per page and 10 s per read (a slow first page leaves less to the hop), 1 MB of `text/html` or XHTML; one hop at most, only to a link a site rule built on a pinned host (La Belle Électrique), so one limiter slot covers two pages; visible text is kept only for a host with a site rule (exact match on the final host, after redirects), at most 5,000 nodes; fetch errors are logged with the host only (a pasted group link must not reach the logs); one fetch in flight and 10 a minute per group, 2 in flight overall.
@@ -90,6 +96,7 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 ┌──────────────────────────────┐
 │ Les copains   Léa · Ce n'est │
 │ du concert          pas moi  │
+│ Autres groupes : Collègues   │  other groups opened here, if any
 │ ✓ Concert ajouté [Partager]  │  banner after add / delete
 │ or [Annuler la suppression]  │
 │ (Tous) (Mes concerts) (À l'… │  filter links, aria-current
@@ -113,6 +120,7 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 └──────────────────────────────┘
 ```
 
+- « Autres groupes : » under the group name (a `nav`, links in group id order): the other groups whose link this browser opened, from their group cookies (threat model). Main page only, every filter; not the picker.
 - Status lines: « Y va : » / « Y vont : », « Intérêt : » (no gender, count-aware).
 - An import (from a venue's agenda) is in the list (« Tous », « Mes concerts », « Passés ») only while someone answered it, computed in Go from the statuses already loaded; the « À l'affiche » filter shows only for a group following a venue or holding upcoming imports nobody answered (edited ones outlive an unfollow).
 - « Mes concerts » = concerts where I have a status, computed in Go from the statuses already loaded; « Passés » is filtered too; clearing a status under the filter keeps the card until reload.
@@ -403,6 +411,8 @@ One slice per branch, merged with `--no-ff`. 0–11 shipped as v1.
    - CLI: `list-venues`, `follow-venue`, `unfollow-venue` (deletes the venue's rows nobody answered or edited), `sync`.
    - « Nouveau » on « À l'affiche » and its `nouveau=1` filter: see that screen.
    - Out of scope: a genre filter (vocabularies differ per venue), a concerts/club filter, descriptions from event pages, re-reading a page read before its ticketing opened, L'Ampérage and MC2 event pages (no prefill rule; MC2's link is on the page only), Retour de Scène's ticket link (a Weezevent widget), per-member « seen » state, on-sale reminders, members choosing venues, following artists, aggregator APIs (ADR 0011), arenas behind bot protection (Summum, Zénith: prefill by hand), Drak-Art (Facebook only), detecting cancellations, a « mis à jour par la salle » history.
+13. **Other groups**: the group cookie moves to `Path=/`, so a group's main page lists the other groups this browser opened (« Autres groupes », placement picked on a mockup); `Vary: Cookie` on group pages. Each GET also expires the former `Path=/c` copy, which `/c` would otherwise read first (code comment: when to remove it). After the deploy, a group joins the list once its link is opened again. The demo has a second group, « Les collègues », which `verify-ui` opens first.
+   - Out of scope: a « Tous mes concerts » view across groups, answering once for several groups (« Later »).
 
 Also in v1: `make install`, `make deploy`, `make rollback` ([operations.md](operations.md)).
 
@@ -419,3 +429,7 @@ A « Je cherche un billet » status, if the group asks for it: it flags the exce
 A window on « À l'affiche » (the next 3 months, then « Afficher la suite », as `?past=all`), if its cards prove too long a list: at 180 cards over 12 months, desktop Chromium throttled 4× scrolled it at 58 fps (59.6 with the former compact rows); a phone may differ (`make measure-scroll PAGE=affiche`).
 
 Carpooling, if the group asks for it: once « J'y vais » is set, an optional « Je propose / Je cherche un covoiturage » on the concert page only (`statuses.carpool CHECK IN ('offer','seek') NULL`), shown as a mark by the first name; no seats or departure city, the arranging stays on WhatsApp.
+
+Several groups per person (friends, colleagues): each link gives an independent member, possibly under another first name, and no group sees anything of another. Beyond switching between them (slice 13):
+- A « Tous mes concerts » view across one's groups, as a personal agenda: read-only, since answering needs a group.
+- Answering once for a concert present in several groups (venue imports give one row per group): needs a person linking members, against [ADR 0002](decisions/0002-secret-link-identity.md), and a cross-group match of concerts (the import's same-bill rule works within one group); a wrong propagation would show colleagues a concert one goes to with friends.

@@ -41,6 +41,8 @@ body {
 .brand { font-size: 1.25rem; font-weight: 700; margin: 0; color: var(--ink); text-decoration: none; }
 a.brand { display: inline-flex; align-items: center; min-height: 2.75rem; }
 .me { display: flex; align-items: center; gap: 0.25rem; color: var(--muted); }
+.others { display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.75rem; color: var(--muted); font-size: 0.9rem; }
+.others a { display: inline-flex; align-items: center; min-height: 1.5rem; color: inherit; }
 h1 { font-size: 1.5rem; margin: 1rem 0; }
 h2 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
 a { color: var(--accent); }

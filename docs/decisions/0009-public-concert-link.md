@@ -9,7 +9,7 @@ Members send a concert to friends outside the group by copying the address bar, 
 ## Decision
 
 - A concert page lives at `/c/<token>`, a random per-concert token stored in clear; every link to it, and `og:url`/canonical, uses that address.
-- Opening any `/g/<secret>` page sets a cookie on `Path=/c` holding the secret and member id. With it, `/c/<token>` is the full member page; without it, a public card: the concert, its ticket and calendar links, a count of members going, nothing of the group.
+- Opening any `/g/<secret>` page sets a cookie on `Path=/c` holding the secret and member id (on `Path=/` since slice 13 of [design.md](../design.md), so other groups' pages can list it). With it, `/c/<token>` is the full member page; without it, a public card: the concert, its ticket and calendar links, a count of members going, nothing of the group.
 - The old concert URL redirects there.
 
 ## Consequences

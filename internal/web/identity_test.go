@@ -210,3 +210,102 @@ func TestMemberLimitMessage(t *testing.T) {
 		t.Fatalf("status = %d, body:\n%s", resp.StatusCode, body)
 	}
 }
+
+func TestOtherGroups(t *testing.T) {
+	t.Parallel()
+	ts := newTestServer(t)
+	ctx := context.Background()
+	a := ts.newGroup(t, "Les copains")
+	b := ts.newGroup(t, "Les collègues")
+	c := ts.newGroup(t, "Escalade")
+	link := func(secret, name string) string { return `<a href="/g/` + secret + `">` + name + `</a>` }
+	id := func(secret string) int64 {
+		g, err := ts.store.GroupBySecret(ctx, secret)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return g.ID
+	}
+
+	// Léa joined B, only saw C's picker, then joined A: A lists B then C (group id order), B lists A and C.
+	lea := ts.browser(t)
+	lea.join(t, b, "Léa")
+	lea.get(t, "/g/"+c)
+	body := lea.join(t, a, "Léa")
+	assertContains(t, body, "Autres groupes", link(b, "Les collègues")+"\n"+link(c, "Escalade"))
+	assertLacks(t, body, link(a, "Les copains"))
+	_, body = lea.get(t, "/g/"+b)
+	assertContains(t, body, link(a, "Les copains"), link(c, "Escalade"))
+	assertLacks(t, body, link(b, "Les collègues"))
+
+	// The picker lists none; a browser that knows one group sees no switcher.
+	sam := ts.browser(t)
+	sam.get(t, "/g/"+b)
+	_, body = sam.get(t, "/g/"+a)
+	assertLacks(t, body, "Autres groupes")
+	_, body = ts.browser(t).follow(t, "/g/"+a)
+	assertLacks(t, body, "Autres groupes")
+
+	// A GET moves the group cookie to Path=/ and expires its former Path=/c copy.
+	resp, _ := lea.get(t, "/g/"+a)
+	var paths []string
+	for _, ck := range resp.Cookies() {
+		if ck.Name == groupCookie(id(a)) {
+			paths = append(paths, fmt.Sprintf("%s %d", ck.Path, ck.MaxAge))
+		}
+	}
+	if want := []string{fmt.Sprintf("/ %d", 400*24*3600), "/c -1"}; strings.Join(paths, ",") != strings.Join(want, ",") {
+		t.Errorf("group cookies = %v, want %v", paths, want)
+	}
+	if v := resp.Header.Get("Vary"); v != "Cookie" {
+		t.Errorf("Vary = %q, want Cookie", v)
+	}
+
+	// Raw cookies, sent with Léa's identity in A.
+	ms, err := ts.store.Members(ctx, id(a))
+	if err != nil {
+		t.Fatal(err)
+	}
+	me := fmt.Sprintf("%s=%d", memberCookie, ms[0].ID)
+	rotated := ts.newGroup(t, "Rotated")
+	rotatedID := id(rotated)
+	if err := ts.store.RotateSecret(ctx, rotatedID, NewSecret()); err != nil {
+		t.Fatal(err)
+	}
+	var many []string
+	for i := range 11 {
+		s := ts.newGroup(t, fmt.Sprintf("Many %d", i))
+		many = append(many, fmt.Sprintf("g%d=%s.", id(s), s))
+	}
+	tests := []struct {
+		name, cookies  string
+		listed, absent []string
+	}{
+		{"rotated secret", fmt.Sprintf("g%d=%s.", rotatedID, rotated), nil, nil},
+		{"another group's value", fmt.Sprintf("g%d=%s.", id(c), b), nil, nil},
+		{"malformed", fmt.Sprintf("g%d=%s", id(b), b), nil, nil},
+		{"own group only", fmt.Sprintf("g%d=%s.", id(a), a), nil, nil},
+		{"valid", fmt.Sprintf("g%d=%s.", id(b), b), []string{link(b, "Les collègues")}, nil},
+		{"first 10 cookies only", strings.Join(many, "; "), []string{"Many 0</a>", "Many 9</a>"}, []string{"Many 10</a>"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			req, _ := http.NewRequest(http.MethodGet, ts.URL+"/g/"+a, nil)
+			req.Header.Set("Cookie", me+"; "+tt.cookies)
+			_, body := ts.browser(t).do(t, req)
+			if tt.listed == nil {
+				assertLacks(t, body, "Autres groupes")
+			}
+			assertContains(t, body, tt.listed...)
+			assertLacks(t, body, tt.absent...)
+		})
+	}
+
+	// Another group's cookie is never an identity here: without A's member cookie, A shows its picker.
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/g/"+a, nil)
+	req.Header.Set("Cookie", fmt.Sprintf("g%d=%s.%d", id(b), b, ms[0].ID))
+	if _, body := ts.browser(t).do(t, req); !strings.Contains(body, "Qui es-tu") {
+		t.Fatalf("another group's cookie gave an identity:\n%s", body)
+	}
+}

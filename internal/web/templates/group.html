@@ -1,6 +1,9 @@
 {{define "title"}}{{if .Affiche}}À l'affiche · {{end}}{{.Group.Name}} · Concerts{{end}}
 {{define "meta"}}{{if .Added}}<script src="{{static "share.js"}}" defer></script>{{end}}{{end}}
-{{define "brand"}}<h1 class="brand">{{.Group.Name}}</h1>{{end}}
+{{define "brand"}}<div><h1 class="brand">{{.Group.Name}}</h1>
+{{with .Others}}<nav class="others" aria-labelledby="others-label"><span id="others-label">Autres groupes :</span>
+{{range .}}<a href="{{.Base}}">{{.Name}}</a>
+{{end}}</nav>{{end}}</div>{{end}}
 {{define "content"}}
 {{with .Added}}<div class="banner" role="status">
 <p>Concert ajouté : {{.Artist}}.</p>

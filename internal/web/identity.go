@@ -1,11 +1,13 @@
 package web
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -69,6 +71,7 @@ func (s *server) inGroup(h groupHandler) http.HandlerFunc {
 			return
 		}
 		w.Header().Set("Cache-Control", "private, no-cache")
+		w.Header().Set("Vary", "Cookie")
 		// GET only: every write ends in one, which then records the member it left.
 		if r.Method == http.MethodGet {
 			s.setGroupCookie(w, gr)
@@ -77,19 +80,70 @@ func (s *server) inGroup(h groupHandler) http.HandlerFunc {
 	}
 }
 
-// setGroupCookie lets /c pages, whose URL lacks the secret, recognise a member: "<secret>.<member id or nothing>".
+// setGroupCookie lets /c pages, whose URL lacks the secret, recognise a member, and other groups'
+// pages list this one: "<secret>.<member id or nothing>".
 func (s *server) setGroupCookie(w http.ResponseWriter, gr *groupRequest) {
 	v := strings.TrimPrefix(gr.Base, "/g/") + "."
 	if gr.Me != nil {
 		v += strconv.FormatInt(gr.Me.ID, 10)
 	}
 	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure follows the base URL scheme (plain http in development)
-		Name: groupCookie(gr.Group.ID), Value: v, Path: "/c",
+		Name: groupCookie(gr.Group.ID), Value: v, Path: "/",
 		MaxAge: 400 * 24 * 3600, HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteLaxMode,
+	})
+	// Expires the former Path=/c copy, which /c would read first; remove 400 days (its Max-Age) after this deploys.
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: as above
+		Name: groupCookie(gr.Group.ID), Path: "/c",
+		MaxAge: -1, HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteLaxMode,
 	})
 }
 
 func groupCookie(groupID int64) string { return "g" + strconv.FormatInt(groupID, 10) }
+
+// groupCookieName matches a group cookie's name, capturing the group id.
+var groupCookieName = regexp.MustCompile(`^g([0-9]+)$`)
+
+// maxOtherGroups bounds the queries the client-controlled cookies of one request can cause.
+const maxOtherGroups = 10
+
+// otherGroup links to another group this browser opened, in « Autres groupes ».
+type otherGroup struct {
+	ID         int64
+	Name, Base string
+}
+
+// otherGroups lists the groups whose cookie the browser sends, except gr's, in id order: names and links
+// only, never an identity. The first maxOtherGroups cookies are looked at, invalid ones included.
+func (s *server) otherGroups(r *http.Request, gr *groupRequest) ([]otherGroup, error) {
+	var gs []otherGroup
+	seen := map[string]bool{groupCookie(gr.Group.ID): true}
+	looked := 0
+	for _, c := range r.Cookies() {
+		n := groupCookieName.FindStringSubmatch(c.Name)
+		if n == nil || seen[c.Name] {
+			continue
+		}
+		seen[c.Name] = true
+		if looked++; looked > maxOtherGroups {
+			break
+		}
+		id, err := strconv.ParseInt(n[1], 10, 64)
+		v := groupCookieValue.FindStringSubmatch(c.Value)
+		if err != nil || v == nil {
+			continue
+		}
+		g, err := s.store.GroupBySecret(r.Context(), v[1])
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+		case err != nil:
+			return nil, err
+		case g.ID == id:
+			gs = append(gs, otherGroup{g.ID, g.Name, "/g/" + v[1]})
+		}
+	}
+	slices.SortFunc(gs, func(a, b otherGroup) int { return cmp.Compare(a.ID, b.ID) })
+	return gs, nil
+}
 
 // groupCookieValue matches a well-formed group cookie: a secret as NewSecret makes it, then an optional member id.
 var groupCookieValue = regexp.MustCompile(`^([A-Za-z0-9_-]{22})\.([0-9]*)$`)
