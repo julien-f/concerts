@@ -2,7 +2,7 @@ GOLANGCI_LINT_VERSION := v2.15.0
 GOLANGCI_LINT := bin/golangci-lint-$(GOLANGCI_LINT_VERSION)
 GOVULNCHECK_VERSION := v1.9.0
 
-# Per-machine values (DEPLOY_HOST, ADMIN_HOST…), git-ignored; the command line still overrides them.
+# Per-machine values (DEPLOY_HOST, ADMIN_HOST…), git-ignored; the environment and the command line still override them.
 # The main checkout's, so git worktrees (which lack ignored files) use it too.
 -include $(dir $(shell git rev-parse --path-format=absolute --git-common-dir 2>/dev/null))local.mk
 

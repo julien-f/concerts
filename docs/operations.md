@@ -2,15 +2,20 @@
 
 A system user `<name>` (default `concerts`; the examples below use it) holds everything under `/home/<name>` (`bin/`, `data/`, `backups/`); the reverse proxy reaches the app through `/run/<name>.sock`. Only install and uninstall need root; deploys and admin commands log in as `<name>`. Nothing in `deploy/` is specific to one server: the name and the proxy's user are install parameters. Design and rejected options: [ADR 0008](decisions/0008-deployment-under-a-home-user.md).
 
-The commands below read their settings from a git-ignored `local.mk` at the root of the main checkout (git worktrees read it too; the environment and the command line still override it):
+The commands below read their settings from a git-ignored `local.mk` at the root of the main checkout (git worktrees read it too; the environment and the command line still override it). Comments go on their own line: make keeps the spaces before a trailing one in the value, which breaks `make install`.
 
 ```make
-# NAME ?= concerts                   # the service user, and its units' and socket's name
-DEPLOY_HOST ?= concerts@server       # <name>@<server>: deploys and admin commands
-ADMIN_HOST ?= admin@server           # an account with sudo: install and uninstall
-PROXY_USER ?= caddy                  # the user the proxy runs as, sole owner of the socket (0600)
+# The service user, and its units' and socket's name (default concerts).
+#NAME ?= concerts
+# <name>@<server>: deploys and admin commands.
+DEPLOY_HOST ?= concerts@server
+# An account with sudo: install and uninstall.
+ADMIN_HOST ?= admin@server
+# The user the proxy runs as, sole owner of the socket (0600).
+PROXY_USER ?= caddy
 BASE_URL ?= https://concerts.example.com
-DEPLOY_KEY ?= ~/.ssh/id_ed25519.pub  # public key allowed to log in as <name>
+# Public key allowed to log in as <name>.
+DEPLOY_KEY ?= ~/.ssh/id_ed25519.pub
 ```
 
 ## Install (root, once and after any change to `deploy/`)

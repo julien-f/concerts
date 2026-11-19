@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Design, threat model and later work: [docs/design.md](docs/design.md). Operations: [docs/operations.md](docs/operations.md). Decisions: [docs/decisions/](docs/decisions/).
+Design and threat model: [docs/design.md](docs/design.md). Later work: [docs/later.md](docs/later.md). Operations: [docs/operations.md](docs/operations.md). Decisions: [docs/decisions/](docs/decisions/).
 
 ## Stack
 
