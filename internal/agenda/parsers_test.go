@@ -322,6 +322,8 @@ func TestGenre(t *testing.T) {
 		{[]string{"MUSIQUE ELECTRONIQUE EXPERIMENTALE"}, "Musique électronique expérimentale"},
 		{[]string{"DJ set", "ciné-concert"}, "DJ set, Ciné-concert"},
 		{[]string{"Pop / Folk", " pop ", "FOLK", ""}, "Pop, Folk"},
+		{[]string{"HOUSE, TECHNO, FULL-ON, PSYTRANCE", "club"}, "House, Techno, Full-on, Psytrance, Club"},
+		{[]string{"Reggaeton, Shatta", "SHATTA,"}, "Reggaeton, Shatta"},
 		{[]string{" / ", "  "}, ""},
 		{nil, ""},
 	} {
