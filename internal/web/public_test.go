@@ -66,7 +66,7 @@ func TestPublicLinkForMembers(t *testing.T) {
 
 	lea.postRedirect(t, g+"/logout", nil)
 	_, body = lea.get(t, c)
-	assertContains(t, body, `href="`+g+`?next=/concerts/1"`, "Choisis ton prénom")
+	assertContains(t, body, `href="`+g+`?next=/concerts/1"`, "Choisis ton nom")
 	assertLacks(t, body, "Ce n'est pas moi")
 
 	// A cookie holding a rotated secret, another group's or a malformed one gives the card.

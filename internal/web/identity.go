@@ -250,7 +250,7 @@ func (s *server) join(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 	p := &pickerPage{groupRequest: gr, Next: next, Name: r.PostForm.Get("name")}
 	name, ok := CleanName(p.Name)
 	if !ok {
-		p.Error = fmt.Sprintf("Indique un prénom de 1 à %d caractères, commençant par une lettre ou un chiffre.", maxNameRunes)
+		p.Error = fmt.Sprintf("Indique un nom de 1 à %d caractères, commençant par une lettre ou un chiffre.", maxNameRunes)
 		s.picker(w, r, http.StatusUnprocessableEntity, p)
 		return
 	}
@@ -263,7 +263,7 @@ func (s *server) join(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 		}
 		s.picker(w, r, http.StatusUnprocessableEntity, p)
 	case errors.Is(err, store.ErrLimit):
-		p.Error = fmt.Sprintf("Le groupe est complet (%d prénoms au plus).", store.MaxMembers)
+		p.Error = fmt.Sprintf("Le groupe est complet (%d membres au plus).", store.MaxMembers)
 		s.picker(w, r, http.StatusUnprocessableEntity, p)
 	case err != nil:
 		s.fail(w, r, err)

@@ -431,7 +431,7 @@ func TestPickerReturnsToConcert(t *testing.T) {
 
 	newcomer := ts.browser(t)
 	_, body := newcomer.follow(t, g+"/concerts/1")
-	assertContains(t, body, `href="`+g+`?next=/concerts/1"`, "Choisis ton prénom")
+	assertContains(t, body, `href="`+g+`?next=/concerts/1"`, "Choisis ton nom")
 	if strings.Contains(body, "Modifier") {
 		t.Errorf("edit offered without identity")
 	}
@@ -487,7 +487,7 @@ func TestOpenGraph(t *testing.T) {
 		{"group link", func() (*http.Response, string) { return previewer.get(t, g) }, []string{
 			`<meta property="og:site_name" content="Concerts · g">`,
 			`<meta property="og:title" content="g">`,
-			"<meta property=\"og:description\" content=\"Qui va à quel concert\u202f? Ouvre le lien et choisis ton prénom.\">",
+			"<meta property=\"og:description\" content=\"Qui va à quel concert\u202f? Ouvre le lien et choisis ton nom.\">",
 			`<meta property="og:url" content="http://example.test` + g + `">`,
 		}},
 		{"picker after an error", func() (*http.Response, string) {

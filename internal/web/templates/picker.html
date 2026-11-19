@@ -1,7 +1,7 @@
 {{define "title"}}Qui es-tu ? · {{.Group.Name}}{{end}}
 {{- /* Read by link previews of the group link; generic, so no first name reaches them here. */}}
 {{define "meta"}}{{template "ogCommon" .}}<meta property="og:title" content="{{.Group.Name}}">
-<meta property="og:description" content="Qui va à quel concert ? Ouvre le lien et choisis ton prénom.">
+<meta property="og:description" content="Qui va à quel concert ? Ouvre le lien et choisis ton nom.">
 <meta property="og:url" content="{{abs .Base}}">
 {{end}}
 {{define "content"}}
@@ -18,7 +18,7 @@
 {{if .Members}}<h2>Pas dans la liste ?</h2>{{end}}
 <form method="post" action="{{.Base}}/me" class="stack">
 {{with .Next}}<input type="hidden" name="next" value="{{.}}">{{end}}
-<label for="name">Ton prénom</label>
+<label for="name">Ton nom</label>
 <input id="name" name="name" value="{{.Name}}" maxlength="{{.MaxRunes}}" autocomplete="given-name" required
 {{- if or .Error .Taken}} aria-invalid="true" aria-describedby="name-error" autofocus{{end}}>
 {{with .Error}}<p id="name-error" class="error">{{.}}</p>{{end}}

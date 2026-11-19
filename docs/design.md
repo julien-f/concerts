@@ -51,7 +51,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 
 ## User journeys
 
-1. **Join**: tap the link in WhatsApp → picker screen → tap « C'est moi » on one's name, or type a new first name → main screen. Later visits skip the picker (cookie). Opening a concert link after the group link but without identity, the concert page shows « Choisis ton prénom pour répondre », and the picker returns to that concert (`next`); the add and edit forms send there too, with `next`.
+1. **Join**: tap the link in WhatsApp → picker screen → tap « C'est moi » on one's name, or type a new first name → main screen. Later visits skip the picker (cookie). Opening a concert link after the group link but without identity, the concert page shows « Choisis ton nom pour répondre », and the picker returns to that concert (`next`); the add and edit forms send there too, with `next`.
 2. **Add**: tap « Ajouter un concert » (fixed at the bottom on a phone, beside the filters on a computer) → paste a ticket URL, tap « Pré-remplir » → check or type the fields → « Enregistrer » → main screen with a banner « Concert ajouté » and « Partager » (the share sheet, else WhatsApp, with artist, date and the concert link; [ADR 0010](decisions/0010-share-sheet.md)).
 3. **Respond**: on a card, tap « Ça m'intéresse » or « J'y vais »; tapping the active one clears it. The status block updates in place (htmx) or after a full reload (no JS).
 4. **Plan**: filter « Mes concerts »; open a concert → « Écouter » searches the artist on YouTube (one « Écouter <artiste> » per artist of a line-up written with a spaced « + » or « / », the separator prefill joins the performers with); « Ajouter à mon agenda » downloads its `.ics`; « Billetterie » opens the ticket link.
@@ -63,7 +63,7 @@ A WhatsApp group of friends (5–30 people) shares concerts and sees who goes to
 
 ## Screens
 
-Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and tablets: a portrait iPad is exactly 48 rem) the column is 56 rem and the main screen, concert page and form use the width (below). Landmarks `<header>`, `<main>`, `<nav aria-label="Filtre">`. Header on every group page: group name, « <Prénom> » and a « Ce n'est pas moi » button (POST form, 44 px target). `<title>` starts with the banner or « Erreur » when there is one, so no-JS screen-reader users hear it after a redirect.
+Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and tablets: a portrait iPad is exactly 48 rem) the column is 56 rem and the main screen, concert page and form use the width (below). Landmarks `<header>`, `<main>`, `<nav aria-label="Filtre">`. Header on every group page: group name, « <Nom> » and a « Ce n'est pas moi » button (POST form, 44 px target). `<title>` starts with the banner or « Erreur » when there is one, so no-JS screen-reader users hear it after a redirect.
 
 ### Picker (`/g/<secret>` without identity)
 
@@ -81,7 +81,7 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 │ │      C'est moi : Marc    │ │
 │ └──────────────────────────┘ │
 │ ── Pas dans la liste ? ───── │
-│ Ton prénom [______________]  │
+│ Ton nom [_________________]  │
 │ Marc est déjà dans la liste :│  on duplicate: aria-invalid,
 │ si c'est toi, [C'est moi] ;  │  aria-describedby, autofocus,
 │ sinon ajoute une initiale    │  field refilled "Marc "
@@ -190,7 +190,7 @@ Mobile first (390 px), one column, max 40 rem wide. From 48 rem (computers, and 
 
 An import shows « annoncé par <Source> » where « ajouté par » goes; while upcoming and unanswered, its back link is « ← À l'affiche » (`…?affiche=1#c<id>`); past and unanswered, it is in no view, so « ← Tous les concerts » without anchor.
 
-Without identity: statuses shown, buttons and edit/delete replaced by « Choisis ton prénom pour répondre » (picker with `next`, accepted only as `/concerts/<id>`, `/concerts/<id>/edit` or `/concerts/new`), then the page's filled accent button.
+Without identity: statuses shown, buttons and edit/delete replaced by « Choisis ton nom pour répondre » (picker with `next`, accepted only as `/concerts/<id>`, `/concerts/<id>/edit` or `/concerts/new`), then the page's filled accent button.
 
 ### Public card (`/c/<token>`, without the group cookie)
 
@@ -342,7 +342,7 @@ All under `/g/{secret}` (written `…`) but the first two and the last two; unkn
 
 ## Edge cases
 
-- **Duplicate first name** (same `name_key`): 422 picker offering « C'est moi : Marc » (likely a lost cookie) or an initial, field refilled with the name + space. Two concurrent creates: the unique index decides, the loser sees the same message.
+- **Duplicate first name** (same `name_key`): 422 picker offering « C'est moi : Marc » (likely a lost cookie) or an initial, field refilled with the name + space. Two concurrent creates: the unique index decides, the loser sees the same message. The field says « Ton nom », not « Ton prénom »: in groups with namesakes (e.g. colleagues), the first one can type an initial too.
 - **Lost cookie** (new phone, cleared browser): the picker lists existing names; tapping one restores identity. No data is tied to the cookie itself.
 - **Stale cookie** (member deleted, or from another group): treated as no identity → picker.
 - **Secret rotation**: the old link 404s; the cookie path changes with the secret, so everyone re-picks their name from the list; data is untouched. Concert links keep working: the old group cookie no longer resolves, so they show the public card until the new link is opened.
@@ -361,7 +361,7 @@ All under `/g/{secret}` (written `…`) but the first two and the last two; unkn
 One slice per branch, merged with `--no-ff`. 0–11 shipped as v1.
 
 0. Skeleton: groups, `new-group`, `/g/<secret>`, `/healthz`.
-1. **Members and identity**: first names as « C'est moi » buttons plus a « Ton prénom » field; a taken name offers « C'est moi » or an initial; « Ce n'est pas moi » on every page; `list-groups`, `rotate-secret <group-id>` (prints the new link; everyone picks their name again), `delete-member <group-id> <first-name>`, `rename-member <group-id> <first-name> <new-first-name>`.
+1. **Members and identity**: first names as « C'est moi » buttons plus a « Ton nom » field; a taken name offers « C'est moi » or an initial; « Ce n'est pas moi » on every page; `list-groups`, `rotate-secret <group-id>` (prints the new link; everyone picks their name again), `delete-member <group-id> <first-name>`, `rename-member <group-id> <first-name> <new-first-name>`.
 2. **Concerts**: artist, date, optional time, venue, optional address (concert page only, with « Voir sur la carte »: an OpenStreetMap search for « venue, address »), optional http(s) ticket link, optional on-sale date; editable; soft delete with « Annuler la suppression »; « ajouté par X » on the concert page; « Prévenir le groupe » (`wa.me`, [ADR 0007](decisions/0007-plain-whatsapp-link.md)) right after adding, since slice 11 « Partager » ([ADR 0010](decisions/0010-share-sheet.md)).
 3. **Statuses**: interested / going; tapping the active one clears it. A third one, « J'ai mon billet », was merged into « J'y vais » after v1 (migration 0007): members rarely came back to set it once they had bought.
    - One status block (names per status, my buttons) shared by card and concert page; htmx swaps that block only, and buttons keep stable ids so focus survives.
