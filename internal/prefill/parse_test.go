@@ -57,6 +57,7 @@ func TestParseFixtures(t *testing.T) {
 			Description: "Une soirée, cinq figures du collectif.\nL'une d’elles chante."}},
 		// Venue page: no Event, its billetterie link rebuilt as an agenda one; a look-alike host's skipped.
 		{"belle-electrique-site.html", "www.la-belle-electrique.com", Result{Artist: "Les Hiboux + Nova Test",
+			Date: "2026-11-28", Time: "20:00", Price: "27–32 €",
 			TicketURL: "https://billetterie.la-belle-electrique.com/agenda/747-Les-Hiboux?session=747"}},
 		{"belle-electrique-site.html", "example.com", Result{Artist: "Les Hiboux + Nova Test"}},
 		// No Event in JSON-LD: visible info list; the svg, noscript and script dates, and the related event, are not taken.
@@ -70,7 +71,8 @@ func TestParseFixtures(t *testing.T) {
 		// No Event in JSON-LD: « Date de début » with « 20 h 30 min », the hall as venue, the footer address;
 		// the « Date de fin » and the description's date are not taken.
 		{"lasource.html", "lasource-fontaine.fr", Result{Artist: "Nova Test", Date: "2027-05-12", Time: "20:30",
-			Venue: "La Source", Address: "1 avenue de l’Exemple, 38600 Fontaine"}},
+			Venue: "La Source", Address: "1 avenue de l’Exemple, 38600 Fontaine", Price: "26–28 €",
+			TicketURL: "https://billetterie.lasource-fontaine.fr/agenda/1-NOVA-TEST?session=1"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.file+"@"+tt.host, func(t *testing.T) {
@@ -222,6 +224,35 @@ func TestParseSiteRules(t *testing.T) {
 		{"price with spaces and cents", "www.retourdescene.net",
 			func(*testing.T) string { return "<a>Billetterie</a><p>12,50 € / 15 €</p><h3>Lieu</h3>" },
 			Result{Price: "12,50–15 €"}},
+		{"free, sold out", "www.retourdescene.net",
+			func(*testing.T) string { return "<a>Billetterie</a><p>GRATUIT – sur réservation</p><h3>Lieu</h3>" },
+			Result{Price: "Gratuit"}},
+		{"micro-live: no « Billetterie », the price follows the date line", "www.retourdescene.net",
+			func(*testing.T) string {
+				return "<p>Bibliothèque</p><p>19 novembre 2026 – 18h30</p><p>Gratuit</p><h2>Ada</h2><p>Le jeudi.</p><h3>Lieu</h3>"
+			},
+			Result{Price: "Gratuit", Description: "Ada\nLe jeudi."}},
+		{"La Source « Tarif D : »", "lasource-fontaine.fr",
+			func(*testing.T) string {
+				return "<strong>Date de début</strong><span>3 juin 2027</span><strong>Tarif</strong><span>Tarif D : 6 à 12 €</span>" +
+					`<a href="https://billetterie.lasource-fontaine.fr/share/event/452-Aitawa">Réserver</a>`
+			},
+			Result{Date: "2027-06-03", Venue: "La Source", Price: "6–12 €", TicketURL: "https://billetterie.lasource-fontaine.fr/agenda/452-Aitawa?session=452"}},
+		{"La Belle Électrique free, sold out: two ids, date and price kept", "www.la-belle-electrique.com",
+			func(*testing.T) string {
+				return `<p class="date-xl">21.11.26 / 20h</p><p>Grande Salle • Concert</p><p>Gratuit sur réservation</p>` +
+					`<a href="https://billetterie.la-belle-electrique.com/share/event/7-A">Billetterie</a>` +
+					`<a href="https://billetterie.la-belle-electrique.com/share/event/8-B">Revente</a>`
+			},
+			Result{Date: "2026-11-21", Time: "20:00", Price: "Gratuit"}},
+		{"La Belle Électrique: the tag before the date and texts after « Billetterie » are no price", "www.la-belle-electrique.com",
+			func(*testing.T) string {
+				return `<span class="tag">Gratuit</span><p class="date-xl">05.12.26 / 23h30</p><p>Club</p><a>Billetterie</a><p>12 €</p>`
+			},
+			Result{Date: "2026-12-05", Time: "23:30"}},
+		{"La Belle Électrique: impossible date", "www.la-belle-electrique.com",
+			func(*testing.T) string { return `<p class="date-xl">31.02.27 / 20h</p><p>12 €</p>` },
+			Result{}},
 		{"La Source without time or footer", "lasource-fontaine.fr",
 			func(*testing.T) string { return "<strong>Date de début</strong><span>3 juin 2027</span>" },
 			Result{Date: "2027-06-03", Venue: "La Source"}},

@@ -70,8 +70,12 @@ func (s *Store) Followed(ctx context.Context, groupID int64) ([]string, error) {
 		"SELECT venue FROM group_venues WHERE group_id = ? ORDER BY venue", groupID)
 }
 
-// EventDetail is what an event's page gave once: its date and time, "" if it had none.
-type EventDetail struct{ Date, Time string }
+// EventDetail is what an event's page gave, "" for what it had none of; ReadAt is when it was
+// read, zero for a row read before migration 0014 (for its time only).
+type EventDetail struct {
+	Date, Time, Price, TicketURL, Address string
+	ReadAt                                time.Time
+}
 
 // EventDetail returns what was kept of the page of source's event sourceID, or ErrNotFound.
 func (s *Store) EventDetail(ctx context.Context, source, sourceID string) (EventDetail, error) {
@@ -80,22 +84,31 @@ func (s *Store) EventDetail(ctx context.Context, source, sourceID string) (Event
 		return EventDetail{}, ErrSourceID
 	}
 	var d EventDetail
-	err := s.db.QueryRowContext(ctx, "SELECT date, coalesce(time, '') FROM event_details WHERE source = ? AND source_id = ?",
-		source, id).Scan(&d.Date, &d.Time)
+	var readAt sql.NullString
+	err := s.db.QueryRowContext(ctx, `SELECT date, coalesce(time, ''), coalesce(price, ''), coalesce(ticket_url, ''),
+		coalesce(address, ''), read_at FROM event_details WHERE source = ? AND source_id = ?`,
+		source, id).Scan(&d.Date, &d.Time, &d.Price, &d.TicketURL, &d.Address, &readAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return EventDetail{}, ErrNotFound
+	}
+	if err == nil && readAt.Valid {
+		d.ReadAt, err = time.Parse(time.RFC3339, readAt.String)
 	}
 	return d, err
 }
 
-// PutEventDetail keeps what the page of source's event sourceID gave, replacing what was kept.
+// PutEventDetail keeps what the page of source's event sourceID gave, read now (d.ReadAt is
+// ignored), replacing what was kept.
 func (s *Store) PutEventDetail(ctx context.Context, source, sourceID string, d EventDetail) error {
 	id, ok := CleanSourceID(sourceID)
 	if !ok {
 		return ErrSourceID
 	}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO event_details (source, source_id, date, time) VALUES (?, ?, ?, nullif(?, ''))
-		ON CONFLICT DO UPDATE SET date = excluded.date, time = excluded.time`, source, id, d.Date, d.Time)
+	_, err := s.db.ExecContext(ctx, `INSERT INTO event_details (source, source_id, date, time, price, ticket_url, address, read_at)
+		VALUES (?, ?, ?, nullif(?, ''), nullif(?, ''), nullif(?, ''), nullif(?, ''), ?)
+		ON CONFLICT DO UPDATE SET date = excluded.date, time = excluded.time, price = excluded.price,
+			ticket_url = excluded.ticket_url, address = excluded.address, read_at = excluded.read_at`,
+		source, id, d.Date, d.Time, d.Price, d.TicketURL, d.Address, s.timestamp())
 	return err
 }
 

@@ -23,6 +23,7 @@ func testSite(t *testing.T, handler http.HandlerFunc) *http.Client {
 	t.Cleanup(srv.Close)
 	client := srv.Client()
 	tr := client.Transport.(*http.Transport)
+	tr.TLSClientConfig.ServerName = "example.com" // the test certificate's: venue hosts too
 	tr.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, network, srv.Listener.Addr().String())
 	}

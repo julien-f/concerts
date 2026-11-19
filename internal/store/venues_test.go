@@ -102,14 +102,20 @@ func TestEventDetails(t *testing.T) {
 	put("src", "a", EventDetail{Date: later})
 	put("src", " a ", EventDetail{Date: later, Time: "20:30"}) // same id once cleaned: replaced
 	put("other", "a", EventDetail{Date: testToday, Time: "19:00"})
+	put("src", "full", EventDetail{Date: later, Price: "6–12 €", TicketURL: "https://t.example/1", Address: "1 rue X, 38000 Y"})
+	put("src", "full2", EventDetail{Date: later, Price: "5 €", ReadAt: time.Unix(1, 0)}) // ReadAt ignored
+	put("src", "full2", EventDetail{Date: later})                                        // replaced: fields cleared
+	read := fixedNow()
 
 	for _, tt := range []struct {
 		source, id string
 		want       EventDetail
 		err        error
 	}{
-		{"src", "a", EventDetail{Date: later, Time: "20:30"}, nil},
-		{"other", "a", EventDetail{Date: testToday, Time: "19:00"}, nil},
+		{"src", "a", EventDetail{Date: later, Time: "20:30", ReadAt: read}, nil},
+		{"other", "a", EventDetail{Date: testToday, Time: "19:00", ReadAt: read}, nil},
+		{"src", "full", EventDetail{Date: later, Price: "6–12 €", TicketURL: "https://t.example/1", Address: "1 rue X, 38000 Y", ReadAt: read}, nil},
+		{"src", "full2", EventDetail{Date: later, ReadAt: read}, nil},
 		{"src", "unknown", EventDetail{}, ErrNotFound},
 		{"src", "", EventDetail{}, ErrSourceID},
 	} {

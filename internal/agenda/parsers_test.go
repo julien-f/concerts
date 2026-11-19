@@ -1,6 +1,7 @@
 package agenda
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net/http"
@@ -281,6 +282,11 @@ func TestEvent(t *testing.T) {
 			"x | Les Hiboux | 2026-12-01 | La Salle, | https://www.example.com/e/x | | genre " + strings.Repeat("a", 59) + "…"},
 		{"invalid genre dropped, the event kept", func(l *listed) { l.genre = "Ro\x07ck" },
 			"x | Les Hiboux | 2026-12-01 | La Salle, | https://www.example.com/e/x |"},
+		// Event pages fill these too: a bad one is dropped, never the event.
+		{"invalid price dropped, the event kept", func(l *listed) { l.price = "1\x07 €" },
+			"x | Les Hiboux | 2026-12-01 | La Salle, | https://www.example.com/e/x |"},
+		{"invalid address dropped, the event kept", func(l *listed) { l.venue, l.address = "L'Aquarium", "Gre\x07noble" },
+			"x | Les Hiboux | 2026-12-01 | L'Aquarium, | https://www.example.com/e/x |"},
 		{"artist clipped", func(l *listed) { l.artist = long },
 			"x | " + strings.Repeat("a", 99) + "… | 2026-12-01 | La Salle, | https://www.example.com/e/x |"},
 		{"another hall", func(l *listed) { l.venue, l.address = "L'Aquarium", "Grenoble" },
@@ -367,8 +373,12 @@ func TestVenues(t *testing.T) {
 	if m == nil {
 		t.Fatal("no TimeoutStartSec=<n>min in the sync unit")
 	}
-	if limit, _ := strconv.Atoi(string(m[1])); time.Duration(len(Venues))*venueTimeout > time.Duration(limit)*time.Minute*9/10 {
-		t.Errorf("%d venues × %v leave no margin in the sync unit's TimeoutStartSec", len(Venues), venueTimeout)
+	var total time.Duration
+	for _, v := range Venues {
+		total += cmp.Or(v.timeout, venueTimeout)
+	}
+	if limit, _ := strconv.Atoi(string(m[1])); total > time.Duration(limit)*time.Minute*9/10 {
+		t.Errorf("the venues' timeouts (%v in all) leave no margin in the sync unit's TimeoutStartSec", total)
 	}
 	if got := Name("belle-electrique"); got != "La Belle Électrique" {
 		t.Errorf("Name(belle-electrique) = %q", got)
