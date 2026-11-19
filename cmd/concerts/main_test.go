@@ -192,16 +192,22 @@ func TestVenueCommands(t *testing.T) {
 	}
 }
 
-// TestUsage: every command run accepts is in the usage text, and wrong arguments print it.
+// TestUsage: every command run accepts is in the usage text, and in deploy/admin's (which passes them on)
+// except the development ones; wrong arguments print it.
 func TestUsage(t *testing.T) {
 	t.Parallel()
-	if err := run([]string{"help"}, slog.New(slog.DiscardHandler)); err != nil {
-		t.Errorf("run(help) = %v", err)
+	admin, err := os.ReadFile("../../deploy/admin")
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, cmd := range []string{"help", "serve", "new-group", "list-groups", "rotate-secret", "delete-member", "rename-member",
+	for _, cmd := range []string{"serve", "new-group", "list-groups", "rotate-secret", "delete-member", "rename-member",
 		"backup", "list-venues", "follow-venue", "unfollow-venue", "sync", "demo"} {
 		if !strings.Contains(usage, "  concerts "+cmd+" ") && !strings.Contains(usage, "  concerts "+cmd+"\n") {
 			t.Errorf("usage lacks %s", cmd)
+		}
+		if cmd != "serve" && cmd != "demo" &&
+			!strings.Contains(string(admin), "\n  "+cmd+" ") && !strings.Contains(string(admin), "\n  "+cmd+"\n") {
+			t.Errorf("deploy/admin's usage lacks %s", cmd)
 		}
 	}
 	for _, args := range [][]string{nil, {"follow-venue", "1"}, {"sync", "now"}, {"unfollow-venue"}} {
