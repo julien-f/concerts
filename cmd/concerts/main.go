@@ -27,8 +27,8 @@ const usage = `usage:
   concerts new-group "<name>"                    print the new group's link
   concerts list-groups
   concerts rotate-secret <group-id>              replace the link (the old one stops working) and print it
-  concerts delete-member <group-id> <first-name>
-  concerts rename-member <group-id> <first-name> <new-first-name>   keeps their answers and concerts
+  concerts delete-member <group-id> <name>
+  concerts rename-member <group-id> <name> <new-name>   keeps their answers and concerts
   concerts backup <file>                         write a consistent snapshot of the database; <file> must not exist
   concerts list-venues                           venues groups can follow, with the ids of the groups following each
   concerts follow-venue <group-id> <venue-key>   import the venue's upcoming concerts into the group, from the next sync
@@ -172,7 +172,7 @@ func rotateSecret(ctx context.Context, st *store.Store, baseURL, groupID string)
 		return fmt.Errorf("group %d: %w", id, err)
 	}
 	fmt.Println(web.GroupURL(baseURL, secret))
-	fmt.Fprintln(os.Stderr, "The old link no longer works; members pick their first name again from the list.")
+	fmt.Fprintln(os.Stderr, "The old link no longer works; members pick their name again from the list.")
 	return nil
 }
 
@@ -194,7 +194,7 @@ func renameMember(ctx context.Context, st *store.Store, groupID, name, newName s
 	}
 	clean, ok := web.CleanName(newName)
 	if !ok {
-		return fmt.Errorf("new first name %q: the picker would refuse it (length, first character, invisible characters)", newName)
+		return fmt.Errorf("new name %q: the picker would refuse it (length, first character, invisible characters)", newName)
 	}
 	if err := st.RenameMember(ctx, id, name, clean); err != nil {
 		return fmt.Errorf("member %q of group %d: %w", name, id, err)

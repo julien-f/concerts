@@ -73,7 +73,7 @@ scripts/admin logs          # last 200 lines, backup and sync runs included; log
 
 - `scripts/admin` runs `bin/admin` on `DEPLOY_HOST` (as `make deploy` reads it) with its arguments as typed. It, `make deploy`/`rollback` and the raw ssh commands below never request a PTY (`ssh -T`): the deploy key forbids them, and a client's `RequestTTY yes` makes that refusal fatal (« PTY allocation request failed on channel 0 »).
 - `demo` and `serve` are for development: `demo` adds a sample group to the live database.
-- A member asks to change their first name: `scripts/admin rename-member <id> "<first-name>" "<new-first-name>"` (`list-groups` gives the id). Answers and « ajouté par » follow; the picker's rules apply and an existing name is refused.
+- A member asks to change their name: `scripts/admin rename-member <id> "<name>" "<new-name>"` (`list-groups` gives the id). Answers and « ajouté par » follow; the picker's rules apply and an existing name is refused.
 
 ## Monitoring
 
@@ -110,9 +110,9 @@ scripts/admin list-groups         # find the group id
 scripts/admin rotate-secret <id>  # prints the new link; the old one returns 404 at once, data is kept
 ```
 
-- Share the new link only where the leaker cannot see it; everyone picks their first name again. What the leaker already saw stays disclosed.
-- Review every concert, ticket links included: the intruder may have added or edited them under any first name, an existing one too, and nothing tells such a change from the real person's. Fix or delete them in the app.
-- Then remove a first name nobody in the group claims: `scripts/admin delete-member <id> "<first-name>"`. Its answers go with it, whoever used it is sent back to the picker, and its concerts lose « ajouté par », so review those first.
+- Share the new link only where the leaker cannot see it; everyone picks their name again. What the leaker already saw stays disclosed.
+- Review every concert, ticket links included: the intruder may have added or edited them under any name, an existing one too, and nothing tells such a change from the real person's. Fix or delete them in the app.
+- Then remove a name nobody in the group claims: `scripts/admin delete-member <id> "<name>"`. Its answers go with it, whoever used it is sent back to the picker, and its concerts lose « ajouté par », so review those first.
 - Restoring a backup or `make rollback` brings the old secret back: run `rotate-secret` again afterwards.
 - Concert links (`/c/…`) survive the rotation and keep showing their public card; deleting a concert is the only way to cut its link.
 - Once, after first deploying the public concert link ([ADR 0009](decisions/0009-public-concert-link.md)): rotate every group, since concert links posted before it carry the secret.
@@ -146,7 +146,7 @@ scripts/admin restore backups/concerts-2026-11-16T040012.db
 
 - Change `BASE_URL` (https only) in `local.mk` and rerun `make install`; it stops and restarts the app.
 - Add the site block it prints to the proxy, and remove the old host's.
-- Group paths keep their secret: send each group its link on the new host. Everyone picks their first name again (the identity cookie belongs to the host).
+- Group paths keep their secret: send each group its link on the new host. Everyone picks their name again (the identity cookie belongs to the host).
 - If the old domain is dropped and could be registered by someone else, run `rotate-secret` for every group instead: old links would send their secret there.
 
 ## Uninstall

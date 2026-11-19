@@ -16,8 +16,8 @@ groups:
   rotate-secret <group-id>                replace the link (the old one stops working) and print it
 
 members:
-  rename-member <group-id> <first-name> <new-first-name>   keeps their answers and concerts
-  delete-member <group-id> <first-name>
+  rename-member <group-id> <name> <new-name>   keeps their answers and concerts
+  delete-member <group-id> <name>
 
 venues:
   list-venues                             venues groups can follow, with the ids of the groups following each
