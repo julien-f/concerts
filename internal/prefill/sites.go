@@ -28,7 +28,7 @@ func laSource(p page) Result {
 	texts := p.texts
 	i := slices.IndexFunc(texts, func(t text) bool { return strings.EqualFold(t.s, "Date de début") })
 	if i < 0 || i+1 == len(texts) {
-		return Result{}
+		return Result{} // nothing, so a non-event page gets no venue
 	}
 	f := strings.Fields(texts[i+1].s)
 	if len(f) < 3 {
@@ -124,7 +124,9 @@ func lilyade(p page) Result {
 	var items []string
 	for _, t := range p.texts {
 		if t.heading && strings.EqualFold(t.s, "À découvrir également") {
-			break // other events follow, with their own dates
+			// Other events follow, with their own dates. If this heading is reworded and the main
+			// date is missing, a related event's date is read: accepted, the user checks the form.
+			break
 		}
 		if slices.Contains(strings.Fields(t.class), "elementor-post-info__item--type-custom") {
 			items = append(items, t.s)

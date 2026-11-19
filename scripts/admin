@@ -3,7 +3,7 @@
 set -eu
 # DEPLOY_HOST as make deploy reads it. MAKEFLAGS emptied: a caller's flags (e.g. --trace) would print into it.
 host=$(MAKEFLAGS='' make -s --no-print-directory -C "$(dirname "$0")/.." print-deploy-host)
-[ -n "$host" ] || { echo "DEPLOY_HOST is required: see docs/operations.md" >&2; exit 1; }
+[ -n "$host" ] || { echo "DEPLOY_HOST is required: set it in local.mk, see docs/operations.md" >&2; exit 1; }
 
 # ssh joins its arguments into one remote command: single-quote each for the remote /bin/sh.
 cmd=bin/admin

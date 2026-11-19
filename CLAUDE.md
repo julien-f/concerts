@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Design, threat model and later work: [docs/design.md](docs/design.md). Operations: [docs/operations.md](docs/operations.md). Decisions: [docs/decisions/](docs/decisions/).
+Design and threat model: [docs/design.md](docs/design.md). Later work: [docs/later.md](docs/later.md). Operations: [docs/operations.md](docs/operations.md). Decisions: [docs/decisions/](docs/decisions/).
 
 ## Stack
 
@@ -18,7 +18,9 @@ Design, threat model and later work: [docs/design.md](docs/design.md). Operation
 - `internal/prefill/`: ticketing-page parser (fixtures in `testdata/`) and SSRF-safe client.
 - `internal/agenda/`: compiled-in venue list, one parser per venue (fixtures in `testdata/`), polite fetcher and `Sync` (`concerts sync`).
 - `internal/validate/`: concert validation shared by the form and the sync; Paris `Today`.
-- `deploy/`: templates of the systemd units (app, backup and sync) and Caddy site (`@NAME@`, `@PROXY_USER@`, `@HOST@`: nothing server-specific), `install.sh`/`uninstall.sh` (root) with `lib.sh`, and `admin` (run on the server as the service user). `docs/`: design, operations and ADRs. `scripts/`: dev and ops tooling (`admin`: runs `bin/admin` on `DEPLOY_HOST`; `verify-ui` and `measure-scroll`, sharing `ui-lib.sh`; `measure`, `og-image` for the preview PNGs).
+- `deploy/`: templates of the systemd units (app, backup and sync) and Caddy site (`@NAME@`, `@PROXY_USER@`, `@HOST@`: nothing server-specific), `install.sh`/`uninstall.sh` (root) with `lib.sh`, and `admin` (run on the server as the service user).
+- `docs/`: design, later ideas, operations and ADRs.
+- `scripts/`: dev and ops tooling (`admin`: runs `bin/admin` on `DEPLOY_HOST`; `verify-ui` and `measure-scroll`, sharing `ui-lib.sh`; `measure`, `og-image` for the preview PNGs).
 - No interface without a second implementation, no speculative layers.
 
 ## Conventions

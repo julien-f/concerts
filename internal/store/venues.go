@@ -126,7 +126,8 @@ func (s *Store) PruneEventDetails(ctx context.Context, today string) (int64, err
 const venueEventsKept = 30 * 24 * time.Hour
 
 // PutVenueEvents keeps what source's agenda says of events, in one transaction, replacing what
-// was kept of each; events whose id CleanSourceID refuses are skipped.
+// was kept of each; events whose id CleanSourceID refuses are skipped. Not in event_details,
+// whose date is a cache key.
 func (s *Store) PutVenueEvents(ctx context.Context, source string, events []Event) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

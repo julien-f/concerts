@@ -192,7 +192,7 @@ var accents = map[string]string{
 var word = regexp.MustCompile(`\pL+`)
 
 // genre joins a listing's genre labels with « , », each split at « / » and « , », in order,
-// duplicates dropped. A label in capitals is lowercased, with accents back from the table;
+// duplicates dropped, so an unchanged listing never counts as updated. A label in capitals is lowercased, with accents back from the table;
 // mixed case is kept (« DJ set »); each starts with a capital.
 func genre(labels ...string) string {
 	var parts, keys []string
