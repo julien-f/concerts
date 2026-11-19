@@ -86,8 +86,8 @@ func TestParsers(t *testing.T) {
 				"61424 | Último helecho | 2026-11-19 20:00 | MC2, | https://www.mc2grenoble.fr/spectacle/ultimo-helecho/ | 34 € | genre Danse",
 				"61602 | Jouer la lumière | 2026-12-06 11:00 | MC2, | https://www.mc2grenoble.fr/spectacle/jouer-la-lumiere/ | 13 €",
 				"61604 | Symphonie africaine | 2026-12-19 20:00 | MC2, | https://www.mc2grenoble.fr/spectacle/symphonie-africaine/ | 45 € | genre Jazz",
-				"10026980 | Stephan Eicher – Seul en scène | 2027-01-20 20:00 | MC2, | https://www.mc2grenoble.fr/spectacle/stephan-eicher-seul-en-scene/2027-01-20/ | 46 € | genre Théâtre",
-				"10026981 | Stephan Eicher – Seul en scène | 2027-01-21 20:00 | MC2, | https://www.mc2grenoble.fr/spectacle/stephan-eicher-seul-en-scene/2027-01-21/ | 46 € | genre Théâtre",
+				"10026980 | Stephan Eicher – Seul en scène | 2027-01-20 20:00 | MC2, | https://www.mc2grenoble.fr/spectacle/stephan-eicher-seul-en-scene/2027-01-20/ | 46 € | genre Musique, Théâtre",
+				"10026981 | Stephan Eicher – Seul en scène | 2027-01-21 20:00 | MC2, | https://www.mc2grenoble.fr/spectacle/stephan-eicher-seul-en-scene/2027-01-21/ | 46 € | genre Musique, Théâtre",
 			},
 		},
 		{
@@ -101,6 +101,8 @@ func TestParsers(t *testing.T) {
 				"aperomix-non-binary-beats | Non-Binary Beats + Pat'Soucis | 2026-11-24 20:00 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/aperomix-non-binary-beats | | genre Reggaeton, Shatta, Tekno, DJ sets",
 				"face-b-festival-dolce-cinema | Soirée d'ouverture - Festival Dolce Cinema | 2026-11-26 20:30 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/face-b-festival-dolce-cinema | | genre Récit polyphonique méditerranéen",
 				"kadavar | Kadavar + Scott Hepple and the Sun Band | 2026-12-01 20:00 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/kadavar | | genre Rock",
+				// No genre line: the h4 holds the hall only.
+				"lou-sonata-3 | Lou ! Sonata 3 - Concert Dessiné | 2027-05-14 20:00 | La Belle Électrique, | https://www.la-belle-electrique.com/fr/agenda/lou-sonata-3 |",
 			},
 			next: []string{"https://www.la-belle-electrique.com/fr/programmation?from=2027-02"},
 		},
@@ -196,7 +198,7 @@ func TestBellePages(t *testing.T) {
 	v.Listings = []string{"https://www.example.com/fr/programmation"}
 	s := &sleeps{}
 	items, pages, err := newFetcher(client, s).listing(context.Background(), &v, fixtureToday)
-	if err != nil || pages != 2 || len(items) != 10 || len(requests) != 2 || !slices.Equal(s.d, []time.Duration{v.Delay}) {
+	if err != nil || pages != 2 || len(items) != 11 || len(requests) != 2 || !slices.Equal(s.d, []time.Duration{v.Delay}) {
 		t.Errorf("listing = %d items, %d pages, %v; requests %v, sleeps %v", len(items), pages, err, requests, s.d)
 	}
 }
