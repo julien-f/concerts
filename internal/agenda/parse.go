@@ -188,13 +188,13 @@ var accents = map[string]string{
 
 var word = regexp.MustCompile(`\pL+`)
 
-// genre joins a listing's genre labels with « , », each split at « / », in order, duplicates
-// dropped. A label in capitals is lowercased, with accents back from the table; mixed case is
-// kept (« DJ set »); each starts with a capital.
+// genre joins a listing's genre labels with « , », each split at « / » and « , », in order,
+// duplicates dropped. A label in capitals is lowercased, with accents back from the table;
+// mixed case is kept (« DJ set »); each starts with a capital.
 func genre(labels ...string) string {
 	var parts, keys []string
 	for _, l := range labels {
-		for p := range strings.SplitSeq(l, "/") {
+		for p := range strings.SplitSeq(strings.ReplaceAll(l, ",", "/"), "/") {
 			p = strings.Join(strings.Fields(p), " ")
 			if p == "" {
 				continue
