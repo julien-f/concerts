@@ -526,7 +526,8 @@ var titleSeparators = []string{" | ", "｜", " - ", " – ", " @ ", " Tickets", 
 var titleStatus = regexp.MustCompile(`(?i)^(?:complet|annulé|reporté) [•·] `)
 
 // titleArtist guesses the artist from og:title, twitter:title or <title>. Never a date:
-// title formats differ too much ("27 Nov", "mer., 28/10/2026").
+// title formats differ too much ("27 Nov", "mer., 28/10/2026"). Kept as served, all caps
+// included (Retour de Scène): converting would mangle acronyms.
 func titleArtist(p page) string {
 	for _, s := range []string{p.meta["og:title"], p.meta["twitter:title"], p.title} {
 		s = clean(s)

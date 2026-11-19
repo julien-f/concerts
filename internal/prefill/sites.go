@@ -28,7 +28,7 @@ func laSource(p page) Result {
 	texts := p.texts
 	i := slices.IndexFunc(texts, func(t text) bool { return strings.EqualFold(t.s, "Date de début") })
 	if i < 0 || i+1 == len(texts) {
-		return Result{}
+		return Result{} // nothing, so a non-event page gets no venue
 	}
 	f := strings.Fields(texts[i+1].s)
 	if len(f) < 3 {
