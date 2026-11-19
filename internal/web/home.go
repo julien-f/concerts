@@ -57,6 +57,7 @@ type homePage struct {
 	Share     shareLink
 	Restored  *store.Concert // banner « Concert rétabli »
 	Deleted   *store.Concert // banner « Concert supprimé » with « Annuler la suppression »
+	Others    []otherGroup   // « Autres groupes » under the group name
 
 	// AfficheLink: the group follows a venue or has upcoming imports nobody answered (some kept after an unfollow).
 	AfficheLink bool
@@ -90,11 +91,16 @@ func (s *server) home(w http.ResponseWriter, r *http.Request, gr *groupRequest) 
 		s.fail(w, r, err)
 		return
 	}
+	others, err := s.otherGroups(r, gr)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	statuses := map[int64][]store.Status{} // by concert id
 	for _, st := range ss {
 		statuses[st.ConcertID] = append(statuses[st.ConcertID], st)
 	}
-	p := &homePage{groupRequest: gr, Affiche: q.Get("affiche") == "1"}
+	p := &homePage{groupRequest: gr, Affiche: q.Get("affiche") == "1", Others: others}
 	p.Mine = !p.Affiche && q.Get("mine") == "1"
 	p.Nouveau = p.Affiche && q.Get("nouveau") == "1"
 	if salle := q.Get("salle"); p.Affiche && slices.Contains(followed, salle) {

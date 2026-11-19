@@ -19,7 +19,7 @@ type demoClock struct {
 func (c *demoClock) now() time.Time { return c.base().Add(-c.back) }
 
 // demo fills a fresh database with a group for `make demo` and scripts/verify-ui.sh:
-// three members, upcoming and past concerts relative to now.
+// three members, upcoming and past concerts relative to now; then a second group.
 func demo(ctx context.Context, st *store.Store, baseURL string, clock *demoClock) error {
 	now := clock.base()
 	g, err := newGroup(ctx, st, baseURL, "Les copains du concert")
@@ -90,7 +90,16 @@ func demo(ctx context.Context, st *store.Store, baseURL string, clock *demoClock
 			return err
 		}
 	}
-	return demoImports(ctx, st, g.ID, marc, day, clock)
+	if err := demoImports(ctx, st, g.ID, marc, day, clock); err != nil {
+		return err
+	}
+	// Léa's colleagues, printed second (scripts use the first link): « Autres groupes ».
+	other, err := newGroup(ctx, st, baseURL, "Les collègues")
+	if err != nil {
+		return err
+	}
+	_, err = st.CreateMember(ctx, other.ID, "Léa")
+	return err
 }
 
 // demoImports follows two venues and imports their agenda, created last (verify-ui relies on the

@@ -9,6 +9,6 @@ source "$(dirname "$0")/ui-lib.sh"
 ensure_tools
 start_demo
 
-node "$repo/scripts/verify-ui.mjs" "$tools" "http://$addr$link" "$work/html" "$MAX_WEIGHT"
+node "$repo/scripts/verify-ui.mjs" "$tools" "http://$addr$link" "$work/html" "$MAX_WEIGHT" "http://$addr$other"
 java -jar "$tools/node_modules/vnu-jar/build/dist/vnu.jar" --errors-only "$work"/html/*.html
 echo "vnu: 0 errors in $(ls "$work"/html/*.html | wc -l) pages"

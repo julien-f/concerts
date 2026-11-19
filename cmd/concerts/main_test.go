@@ -258,8 +258,8 @@ func TestDemo(t *testing.T) {
 		t.Fatal(err)
 	}
 	gs, err := st.Groups(ctx)
-	if err != nil || len(gs) != 1 {
-		t.Fatalf("groups = %+v, %v; want the demo group", gs, err)
+	if err != nil || len(gs) != 2 || gs[1].Name != "Les collègues" {
+		t.Fatalf("groups = %+v, %v; want the demo group, then Léa's colleagues", gs, err)
 	}
 	cs, err := st.Concerts(ctx, gs[0].ID)
 	if err != nil || len(cs) != 40 {

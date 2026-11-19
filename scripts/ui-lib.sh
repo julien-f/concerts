@@ -21,7 +21,7 @@ ensure_tools() {
 	touch "$stamp"
 }
 
-# Serves a fresh `make demo` on a free local port; sets $addr and $link (the group page path).
+# Serves a fresh `make demo` on a free local port; sets $addr, $link (the group page path) and $other (the second group's).
 start_demo() {
 	work=$(mktemp -d)
 	trap 'stop_demo; rm -rf "$work"' EXIT
@@ -37,8 +37,9 @@ start_demo() {
 		sleep 0.1
 	done
 	addr=$(sed -n 's/.*msg=listening addr=\([^ ]*\).*/\1/p' "$work/server.log")
-	link=$(grep -o '/g/[A-Za-z0-9_-]*' "$work/server.log" | head -1)
-	[[ -n $addr && -n $link ]] || { cat "$work/server.log"; exit 1; }
+	link=$(grep -o '/g/[A-Za-z0-9_-]*' "$work/server.log" | sed -n 1p)
+	other=$(grep -o '/g/[A-Za-z0-9_-]*' "$work/server.log" | sed -n 2p)
+	[[ -n $addr && -n $link && -n $other ]] || { cat "$work/server.log"; exit 1; }
 }
 
 stop_demo() {

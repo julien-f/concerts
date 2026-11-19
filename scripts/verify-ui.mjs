@@ -6,7 +6,7 @@ import { createRequire } from "node:module";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 
-const [tools, groupURL, htmlDir, maxWeight] = process.argv.slice(2);
+const [tools, groupURL, htmlDir, maxWeight, otherURL] = process.argv.slice(2);
 const require = createRequire(`${tools}/node_modules/`);
 const { chromium } = require("playwright-core");
 const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
@@ -19,7 +19,8 @@ const submit = (p, selector) => Promise.all([p.waitForNavigation(), p.click(sele
 const focusOn = (p, id) =>
   p.waitForFunction((id) => document.activeElement?.id === id, id, { timeout: 2000 }).then(() => true, () => false);
 const screens = [
-  { name: "picker", go: (p) => p.goto(groupURL) },
+  // The second group's picker first, so the list shows « Autres groupes ».
+  { name: "picker", go: (p) => p.goto(otherURL).then(() => p.goto(groupURL)) },
   {
     name: "picker-duplicate",
     go: async (p) => {
@@ -32,6 +33,7 @@ const screens = [
     go: (p) => submit(p, 'button:has-text("Léa")'),
     // A card's answer buttons once painted over the fixed « Ajouter » bar and took its clicks.
     check: async (p) => {
+      if (!(await p.$(`.others a[href="${new URL(otherURL).pathname}"]`))) return "no link to the other group";
       const top = await p.$eval(".mine button", (b) => b.getBoundingClientRect().top);
       await p.setViewportSize({ width: 390, height: Math.round(top) + 30 });
       const hit = await p.$eval(".mine button", (b) => {
@@ -316,6 +318,7 @@ for (const s of screens) {
 // for a member picked in a context of its own (the screens above may have dropped cookies).
 const login = await browser.newContext();
 const loginPage = await login.newPage();
+await loginPage.goto(otherURL);
 await loginPage.goto(groupURL);
 await submit(loginPage, 'button:has-text("Léa")');
 const fresh = await browser.newContext({ storageState: await login.storageState() });
