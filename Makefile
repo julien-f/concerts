@@ -9,7 +9,7 @@ GOVULNCHECK_VERSION := v1.9.0
 ADDR ?= :8080
 DEMO_DB ?= demo.db
 
-.PHONY: run test lint fmt vuln check build demo verify-ui measure-scroll measure install uninstall deploy rollback
+.PHONY: run test lint fmt vuln check build demo verify-ui measure-scroll measure install uninstall deploy rollback print-deploy-host
 
 run:
 	CONCERTS_BASE_URL=http://localhost:8080 go run ./cmd/concerts serve
@@ -94,7 +94,7 @@ uninstall:
 	$(call as_root,,uninstall.sh $(NAME))
 
 # Uploaded into bin/ itself: same filesystem for an atomic rename, and bin/'s SELinux label.
-# ssh -T: the deploy key forbids PTYs, and a client's RequestTTY yes makes that refusal fatal.
+# ssh -T: see docs/operations.md, Admin commands.
 deploy: vuln build
 	scp -q bin/concerts $(DEPLOY_HOST):bin/concerts.new
 	scp -q deploy/admin $(DEPLOY_HOST):bin/admin.new
@@ -102,3 +102,7 @@ deploy: vuln build
 
 rollback:
 	ssh -T $(DEPLOY_HOST) bin/admin rollback
+
+# For scripts/admin.
+print-deploy-host:
+	@printf '%s\n' '$(strip $(DEPLOY_HOST))'
