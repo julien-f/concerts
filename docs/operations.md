@@ -66,6 +66,7 @@ make rollback   # previous binary and pre-deploy database back
 ## Admin commands
 
 ```sh
+scripts/admin               # every command
 scripts/admin list-groups   # any concerts subcommand, with the service's configuration
 scripts/admin logs          # last 200 lines, backup and sync runs included; logs -f follows
 ```

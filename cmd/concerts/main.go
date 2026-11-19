@@ -23,6 +23,7 @@ import (
 )
 
 const usage = `usage:
+  concerts help
   concerts serve
   concerts new-group "<name>"                    print the new group's link
   concerts list-groups
@@ -69,6 +70,9 @@ func run(args []string, log *slog.Logger) error {
 	needsURL := false
 	now := time.Now // the store's clock
 	switch {
+	case len(args) == 1 && args[0] == "help":
+		fmt.Print(usage)
+		return nil
 	case len(args) == 1 && args[0] == "serve":
 		needsURL = true
 		cmd = func(st *store.Store) error {
