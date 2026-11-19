@@ -120,10 +120,13 @@ var (
 	// A status opens or closes a title: « COMPLET • X », « X (COMPLET) », « X \ COMPLET / ».
 	statusPrefix = regexp.MustCompile(`(?i)^(complet|annul[ée]e?|report[ée]e?)\s*[•·:|–-]\s*`)
 	statusSuffix = regexp.MustCompile(`(?i)\s*(?:\(\s*(complet|annul[ée]e?|report[ée]e?)\s*\)|\\\s*(complet|annul[ée]e?|report[ée]e?)\s*/)$`)
+	// Mentions that are not artists, which « Écouter » would search: « X + 1ère partie »,
+	// « X + Guest », « Avaland (Release Party) + Lionsoul ».
+	notArtist = regexp.MustCompile(`(?i)\s*\+\s*(?:1(?:è|e)?re\s+partie|guests?)$|\s*\(\s*release\s+party\s*\)`)
 )
 
-// cleanTitle strips status words from a listing's title, reporting « complet », and
-// trailing separators (« Suite Habana – »). Entities are decoded already.
+// cleanTitle strips status words from a listing's title, reporting « complet », then mentions
+// that are not artists and trailing separators (« Suite Habana – »). Entities are decoded already.
 func cleanTitle(s string) (string, bool) {
 	s = strings.Join(strings.Fields(s), " ")
 	full := false
@@ -138,7 +141,7 @@ func cleanTitle(s string) (string, bool) {
 		full = full || strings.Contains(strings.ToLower(m[0]), "complet")
 		s = strings.Replace(s, m[0], "", 1)
 	}
-	return strings.TrimRight(s, " •·|–-"), full
+	return strings.TrimRight(notArtist.ReplaceAllString(s, ""), " •·|–-"), full
 }
 
 // listingDate reads a French date: « [weekday] D month [YYYY] », or a range « Du … au … »

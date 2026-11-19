@@ -267,6 +267,9 @@ func laSource(page *neturl.URL, body []byte, today string) ([]listed, []*neturl.
 	return items, nil, nil
 }
 
+// microPrefix opens Retour de Scène's micro-live titles: « Micro’live – Ada Unn ».
+var microPrefix = regexp.MustCompile(`(?i)^micro\s*['’]?\s*-?live\s*[–-]\s*`)
+
 // retourDeScene reads the promoter's agenda grid: concerts and micro-lives at various halls
 // (« Ilyade - Seyssinet-Pariset »), not trainings; times are on the event pages only.
 func retourDeScene(page *neturl.URL, body []byte, _ string) ([]listed, []*neturl.URL, error) {
@@ -285,6 +288,9 @@ func retourDeScene(page *neturl.URL, body []byte, _ string) ([]listed, []*neturl
 			l.genre = "Micro-live"
 		}
 		l.artist, l.full = cleanTitle(text(first(it, class("entry-title"))))
+		if micro {
+			l.artist = microPrefix.ReplaceAllString(l.artist, "") // the genre says it
+		}
 		if d, err := time.Parse("02/01/2006", text(first(it, class("dp-dfg-cf-date")))); err == nil {
 			l.date = d.Format(time.DateOnly)
 		}
