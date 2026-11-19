@@ -44,7 +44,11 @@ func mc2(page *neturl.URL, body []byte, _ string) ([]listed, []*neturl.URL, erro
 	}
 	var items []listed
 	for _, e := range p.Events {
-		if e.ID <= 0 || !slices.ContainsFunc(e.Categories, func(c mc2Category) bool { return c.Slug == "musique" }) {
+		has := func(slug string) bool {
+			return slices.ContainsFunc(e.Categories, func(c mc2Category) bool { return c.Slug == slug })
+		}
+		// Comedy and cabaret shows carry « Musique » too; « Théâtre » alone would also drop concerts.
+		if e.ID <= 0 || !has("musique") || has("humour") || has("cabaret") {
 			continue
 		}
 		var labels []string // « Musique » tells nothing more

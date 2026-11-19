@@ -77,15 +77,16 @@ func TestParsers(t *testing.T) {
 		want, next        []string
 	}{
 		{
-			// « L'Ange du foyer » (théâtre) left out; La Bouche: one show, one id per date.
+			// « L'Ange du foyer » (théâtre), La Bouche (cabaret) and Dedienne (humour) left out;
+			// Stephan Eicher (théâtre and musique): one show, one id per date.
 			venue: "mc2", file: "mc2.json", page: "https://www.mc2grenoble.fr/wp-json/tribe/events/v1/events?categories=musique&per_page=50",
 			want: []string{
 				"61600 | Raphaël – Karaoké | 2026-11-19 20:00 | MC2, | https://www.mc2grenoble.fr/spectacle/raphael-cyril-teste-karaoke/ | 42 €",
 				"61424 | Último helecho | 2026-11-19 20:00 | MC2, | https://www.mc2grenoble.fr/spectacle/ultimo-helecho/ | 34 € | genre Danse",
 				"61602 | Jouer la lumière | 2026-12-06 11:00 | MC2, | https://www.mc2grenoble.fr/spectacle/jouer-la-lumiere/ | 13 €",
-				"10026968 | La Bouche | 2026-12-17 20:00 | MC2, | https://www.mc2grenoble.fr/spectacle/la-bouche/2026-12-17/ | 30 € | genre Cabaret, Danse",
-				"10026969 | La Bouche | 2026-12-18 20:00 | MC2, | https://www.mc2grenoble.fr/spectacle/la-bouche/2026-12-18/ | 30 € | genre Cabaret, Danse",
 				"61604 | Symphonie africaine | 2026-12-19 20:00 | MC2, | https://www.mc2grenoble.fr/spectacle/symphonie-africaine/ | 45 € | genre Jazz",
+				"10026980 | Stephan Eicher – Seul en scène | 2027-01-20 20:00 | MC2, | https://www.mc2grenoble.fr/spectacle/stephan-eicher-seul-en-scene/2027-01-20/ | 46 € | genre Théâtre",
+				"10026981 | Stephan Eicher – Seul en scène | 2027-01-21 20:00 | MC2, | https://www.mc2grenoble.fr/spectacle/stephan-eicher-seul-en-scene/2027-01-21/ | 46 € | genre Théâtre",
 			},
 		},
 		{

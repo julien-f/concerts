@@ -163,6 +163,82 @@
     "venue": "Salle Georges Lavaudant",
     "slug": "salle-georges-lavaudant"
    }
+  },
+  {
+   "id": 10026980,
+   "url": "https://www.mc2grenoble.fr/spectacle/stephan-eicher-seul-en-scene/2027-01-20/",
+   "title": "Stephan Eicher &#8211; Seul en scène",
+   "all_day": false,
+   "start_date": "2027-01-20 20:00:00",
+   "end_date": "2027-01-20 20:00:00",
+   "timezone": "Europe/Paris",
+   "cost": "46€",
+   "categories": [
+    {
+     "name": "Musique",
+     "slug": "musique"
+    },
+    {
+     "name": "Théâtre",
+     "slug": "theatre"
+    }
+   ],
+   "venue": {
+    "venue": "Salle Georges Lavaudant",
+    "slug": "salle-georges-lavaudant"
+   }
+  },
+  {
+   "id": 10026981,
+   "url": "https://www.mc2grenoble.fr/spectacle/stephan-eicher-seul-en-scene/2027-01-21/",
+   "title": "Stephan Eicher &#8211; Seul en scène",
+   "all_day": false,
+   "start_date": "2027-01-21 20:00:00",
+   "end_date": "2027-01-21 20:00:00",
+   "timezone": "Europe/Paris",
+   "cost": "46€",
+   "categories": [
+    {
+     "name": "Musique",
+     "slug": "musique"
+    },
+    {
+     "name": "Théâtre",
+     "slug": "theatre"
+    }
+   ],
+   "venue": {
+    "venue": "Salle Georges Lavaudant",
+    "slug": "salle-georges-lavaudant"
+   }
+  },
+  {
+   "id": 10027074,
+   "url": "https://www.mc2grenoble.fr/spectacle/un-lendemain-soir-de-gala/2027-05-25/",
+   "title": "Vincent Dedienne &#8211; Un lendemain soir de Gala",
+   "all_day": false,
+   "start_date": "2027-05-25 20:00:00",
+   "end_date": "2027-05-25 20:00:00",
+   "timezone": "Europe/Paris",
+   "cost": "40€",
+   "categories": [
+    {
+     "name": "Humour",
+     "slug": "humour"
+    },
+    {
+     "name": "Musique",
+     "slug": "musique"
+    },
+    {
+     "name": "Théâtre",
+     "slug": "theatre"
+    }
+   ],
+   "venue": {
+    "venue": "Auditorium",
+    "slug": "auditorium"
+   }
   }
  ],
  "rest_url": "https://www.mc2grenoble.fr/wp-json/tribe/events/v1/events/?page=1&per_page=50&start_date=2026-11-18 00:00:00&end_date=2028-11-18 23:59:59&status=publish",
