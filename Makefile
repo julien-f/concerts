@@ -65,12 +65,12 @@ $(GOLANGCI_LINT):
 NAME ?= concerts
 ifneq ($(filter deploy rollback,$(MAKECMDGOALS)),)
 ifeq ($(DEPLOY_HOST),)
-$(error DEPLOY_HOST is required, e.g. make deploy DEPLOY_HOST=concerts@concerts.example.com)
+$(error DEPLOY_HOST is required: set it in local.mk, see docs/operations.md)
 endif
 endif
 ifneq ($(filter install uninstall,$(MAKECMDGOALS)),)
 ifeq ($(ADMIN_HOST),)
-$(error ADMIN_HOST is required, e.g. make install ADMIN_HOST=admin@concerts.example.com PROXY_USER=caddy BASE_URL=https://concerts.example.com DEPLOY_KEY=~/.ssh/id_ed25519.pub)
+$(error ADMIN_HOST is required: set it in local.mk, see docs/operations.md)
 endif
 endif
 
@@ -87,7 +87,7 @@ ssh -t $(ADMIN_HOST) "sudo sh $$d/$(2); s=\$$?; rm -r $$d; exit \$$s"
 endef
 
 install:
-	@{ test -n "$(PROXY_USER)" && test -n "$(BASE_URL)" && test -n "$(DEPLOY_KEY)" && test -f $(DEPLOY_KEY); } || { echo "PROXY_USER, BASE_URL and DEPLOY_KEY (a public key file) are required" >&2; exit 1; }
+	@{ test -n "$(PROXY_USER)" && test -n "$(BASE_URL)" && test -n "$(DEPLOY_KEY)" && test -f $(DEPLOY_KEY); } || { echo "PROXY_USER, BASE_URL and DEPLOY_KEY (a public key file) are required: set them in local.mk, see docs/operations.md" >&2; exit 1; }
 	$(call as_root,$(DEPLOY_KEY),install.sh $(NAME) $(PROXY_USER) $(BASE_URL) $$d/$(notdir $(DEPLOY_KEY)))
 
 uninstall:

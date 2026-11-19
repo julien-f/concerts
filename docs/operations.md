@@ -2,14 +2,15 @@
 
 A system user `<name>` (default `concerts`; the examples below use it) holds everything under `/home/<name>` (`bin/`, `data/`, `backups/`); the reverse proxy reaches the app through `/run/<name>.sock`. Only install and uninstall need root; deploys and admin commands log in as `<name>`. Nothing in `deploy/` is specific to one server: the name and the proxy's user are install parameters. Design and rejected options: [ADR 0008](decisions/0008-deployment-under-a-home-user.md).
 
-The `make` variables below can be set once in a git-ignored `local.mk` at the root of the main checkout (git worktrees read it too), then omitted (`?=`: the environment and the command line still override them):
+The commands below read their settings from a git-ignored `local.mk` at the root of the main checkout (git worktrees read it too; the environment and the command line still override it):
 
 ```make
-DEPLOY_HOST ?= concerts@server
-ADMIN_HOST ?= admin@server
-PROXY_USER ?= caddy
+# NAME ?= concerts                   # the service user, and its units' and socket's name
+DEPLOY_HOST ?= concerts@server       # <name>@<server>: deploys and admin commands
+ADMIN_HOST ?= admin@server           # an account with sudo: install and uninstall
+PROXY_USER ?= caddy                  # the user the proxy runs as, sole owner of the socket (0600)
 BASE_URL ?= https://concerts.example.com
-DEPLOY_KEY ?= ~/.ssh/id_ed25519.pub
+DEPLOY_KEY ?= ~/.ssh/id_ed25519.pub  # public key allowed to log in as <name>
 ```
 
 ## Install (root, once and after any change to `deploy/`)
@@ -17,11 +18,10 @@ DEPLOY_KEY ?= ~/.ssh/id_ed25519.pub
 Requires on the server: systemd (257+ for every directive; older ones skip `PrivatePIDs=`), sudo, curl, and a reverse proxy (Caddy shown) running as its own user.
 
 ```sh
-make install ADMIN_HOST=admin@server PROXY_USER=caddy BASE_URL=https://concerts.example.com DEPLOY_KEY=~/.ssh/id_ed25519.pub   # NAME=concerts by default
+make install
 ```
 
-- `ADMIN_HOST` is an account with sudo. The script runs from a fresh `mktemp -d` and is idempotent: rerun it to apply changed units, a new base URL or a new deploy key.
-- `PROXY_USER`, the user the proxy runs as, owns the socket (`0600`): no group to create or join.
+- The script runs from a fresh `mktemp -d` and is idempotent: rerun it to apply changed units, a new base URL or a new deploy key.
 - It refuses a name already used by a user or unit it did not install, or a `/home/<name>` it did not create, so it never takes over an existing account, home or system unit; uninstall refuses the same way.
 - It creates the user and its home, installs the deploy key (with `restrict`: no forwarding, no pty), the units rendered from `deploy/` (`<name>.socket`, the backup and sync timers enabled) and `/etc/sudoers.d/<name>` (only the `systemctl` and `journalctl` lines `bin/admin` runs).
 - It never touches the proxy: it prints the site block (`deploy/site.caddy`) to add by hand before the first deploy. No access log for that site: paths hold group secrets. With Caddy, check that no other `log` covers this host: `caddy adapt --config <Caddyfile> | jq '.apps.http.servers[].logs'`. Keep the original `Host` header (Caddy does by default): cross-origin protection compares it with `Origin`.
@@ -144,7 +144,7 @@ scripts/admin restore backups/concerts-2026-11-16T040012.db
 
 ## Change the base URL
 
-- Rerun `make install` with the new `BASE_URL` (https only) and the same `PROXY_USER` and `DEPLOY_KEY`; it stops and restarts the app.
+- Change `BASE_URL` (https only) in `local.mk` and rerun `make install`; it stops and restarts the app.
 - Add the site block it prints to the proxy, and remove the old host's.
 - Group paths keep their secret: send each group its link on the new host. Everyone picks their first name again (the identity cookie belongs to the host).
 - If the old domain is dropped and could be registered by someone else, run `rotate-secret` for every group instead: old links would send their secret there.
@@ -152,7 +152,7 @@ scripts/admin restore backups/concerts-2026-11-16T040012.db
 ## Uninstall
 
 ```sh
-make uninstall ADMIN_HOST=admin@server   # NAME=concerts by default
+make uninstall
 ```
 
 Remove the site from the proxy first (its socket goes away), and copy `backups/` off the server: the whole home goes.

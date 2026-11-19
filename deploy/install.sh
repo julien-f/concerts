@@ -109,4 +109,4 @@ can open /run/$NAME.sock.
 EOF
 sed -e "s/@HOST@/$host/" -e "s/@NAME@/$NAME/" site.caddy
 echo
-echo "Then: make deploy DEPLOY_HOST=$NAME@<server>"
+echo "Then set DEPLOY_HOST=$NAME@<server> in local.mk and run make deploy."
