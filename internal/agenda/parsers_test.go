@@ -155,7 +155,7 @@ func TestParsers(t *testing.T) {
 			// Training left out; « (COMPLET) » stripped; halls with and without their town.
 			venue: "retour-de-scene", file: "retour-de-scene.html", page: "https://www.retourdescene.net/agenda/",
 			want: []string{
-				"390755 | Micro’live – Ada Unn | 2026-11-19 | Bibliothèque Centre Ville, | https://www.retourdescene.net/microlive-ada-unn/ | | genre Micro-live",
+				"390755 | Ada Unn | 2026-11-19 | Bibliothèque Centre Ville, | https://www.retourdescene.net/microlive-ada-unn/ | | genre Micro-live",
 				"389827 | RAKOON + SUMAC DUB + BLADI SOUND SYSTEM | 2026-11-21 | Ilyade, Seyssinet-Pariset | https://www.retourdescene.net/rakoon-sumac-dub-bladi-sound-system/ |",
 				"390570 | BONNE NUIT + LOREN 6 | 2026-12-03 | L'Aquarium, | https://www.retourdescene.net/bonne-nuit/ |",
 				"390401 | BEN PLG | 2026-12-09 | La Belle Electrique, Grenoble | https://www.retourdescene.net/ben-plg/ | | complet",
@@ -207,21 +207,27 @@ func TestCleanTitle(t *testing.T) {
 		s    string
 		full bool
 	}{
-		"COMPLET • Sniper + Kenz":       {"Sniper + Kenz", true},
-		"Complet · Sniper":              {"Sniper", true},
-		"REPORTÉ • Izïa":                {"Izïa", false},
-		"ANNULÉ - Izïa":                 {"Izïa", false},
-		"BEN PLG (COMPLET)":             {"BEN PLG", true},
-		"Le TRUC  \\  COMPLET /":        {"Le TRUC", true},
-		"REPORTÉ • X (COMPLET)":         {"X", true},
-		"Suite Habana –":                {"Suite Habana", false},
-		"Completement Fou":              {"Completement Fou", false},
-		"  The   Inspector Cluzo ":      {"The Inspector Cluzo", false},
-		"Les Complets du Rock • Live":   {"Les Complets du Rock • Live", false},
-		"Report (annulé)":               {"Report", false},
-		"Raphaël – Karaoké":             {"Raphaël – Karaoké", false},
-		"AC/DC Tribute":                 {"AC/DC Tribute", false},
-		"COMPLET • REPORTÉ • Les Ogres": {"Les Ogres", true},
+		"COMPLET • Sniper + Kenz":                             {"Sniper + Kenz", true},
+		"Complet · Sniper":                                    {"Sniper", true},
+		"REPORTÉ • Izïa":                                      {"Izïa", false},
+		"ANNULÉ - Izïa":                                       {"Izïa", false},
+		"BEN PLG (COMPLET)":                                   {"BEN PLG", true},
+		"Le TRUC  \\  COMPLET /":                              {"Le TRUC", true},
+		"REPORTÉ • X (COMPLET)":                               {"X", true},
+		"Suite Habana –":                                      {"Suite Habana", false},
+		"Completement Fou":                                    {"Completement Fou", false},
+		"  The   Inspector Cluzo ":                            {"The Inspector Cluzo", false},
+		"Les Complets du Rock • Live":                         {"Les Complets du Rock • Live", false},
+		"Report (annulé)":                                     {"Report", false},
+		"Raphaël – Karaoké":                                   {"Raphaël – Karaoké", false},
+		"AC/DC Tribute":                                       {"AC/DC Tribute", false},
+		"COMPLET • REPORTÉ • Les Ogres":                       {"Les Ogres", true},
+		"Elmer Food Beat + 1ère partie":                       {"Elmer Food Beat", false},
+		"X + 1re Partie (COMPLET)":                            {"X", true},
+		"MØL + Guest":                                         {"MØL", false},
+		"Y + guests \\ COMPLET /":                             {"Y", true},
+		"Avaland (Release Party) + Lionsoul + Scale Of Alkan": {"Avaland + Lionsoul + Scale Of Alkan", false},
+		"Guest + Partie":                                      {"Guest + Partie", false},
 	} {
 		s, full := cleanTitle(in)
 		if s != want.s || full != want.full {
