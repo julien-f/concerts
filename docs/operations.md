@@ -77,7 +77,7 @@ scripts/admin logs          # last 200 lines, backup and sync runs included; log
 
 ## Monitoring
 
-Nothing alerts on failure (automation: [design.md, Later](design.md#later)). Check by hand now and then:
+Nothing alerts on failure (automation: [later.md](later.md#off-server-backups-and-failure-alerts)). Check by hand now and then:
 
 ```sh
 curl -fsS https://concerts.example.com/healthz
@@ -119,7 +119,7 @@ scripts/admin rotate-secret <id>  # prints the new link; the old one returns 404
 
 ## Backup
 
-`concerts-backup.timer` writes a consistent snapshot (`VACUUM INTO`) to `backups/concerts-<time>.db` every night and keeps 14 days; one that fails (e.g. full disk) removes its partial file. Copying them off the server is not set up yet: see [design.md, Later](design.md#later).
+`concerts-backup.timer` writes a consistent snapshot (`VACUUM INTO`) to `backups/concerts-<time>.db` every night and keeps 14 days; one that fails (e.g. full disk) removes its partial file. Copying them off the server is not set up yet: see [later.md](later.md#off-server-backups-and-failure-alerts).
 
 Before a risky step, take one by hand (the file must not exist):
 
