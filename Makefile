@@ -93,10 +93,11 @@ uninstall:
 	$(call as_root,,uninstall.sh $(NAME))
 
 # Uploaded into bin/ itself: same filesystem for an atomic rename, and bin/'s SELinux label.
+# ssh -T: the deploy key forbids PTYs, and a client's RequestTTY yes makes that refusal fatal.
 deploy: vuln build
 	scp -q bin/concerts $(DEPLOY_HOST):bin/concerts.new
 	scp -q deploy/admin $(DEPLOY_HOST):bin/admin.new
-	ssh $(DEPLOY_HOST) 'chmod 700 bin/admin.new bin/concerts.new && mv bin/admin.new bin/admin && bin/admin deploy'
+	ssh -T $(DEPLOY_HOST) 'chmod 700 bin/admin.new bin/concerts.new && mv bin/admin.new bin/admin && bin/admin deploy'
 
 rollback:
-	ssh $(DEPLOY_HOST) bin/admin rollback
+	ssh -T $(DEPLOY_HOST) bin/admin rollback
