@@ -12,7 +12,7 @@ usage='usage:
   admin restore <backups/…>    restore a snapshot
   admin logs [-f]              last 200 journal lines, or follow
   admin sync                   run the venue import now, in its unit, and show its log
-  admin <concerts subcommand>  e.g. new-group "Gig buddies", list-groups, rotate-secret <id>'
+  admin <concerts subcommand>  listed below, e.g. new-group "Gig buddies"'
 
 SNAP=backups/pre-deploy.db
 # Written before a deploy's restart, removed once healthz passes (deploy, rollback or restore).
@@ -60,7 +60,10 @@ healthz() {
 
 # Nothing may open the database while it is swapped: a request would start the service,
 # a backup or sync would create an empty database or delete the new one's -wal on close.
+# Until start_all, nothing may die of a write: once the client is gone (Ctrl-C, dropped connection),
+# SIGPIPE would leave the service stopped. Hence PIPE ignored (systemctl inherits it) and no echo.
 stop_all() {
+	trap '' PIPE
 	trap 'echo "failed with the service stopped: fix the cause, then $SYSTEMCTL start $N.socket $N-backup.timer $N-sync.timer" >&2' EXIT
 	$SYSTEMCTL stop $N.socket $N.service $N-backup.timer $N-backup.service $N-sync.timer $N-sync.service
 }
@@ -71,15 +74,14 @@ start_all() {
 	trap - EXIT
 }
 
-# Moves the live database aside (writes made since stay in it, with its -wal) and installs $1.
+# Moves the live database aside to $kept (writes made since stay in it, with its -wal) and installs $1.
 swap_db() {
-	ts=$(date +%Y%m%dT%H%M%S)
+	kept=$CONCERTS_DB.pre-$2-$(date +%Y%m%dT%H%M%S)
 	for s in "" -wal -shm; do
-		if [ -e "$CONCERTS_DB$s" ]; then mv "$CONCERTS_DB$s" "$CONCERTS_DB.pre-$2-$ts$s"; fi
+		if [ -e "$CONCERTS_DB$s" ]; then mv "$CONCERTS_DB$s" "$kept$s"; fi
 	done
 	cp "$1" "$CONCERTS_DB.new"
 	mv "$CONCERTS_DB.new" "$CONCERTS_DB"
-	echo "previous database kept as $CONCERTS_DB.pre-$2-$ts"
 }
 
 case ${1-} in
@@ -110,6 +112,7 @@ rollback)
 	ln -f bin/concerts.prev bin/concerts.tmp
 	mv bin/concerts.tmp bin/concerts
 	start_all
+	echo "previous database kept as $kept"
 	healthz
 	echo "the restored database has the secrets of its time: rerun rotate-secret if a link leaked since"
 	;;
@@ -124,6 +127,7 @@ restore)
 	stop_all
 	swap_db "$2" restore
 	start_all
+	echo "previous database kept as $kept"
 	healthz
 	echo "the restored database has the secrets of its time: rerun rotate-secret if a link leaked since"
 	;;
@@ -143,6 +147,8 @@ logs)
 	;;
 "" | -h | --help | help)
 	echo "$usage"
+	echo
+	exec bin/concerts help
 	;;
 *)
 	exec bin/concerts "$@"

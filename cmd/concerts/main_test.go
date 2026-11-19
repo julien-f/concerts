@@ -195,7 +195,10 @@ func TestVenueCommands(t *testing.T) {
 // TestUsage: every command run accepts is in the usage text, and wrong arguments print it.
 func TestUsage(t *testing.T) {
 	t.Parallel()
-	for _, cmd := range []string{"serve", "new-group", "list-groups", "rotate-secret", "delete-member", "rename-member",
+	if err := run([]string{"help"}, slog.New(slog.DiscardHandler)); err != nil {
+		t.Errorf("run(help) = %v", err)
+	}
+	for _, cmd := range []string{"help", "serve", "new-group", "list-groups", "rotate-secret", "delete-member", "rename-member",
 		"backup", "list-venues", "follow-venue", "unfollow-venue", "sync", "demo"} {
 		if !strings.Contains(usage, "  concerts "+cmd+" ") && !strings.Contains(usage, "  concerts "+cmd+"\n") {
 			t.Errorf("usage lacks %s", cmd)
