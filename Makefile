@@ -2,6 +2,9 @@ GOLANGCI_LINT_VERSION := v2.15.0
 GOLANGCI_LINT := bin/golangci-lint-$(GOLANGCI_LINT_VERSION)
 GOVULNCHECK_VERSION := v1.9.0
 
+# Per-machine values (DEPLOY_HOST, ADMIN_HOST…), git-ignored; the command line still overrides them.
+-include local.mk
+
 ADDR ?= :8080
 DEMO_DB ?= demo.db
 

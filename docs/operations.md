@@ -2,6 +2,16 @@
 
 A system user `<name>` (default `concerts`; the examples below use it) holds everything under `/home/<name>` (`bin/`, `data/`, `backups/`); the reverse proxy reaches the app through `/run/<name>.sock`. Only install and uninstall need root; deploys and admin commands log in as `<name>`. Nothing in `deploy/` is specific to one server: the name and the proxy's user are install parameters. Design and rejected options: [ADR 0008](decisions/0008-deployment-under-a-home-user.md).
 
+The `make` variables below can be set once in a git-ignored `local.mk` at the repository root, then omitted (the command line still overrides them):
+
+```make
+DEPLOY_HOST = concerts@server
+ADMIN_HOST = admin@server
+PROXY_USER = caddy
+BASE_URL = https://concerts.example.com
+DEPLOY_KEY = ~/.ssh/id_ed25519.pub
+```
+
 ## Install (root, once and after any change to `deploy/`)
 
 Requires on the server: systemd (257+ for every directive; older ones skip `PrivatePIDs=`), sudo, curl, and a reverse proxy (Caddy shown) running as its own user.
