@@ -61,7 +61,7 @@ make rollback   # previous binary and pre-deploy database back
 - `deploy` keeps the previous binary (`bin/concerts.prev`) and a pre-deploy snapshot (`backups/pre-deploy.db`), taken by the old binary so the new one cannot migrate the live database first. Deploying again after a failed deploy (`/healthz` never passed, and still failing) keeps that pair, so `rollback` still reaches the last good version.
 - Requests arriving during a deploy's restart wait in the socket. `/healthz` is checked through the proxy on loopback (port 443, or the base URL's); on failure, the service status and journal tail are printed.
 - First deploy of the venue import: `make install` first. Until then `bin/admin` refuses (« concerts-sync.timer missing: rerun make install »), as its sudoers grants name the sync units. A timer run between install and deploy (old binary, no `sync`) fails; `deploy` clears it.
-- `rollback` stops everything that could open the database (socket, service, backup, sync), moves the current database and its `-wal`/`-shm` aside (`data/concerts.db.pre-rollback-<time>`: writes made since the deploy are there), restores both, restarts and checks `/healthz`.
+- `rollback` stops everything that could open the database (socket, service, backup, sync), moves the current database and its `-wal`/`-shm` aside (`data/concerts.db.pre-rollback-<time>`: writes made since the deploy are there), restores both, restarts and checks `/healthz`. Interrupted from the client (Ctrl-C, dropped connection), it still runs to the restart on the server (as does `restore`): check with `curl …/healthz`.
 
 ## Admin commands
 
