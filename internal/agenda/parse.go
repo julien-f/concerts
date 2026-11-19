@@ -214,11 +214,15 @@ func genre(labels ...string) string {
 }
 
 // event cleans and validates what a listing gave; false if the concert form would refuse it.
-// A price or genre the form would refuse is dropped, never the event.
+// A price, address or genre the form would refuse is dropped, never the event.
 func (v *Venue) event(l listed) (store.Event, bool) {
-	price := strings.Join(strings.Fields(l.price), " ")
-	if utf8.RuneCountInString(price) > validate.MaxPriceRunes {
+	price, ok := validate.Text(l.price, validate.MaxPriceRunes)
+	if !ok {
 		price = ""
+	}
+	address, ok := validate.Text(clip(l.address, validate.MaxTextRunes), validate.MaxTextRunes)
+	if !ok {
+		address = ""
 	}
 	g, ok := validate.Text(clip(l.genre, validate.MaxGenreRunes), validate.MaxGenreRunes)
 	if !ok {
@@ -229,7 +233,7 @@ func (v *Venue) event(l listed) (store.Event, bool) {
 		Date:      l.date,
 		Time:      l.time,
 		Venue:     clip(cmp.Or(l.venue, v.Name), validate.MaxTextRunes),
-		Address:   clip(l.address, validate.MaxTextRunes),
+		Address:   address,
 		TicketURL: v.ticketLink(l),
 		Price:     price,
 		Genre:     g,

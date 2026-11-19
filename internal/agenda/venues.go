@@ -16,10 +16,10 @@ type Venue struct {
 	Ticketing []string // further domains a ticket link may point to, subdomains included
 	Delay     time.Duration
 	MaxPages  int  // listing pages per run
-	Details   bool // the listing has no times: each event's page is read once, with prefill
+	Details   bool // each event's page is read once, with prefill, for what the listing lacks (time, price, ticket link…)
 	Promoter  bool // lists other halls' concerts, so syncs after them: their copy wins the dedup
 	parse     parser
-	timeout   time.Duration // 0: venueTimeout; tests shorten it
+	timeout   time.Duration // 0: venueTimeout
 }
 
 // Name is the display name of the venue key, or "" if none is compiled in.
@@ -43,9 +43,11 @@ var Venues = []Venue{
 	},
 	{
 		Key: "belle-electrique", Name: "La Belle Électrique",
-		// robots.txt: Crawl-delay: 10. Ticket links are on the event pages only.
+		// robots.txt: Crawl-delay: 10. Prices and ticket links are on the event pages only: the 8
+		// listing pages take 80 s, the timeout leaves about 10 event pages a run.
 		Listings: []string{"https://www.la-belle-electrique.com/fr/programmation"},
-		Format:   "text/html", Site: []string{"www.la-belle-electrique.com"}, Delay: 10 * time.Second, MaxPages: 8, parse: belle,
+		Format:   "text/html", Site: []string{"www.la-belle-electrique.com"}, Ticketing: []string{"la-belle-electrique.com"},
+		Delay: 10 * time.Second, MaxPages: 8, Details: true, timeout: 3 * time.Minute, parse: belle,
 	},
 	{
 		Key: "lilyade", Name: "L'ilyade",
@@ -65,7 +67,8 @@ var Venues = []Venue{
 		Key: "la-source", Name: "La Source",
 		// robots.txt allows all.
 		Listings: []string{"https://lasource-fontaine.fr/programme/"},
-		Format:   "text/html", Site: []string{"lasource-fontaine.fr"}, MaxPages: 1, Details: true, parse: laSource,
+		Format:   "text/html", Site: []string{"lasource-fontaine.fr"}, Ticketing: []string{"lasource-fontaine.fr"},
+		MaxPages: 1, Details: true, parse: laSource,
 	},
 	{
 		Key: "retour-de-scene", Name: "Retour de Scène",

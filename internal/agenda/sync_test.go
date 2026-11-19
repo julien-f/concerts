@@ -82,7 +82,8 @@ func syncVenue(key, listing string, details, promoter bool) Venue {
 type syncEnv struct {
 	st    *store.Store
 	site  *syncSite
-	sync  func(venues []Venue) (string, error) // returns the logs
+	sleep func(context.Context, time.Duration) error // the waits between requests; none by default
+	sync  func(venues []Venue) (string, error)       // returns the logs
 	run   func(ctx context.Context, venues []Venue) (string, error)
 	group func(name string, follows ...string) int64
 }
@@ -98,27 +99,26 @@ func newSyncEnv(t *testing.T, pages map[string]string) *syncEnv {
 	t.Cleanup(func() { _ = st.Close() })
 	site := &syncSite{pages: pages, listings: map[string]int{}}
 	client := testSite(t, site.handle)
-	run := func(ctx context.Context, venues []Venue) (string, error) {
+	e := &syncEnv{st: st, site: site, sleep: (&sleeps{}).sleep}
+	e.run = func(ctx context.Context, venues []Venue) (string, error) {
 		var logs bytes.Buffer
-		err := Sync(ctx, st, client, venues, now, (&sleeps{}).sleep, slog.New(slog.NewTextHandler(&logs, nil)))
+		err := Sync(ctx, st, client, venues, now, e.sleep, slog.New(slog.NewTextHandler(&logs, nil)))
 		return logs.String(), err
 	}
-	return &syncEnv{
-		st: st, site: site, run: run,
-		sync: func(venues []Venue) (string, error) { return run(ctx, venues) },
-		group: func(name string, follows ...string) int64 {
-			g, err := st.CreateGroup(ctx, name, "secret-"+name)
-			if err != nil {
+	e.sync = func(venues []Venue) (string, error) { return e.run(ctx, venues) }
+	e.group = func(name string, follows ...string) int64 {
+		g, err := st.CreateGroup(ctx, name, "secret-"+name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, v := range follows {
+			if err := st.Follow(ctx, g.ID, v); err != nil {
 				t.Fatal(err)
 			}
-			for _, v := range follows {
-				if err := st.Follow(ctx, g.ID, v); err != nil {
-					t.Fatal(err)
-				}
-			}
-			return g.ID
-		},
+		}
+		return g.ID
 	}
+	return e
 }
 
 // concerts lists a group's concerts as « source:artist date time ».
@@ -322,6 +322,68 @@ func TestSyncVenueTimeout(t *testing.T) {
 	}
 	if got := env.concerts(t, g); !slices.Equal(got, []string{"b:B 2026-12-02 20:00"}) {
 		t.Errorf("concerts = %q, want b's", got)
+	}
+}
+
+// TestSyncPageFields: a listing with times still has its event pages read once, for the price and
+// ticket link they give; the listing's own values win.
+func TestSyncPageFields(t *testing.T) {
+	t.Parallel()
+	page, err := os.ReadFile("../prefill/testdata/belle-electrique-site.html") // 28.11.26 / 20h, 27–32 €, billetterie 747
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := newSyncEnv(t, map[string]string{
+		"/l":   "a|Les Hiboux|2026-11-28|20:00|/e/a\nb|Nova|2026-11-28|21:00|/e/b\n",
+		"/e/a": string(page),
+		"/e/b": string(page), // the same page, but the listing says 21:00: its time wins
+	})
+	g := env.group("g", "belle")
+	v := syncVenue("belle", "/l", true, false)
+	v.Site, v.Ticketing = []string{"www.la-belle-electrique.com"}, []string{"la-belle-electrique.com"}
+	v.Listings = []string{"https://www.la-belle-electrique.com/l"}
+	for run := range 2 {
+		if logs, err := env.sync([]Venue{v}); err != nil || env.site.events != 2 {
+			t.Fatalf("run %d: %v, %d event pages read in all, want 2\n%s", run+1, err, env.site.events, logs)
+		}
+		cs, err := env.st.Concerts(context.Background(), g)
+		if err != nil || len(cs) != 2 {
+			t.Fatalf("run %d: %d concerts, %v", run+1, len(cs), err)
+		}
+		for _, c := range cs {
+			if c.Price != "27–32 €" || c.TicketURL != "https://billetterie.la-belle-electrique.com/agenda/747-Les-Hiboux?session=747" {
+				t.Errorf("run %d: %s: price %q, ticket %q", run+1, c.Artist, c.Price, c.TicketURL)
+			}
+		}
+		if got := env.concerts(t, g); !slices.Equal(got, []string{"belle:Les Hiboux 2026-11-28 20:00", "belle:Nova 2026-11-28 21:00"}) {
+			t.Errorf("run %d: concerts = %q", run+1, got)
+		}
+	}
+}
+
+// TestSyncDetailDeadline: a venue whose deadline passes while reading event pages applies its
+// listing without failing; the pages left wait for the next run.
+func TestSyncDetailDeadline(t *testing.T) {
+	t.Parallel()
+	env := newSyncEnv(t, map[string]string{
+		"/l":   "a|A|2026-12-01||/e/a\nb|B|2026-12-02||/e/b\n",
+		"/e/a": eventPage("2026-12-01T20:00:00+01:00"),
+		"/e/b": eventPage("2026-12-02T20:00:00+01:00"),
+	})
+	g := env.group("g", "l")
+	waits := 0
+	env.sleep = func(context.Context, time.Duration) error {
+		if waits++; waits == 2 { // the wait before /e/b outlives the venue's deadline
+			return context.DeadlineExceeded
+		}
+		return nil
+	}
+	logs, err := env.sync([]Venue{syncVenue("l", "/l", true, false)})
+	if err != nil || !strings.Contains(logs, "event_pages_left=1") {
+		t.Fatalf("Sync = %v, want no failure and one page left\n%s", err, logs)
+	}
+	if got := env.concerts(t, g); !slices.Equal(got, []string{"l:A 2026-12-01 20:00", "l:B 2026-12-02"}) {
+		t.Errorf("concerts = %q", got)
 	}
 }
 
