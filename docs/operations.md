@@ -86,9 +86,9 @@ ssh concerts@server 'bin/admin unfollow-venue <group-id> mc2'   # deletes its im
 ssh concerts@server 'bin/admin sync'                            # run the unit now, then show its log
 ```
 
-- `admin sync` starts `concerts-sync.service`: same sandbox as the timer's runs, it waits for a run in progress instead of starting a second one, and `rollback`/`restore` stop it. A run takes minutes (crawl delays); each venue gets 2 min, the unit 15.
+- `admin sync` starts `concerts-sync.service`: same sandbox as the timer's runs, it waits for a run in progress instead of starting a second one, and `rollback`/`restore` stop it. A run takes minutes (crawl delays); each venue gets 2 min (La Belle Électrique 3), the unit 15.
 - Failed unit, logged as `venue failed` with the venue key and host: the site was down or too slow (`context deadline exceeded`), answered 429/503, or its page changed. Each venue is applied as soon as read, so the others were still imported. One failure is usually transient: the next run retries.
-- `no date on any event page` (with `event page without date` warnings): `prefill` no longer reads that venue's event pages; their times wait, retried each run. Fix `internal/prefill` with a fixture of the page.
+- `no date on any event page` (with `event page without date` warnings): `prefill` no longer reads that venue's event pages; their times, prices and ticket links wait, retried each run. `event_pages_left` above 0 is normal for a few runs after a venue is followed (40 pages a run, about 10 for La Belle Électrique). Fix `internal/prefill` with a fixture of the page.
 - `no upcoming concert` (0 events) means the venue's parser broke, since a venue always lists some. Fix: save the current listing (trimmed to a few items) over `internal/agenda/testdata/<key>.*`, adjust the venue's parser in `internal/agenda/parsers.go` until `go test ./internal/agenda` passes, then deploy. Until then that venue's imports just stop; nothing is deleted.
 - Logs never hold URLs or concerts: per venue and group, counts (`inserted`, `updated`, `duplicate`, `kept`, `full`…). `full` above 0: the group has 400 upcoming concerts, imports wait.
 
