@@ -19,8 +19,11 @@ var siteRules = map[string]func(page) Result{
 	"retourdescene.net":       retourDeScene,
 }
 
-// laSource reads « Date de début » (« 12 mai 2027 20 h 30 min »); the hall is the venue, its footer
-// address the address. Its « Salle » item is the room (« Grande Salle »).
+// laSourceTarif is the price band before the amounts: « Tarif D : », « Tarif E ».
+var laSourceTarif = regexp.MustCompile(`^Tarif [A-Z][ \x{a0}\x{202f}]*:?[ \x{a0}\x{202f}]*`)
+
+// laSource reads « Date de début » (« 12 mai 2027 20 h 30 min »), « Tarif » and the billetterie
+// link; the hall is the venue, its footer address the address. Its « Salle » item is the room (« Grande Salle »).
 func laSource(p page) Result {
 	texts := p.texts
 	i := slices.IndexFunc(texts, func(t text) bool { return strings.EqualFold(t.s, "Date de début") })
@@ -35,6 +38,10 @@ func laSource(p page) Result {
 	if res.Date == "" {
 		return Result{}
 	}
+	if j := slices.IndexFunc(texts, func(t text) bool { return strings.EqualFold(t.s, "Tarif") }); j >= 0 && j+1 < len(texts) {
+		res.Price = textPrice(laSourceTarif.ReplaceAllString(texts[j+1].s, ""))
+	}
+	res.TicketURL = ticketLink(p)
 	for _, t := range texts {
 		if slices.Contains(strings.Fields(t.class), "ls-ico-pin") {
 			res.Address = t.s
@@ -53,32 +60,63 @@ func siteRule(host string) func(page) Result {
 	return siteRules[strings.TrimPrefix(host, "www.")]
 }
 
-// belleTicketHost serves La Belle Électrique's ticketing pages, which carry the Event its venue pages lack.
-const belleTicketHost = "billetterie.la-belle-electrique.com"
+// billetterieLink is a share or agenda link of a venue's billetterie (the same software at La
+// Belle Électrique and La Source): host, id, then slug. Not anchored at the end: an accented slug
+// is cut short, harmless since the billetterie only reads the id.
+var billetterieLink = regexp.MustCompile(`^https://(billetterie\.(?:la-belle-electrique\.com|lasource-fontaine\.fr))/(?:share/event|agenda)/(\d{1,9})-([A-Za-z0-9-]{0,200})`)
 
-// belleTicketLink is a share or agenda link of belleTicketHost: id, then slug. Not anchored at
-// the end: an accented slug is cut short, harmless since the billetterie only reads the id.
-var belleTicketLink = regexp.MustCompile(`^https://billetterie\.la-belle-electrique\.com/(?:share/event|agenda)/(\d{1,9})-([A-Za-z0-9-]{0,200})`)
-
-// belleElectrique finds the venue page's billetterie link (a share link, whose page only
-// meta-refreshes to the agenda one) and rebuilds the agenda URL from its id and slug alone.
-// With links to two ids, none: a sold-out page links its resale site, and must not pick another concert.
-func belleElectrique(p page) Result {
-	var id, slug string
+// ticketLink finds a venue page's billetterie link (a share link, whose page only meta-refreshes
+// to the agenda one, which carries the Event) and rebuilds the agenda URL from its id and slug
+// alone. With links to two ids, none: a sold-out page links its resale site, and must not pick
+// another concert.
+func ticketLink(p page) string {
+	var host, id, slug string
 	for _, l := range p.links {
-		m := belleTicketLink.FindStringSubmatch(l)
+		m := billetterieLink.FindStringSubmatch(l)
 		switch {
 		case m == nil:
 		case id == "":
-			id, slug = m[1], m[2]
-		case m[1] != id:
-			return Result{}
+			host, id, slug = m[1], m[2], m[3]
+		case m[1] != host || m[2] != id:
+			return ""
 		}
 	}
 	if id == "" {
-		return Result{}
+		return ""
 	}
-	return Result{TicketURL: "https://" + belleTicketHost + "/agenda/" + id + "-" + slug + "?session=" + id}
+	return "https://" + host + "/agenda/" + id + "-" + slug + "?session=" + id
+}
+
+// belleDate is the venue page's « 18.11.26 / 20h ».
+var belleDate = regexp.MustCompile(`^(\d\d\.\d\d\.\d\d) / (.+)$`)
+
+// belleElectrique reads the `date-xl` date and time, the price between it and « Billetterie »
+// (not the hero tag before it, nor related events after), and the billetterie link.
+func belleElectrique(p page) Result {
+	res := Result{TicketURL: ticketLink(p)}
+	texts := p.texts
+	i := slices.IndexFunc(texts, func(t text) bool { return slices.Contains(strings.Fields(t.class), "date-xl") })
+	if i < 0 {
+		return res
+	}
+	m := belleDate.FindStringSubmatch(texts[i].s)
+	if m == nil {
+		return res
+	}
+	d, err := time.Parse("02.01.06", m[1])
+	if err != nil {
+		return res
+	}
+	res.Date, res.Time = d.Format(time.DateOnly), FrenchTime(m[2])
+	for _, t := range texts[i+1:] {
+		if t.heading || strings.EqualFold(t.s, "Billetterie") {
+			break
+		}
+		if res.Price = textPrice(t.s); res.Price != "" {
+			break
+		}
+	}
+	return res
 }
 
 // lilyade reads the info items date, time, venue, city: the footer address is the hall's, not the event's.
@@ -154,15 +192,38 @@ func retourDeScene(p page) Result {
 }
 
 var (
-	// rdsPrice is a text of euro amounts only: « 20€/23€ », « 12 € ».
-	rdsPrice   = regexp.MustCompile(`^\d+(?:[.,]\d\d?)?[ \x{a0}\x{202f}]?€(?:[ \x{a0}\x{202f}]?/[ \x{a0}\x{202f}]?\d+(?:[.,]\d\d?)?[ \x{a0}\x{202f}]?€)*$`)
+	// priceText is a text of euro amounts only: « 20€/23€ », « 24 € - 27 € », « 6 à 12 € ».
+	priceText  = regexp.MustCompile(`^\d+(?:[.,]\d\d?)?(?:[ \x{a0}\x{202f}]?€)?(?:[ \x{a0}\x{202f}]*(?:/|-|–|à)[ \x{a0}\x{202f}]*\d+(?:[.,]\d\d?)?(?:[ \x{a0}\x{202f}]?€)?)*$`)
 	euroAmount = regexp.MustCompile(`\d+(?:[.,]\d\d?)?`)
 )
 
-// retourDeSceneAbout reads what follows the « Billetterie » button up to « Lieu »: the price,
-// then the artist blocks (heading, paragraphs), without « Suivre » links or icon glyphs.
+// textPrice reads a venue page's price text: « Gratuit » for one starting so (« GRATUIT – sur
+// réservation »), the range of its amounts for euro amounts only (« 24–29 € »), else "".
+func textPrice(s string) string {
+	if strings.HasPrefix(strings.ToLower(s), "gratuit") {
+		return "Gratuit"
+	}
+	if !strings.HasSuffix(s, "€") || !priceText.MatchString(s) {
+		return ""
+	}
+	var lo, hi float64
+	for _, a := range euroAmount.FindAllString(s, -1) {
+		lo, hi = widen(lo, hi, amount(a))
+	}
+	return formatPrice(lo, hi)
+}
+
+// retourDeSceneAbout reads what follows the « Billetterie » button (or, on a page without one,
+// as micro-lives, the « 19 novembre 2026 – 18h30 » line) up to « Lieu »: the price, then the
+// artist blocks (heading, paragraphs), without « Suivre » links or icon glyphs.
 func retourDeSceneAbout(texts []text) (price, description string) {
 	start := slices.IndexFunc(texts, func(t text) bool { return !t.heading && strings.EqualFold(t.s, "Billetterie") })
+	if start < 0 {
+		start = slices.IndexFunc(texts, func(t text) bool {
+			d, _, ok := strings.Cut(t.s, " – ")
+			return ok && FrenchDate(d) != ""
+		})
+	}
 	if start < 0 {
 		return "", ""
 	}
@@ -176,13 +237,11 @@ func retourDeSceneAbout(texts []text) (price, description string) {
 		if t.s == "Suivre" || !strings.ContainsFunc(t.s, func(r rune) bool { return unicode.In(r, unicode.L, unicode.N) }) {
 			continue
 		}
-		if b.Len() == 0 && price == "" && rdsPrice.MatchString(t.s) {
-			var lo, hi float64
-			for _, s := range euroAmount.FindAllString(t.s, -1) {
-				lo, hi = widen(lo, hi, amount(s))
+		if b.Len() == 0 && price == "" {
+			if price = textPrice(t.s); price != "" {
+				newLine = false
+				continue
 			}
-			price, newLine = formatPrice(lo, hi), false
-			continue
 		}
 		switch {
 		case b.Len() == 0:

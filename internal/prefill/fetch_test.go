@@ -148,7 +148,7 @@ func TestFetchHop(t *testing.T) {
 	t.Parallel()
 	venue, ticket := fixture(t, "belle-electrique-site.html"), fixture(t, "belle-electrique.html")
 	const agenda = "https://billetterie.la-belle-electrique.com/agenda/747-Les-Hiboux?session=747"
-	venueOnly := Result{Artist: "Les Hiboux + Nova Test"}
+	venueOnly := Result{Artist: "Les Hiboux + Nova Test", Date: "2026-11-28", Time: "20:00", Price: "27–32 €"}
 	tests := []struct {
 		name    string
 		serve   func(w http.ResponseWriter, r *http.Request) // the billetterie
@@ -202,5 +202,31 @@ func TestFetchHop(t *testing.T) {
 				t.Errorf("hop error leaks the URL: %v", hopErr)
 			}
 		})
+	}
+}
+
+// TestFetchHopLaSource: a La Source page hops to its billetterie (the same software as La Belle's).
+func TestFetchHopLaSource(t *testing.T) {
+	t.Parallel()
+	venue, ticket := fixture(t, "lasource.html"), fixture(t, "belle-electrique.html")
+	const agenda = "https://billetterie.lasource-fontaine.fr/agenda/1-NOVA-TEST?session=1"
+	client := &http.Client{CheckRedirect: checkRedirect, Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		w := httptest.NewRecorder()
+		w.Header().Set("Content-Type", "text/html")
+		switch r.URL.String() {
+		case "https://lasource-fontaine.fr/event/nova-test/":
+			_, _ = w.Write([]byte(venue))
+		case agenda:
+			_, _ = w.Write([]byte(ticket))
+		default:
+			http.NotFound(w, r)
+		}
+		resp := w.Result()
+		resp.Request = r
+		return resp, nil
+	})}
+	res, hopErr, err := Fetch(context.Background(), client, "https://lasource-fontaine.fr/event/nova-test/", now)
+	if err != nil || hopErr != nil || res.Date != "2027-04-23" || res.TicketURL != agenda {
+		t.Fatalf("Fetch = %+v, %v, %v; want the billetterie's event and link", res, hopErr, err)
 	}
 }
