@@ -3,12 +3,13 @@ GOLANGCI_LINT := bin/golangci-lint-$(GOLANGCI_LINT_VERSION)
 GOVULNCHECK_VERSION := v1.9.0
 
 # Per-machine values (DEPLOY_HOST, ADMIN_HOST…), git-ignored; the command line still overrides them.
--include local.mk
+# The main checkout's, so git worktrees (which lack ignored files) use it too.
+-include $(dir $(shell git rev-parse --path-format=absolute --git-common-dir 2>/dev/null))local.mk
 
 ADDR ?= :8080
 DEMO_DB ?= demo.db
 
-.PHONY: run test lint fmt vuln check build demo verify-ui measure-scroll measure install uninstall deploy rollback
+.PHONY: run test lint fmt vuln check build demo verify-ui measure-scroll measure install uninstall deploy rollback print-deploy-host
 
 run:
 	CONCERTS_BASE_URL=http://localhost:8080 go run ./cmd/concerts serve
@@ -93,10 +94,15 @@ uninstall:
 	$(call as_root,,uninstall.sh $(NAME))
 
 # Uploaded into bin/ itself: same filesystem for an atomic rename, and bin/'s SELinux label.
+# ssh -T: see docs/operations.md, Admin commands.
 deploy: vuln build
 	scp -q bin/concerts $(DEPLOY_HOST):bin/concerts.new
 	scp -q deploy/admin $(DEPLOY_HOST):bin/admin.new
-	ssh $(DEPLOY_HOST) 'chmod 700 bin/admin.new bin/concerts.new && mv bin/admin.new bin/admin && bin/admin deploy'
+	ssh -T $(DEPLOY_HOST) 'chmod 700 bin/admin.new bin/concerts.new && mv bin/admin.new bin/admin && bin/admin deploy'
 
 rollback:
-	ssh $(DEPLOY_HOST) bin/admin rollback
+	ssh -T $(DEPLOY_HOST) bin/admin rollback
+
+# For scripts/admin.
+print-deploy-host:
+	@printf '%s\n' '$(strip $(DEPLOY_HOST))'
