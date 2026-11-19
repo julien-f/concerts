@@ -103,6 +103,18 @@ scripts/admin sync                            # run the unit now, then show its 
 - `no upcoming concert` (0 events) means the venue's parser broke, since a venue always lists some. Fix: save the current listing (trimmed to a few items) over `internal/agenda/testdata/<key>.*`, adjust the venue's parser in `internal/agenda/parsers.go` until `go test ./internal/agenda` passes, then deploy. Until then that venue's imports just stop; nothing is deleted.
 - Logs never hold URLs or concerts: per venue and group, counts (`inserted`, `updated`, `duplicate`, `kept`, `full`…). `full` above 0: the group has 400 upcoming concerts, imports wait.
 
+## Backup
+
+`concerts-backup.timer` writes a consistent snapshot (`VACUUM INTO`) to `backups/concerts-<time>.db` every night and keeps 14 days; one that fails (e.g. full disk) removes its partial file. Copying them off the server is not set up yet: see [later.md](later.md#off-server-backups-and-failure-alerts).
+
+Before a risky step, take one by hand (the file must not exist):
+
+```sh
+scripts/admin backup backups/manual-2026-11-17.db
+```
+
+Only `concerts-*.db` files are pruned: delete manual ones once done, they hold names and answers.
+
 ## Leaked link
 
 ```sh
@@ -116,18 +128,6 @@ scripts/admin rotate-secret <id>  # prints the new link; the old one returns 404
 - Restoring a backup or `make rollback` brings the old secret back: run `rotate-secret` again afterwards.
 - Concert links (`/c/…`) survive the rotation and keep showing their public card; deleting a concert is the only way to cut its link.
 - Once, after first deploying the public concert link ([ADR 0009](decisions/0009-public-concert-link.md)): rotate every group, since concert links posted before it carry the secret.
-
-## Backup
-
-`concerts-backup.timer` writes a consistent snapshot (`VACUUM INTO`) to `backups/concerts-<time>.db` every night and keeps 14 days; one that fails (e.g. full disk) removes its partial file. Copying them off the server is not set up yet: see [later.md](later.md#off-server-backups-and-failure-alerts).
-
-Before a risky step, take one by hand (the file must not exist):
-
-```sh
-scripts/admin backup backups/manual-2026-11-17.db
-```
-
-Only `concerts-*.db` files are pruned: delete manual ones once done, they hold names and answers.
 
 ## Restore a backup
 
