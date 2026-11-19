@@ -51,9 +51,10 @@ func mc2(page *neturl.URL, body []byte, _ string) ([]listed, []*neturl.URL, erro
 		if e.ID <= 0 || !has("musique") || has("humour") || has("cabaret") {
 			continue
 		}
-		var labels []string // « Musique » tells nothing more
+		// « Musique » tells nothing more, except beside « Théâtre », which alone reads as a play.
+		var labels []string
 		for _, c := range e.Categories {
-			if c.Slug != "musique" {
+			if c.Slug != "musique" || has("theatre") {
 				labels = append(labels, html.UnescapeString(c.Name))
 			}
 		}
@@ -120,9 +121,9 @@ func belle(page *neturl.URL, body []byte, _ string) ([]listed, []*neturl.URL, er
 			l.date = d.Format(time.DateOnly)
 		}
 		l.time = prefill.FrenchTime(hour)
-		// « Rock<br>Grande Salle • Concert »: the genre line, then the hall.
+		// « Rock<br>Grande Salle • Concert »: the genre line, then the hall; no <br>, no genre line.
 		var line strings.Builder
-		if h4 := first(card, class("h4")); h4 != nil {
+		if h4 := first(card, class("h4")); h4 != nil && first(h4, tag(atom.Br)) != nil {
 			for c := h4.FirstChild; c != nil && c.DataAtom != atom.Br; c = c.NextSibling {
 				line.WriteString(" " + text(c))
 			}
